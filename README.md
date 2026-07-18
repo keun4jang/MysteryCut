@@ -35,6 +35,22 @@ storyIdeator   scriptWriter   metadataWriter    narrator        Remotion      pu
    - `IG_USER_ID`(인스타 비즈니스 계정 ID), 장기 `IG_ACCESS_TOKEN`
    - (TTS는 키가 필요 없습니다.)
 
+### 인스타 최초 셋업 (한 번만)
+
+인스타 프로 계정을 Facebook 페이지에 연결한 뒤, 아래로 `IG_USER_ID`와
+장기 `IG_ACCESS_TOKEN`을 한 번에 뽑을 수 있습니다:
+
+1. [Graph API Explorer](https://developers.facebook.com/tools/explorer/)에서
+   `instagram_basic, instagram_content_publish, pages_show_list, pages_read_engagement, business_management`
+   권한으로 **사용자 토큰**을 발급.
+2. `.env` 에 `FB_APP_ID`, `FB_APP_SECRET`, `FB_USER_TOKEN`(위 토큰) 입력.
+3. 실행:
+   ```bash
+   npm run setup-instagram
+   ```
+   출력된 `IG_USER_ID` / `IG_ACCESS_TOKEN`(장기)을 `.env` 또는 GitHub Secrets 에 넣으면 끝.
+   (`FB_USER_TOKEN`은 이후 지워도 됩니다.)
+
 ## 로컬 실행
 
 ```bash
