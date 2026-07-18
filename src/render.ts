@@ -1,0 +1,45 @@
+import path from "node:path";
+import fs from "node:fs/promises";
+import { bundle } from "@remotion/bundler";
+import { renderMedia, selectComposition } from "@remotion/renderer";
+import { config } from "./config.js";
+import type { ReelInputProps } from "./types.js";
+
+let cachedServeUrl: string | null = null;
+
+/** Remotion 프로젝트를 번들링 (최초 1회 캐시) */
+async function getServeUrl(): Promise<string> {
+  if (cachedServeUrl) return cachedServeUrl;
+  cachedServeUrl = await bundle({
+    entryPoint: config.paths.remotionEntry,
+    // public/ 의 오디오 등 static 파일을 함께 serve
+    publicDir: config.paths.public,
+  });
+  return cachedServeUrl;
+}
+
+/** 입력 props 로 릴스 mp4 를 렌더하고 파일 경로를 반환 */
+export async function renderReel(
+  inputProps: ReelInputProps,
+  outFile = "reel.mp4",
+): Promise<string> {
+  await fs.mkdir(config.paths.out, { recursive: true });
+  const serveUrl = await getServeUrl();
+
+  const composition = await selectComposition({
+    serveUrl,
+    id: "MysteryReel",
+    inputProps,
+  });
+
+  const outputLocation = path.join(config.paths.out, outFile);
+  await renderMedia({
+    composition,
+    serveUrl,
+    codec: "h264",
+    outputLocation,
+    inputProps,
+  });
+
+  return outputLocation;
+}

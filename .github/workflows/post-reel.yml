@@ -1,0 +1,70 @@
+name: 미스터리 릴스 자동 게시
+
+# 하루 2번(오전/저녁 창) 실행 + 각 실행 시작 시 0~3시간 랜덤 지연 →
+# 매일 게시 시각이 달라져서 자동화 티가 덜 납니다. (모두 무료)
+on:
+  schedule:
+    # UTC 기준. KST = UTC+9.
+    - cron: "0 1 * * *" # 오전 창: 10:00 KST + 랜덤(~13:00)
+    - cron: "0 10 * * *" # 저녁 창: 19:00 KST + 랜덤(~22:00)
+  workflow_dispatch: # 수동 실행(테스트용) — 랜덤 지연 없이 바로 게시
+    inputs:
+      seed:
+        description: "스토리 소재 힌트(선택)"
+        required: false
+        default: ""
+
+concurrency:
+  group: post-reel
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Remotion 헤드리스 렌더에 필요한 시스템 라이브러리
+      - name: Install Chromium system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libnss3 libdbus-1-3 libatk1.0-0 libgbm-dev libasound2 \
+            libxrandr2 libxkbcommon-dev libxfixes3 libxcomposite1 \
+            libxdamage1 libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 스케줄 실행일 때만 0~3시간 랜덤 지연 (수동 실행은 즉시)
+      - name: Random delay (스케줄 실행만)
+        if: github.event_name == 'schedule'
+        run: |
+          DELAY=$((RANDOM % 10800))
+          echo "게시까지 ${DELAY}초 대기 (자연스러운 게시 시각)"
+          sleep $DELAY
+
+      - name: Generate & publish reel
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          TTS_VOICE: ${{ vars.TTS_VOICE }}
+        run: npm run pipeline -- --seed="${{ github.event.inputs.seed }}"
+
+      # 실패 시 산출물 확인용
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-debug
+          path: |
+            out/
+          if-no-files-found: ignore
