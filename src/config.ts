@@ -42,11 +42,21 @@ export const config = {
   },
   // 업로드: Instagram Graph API (무료). 프로페셔널 계정 + Facebook 연동 필요.
   instagram: {
+    graphVersion: process.env.IG_GRAPH_VERSION ?? "v21.0",
     get userId() {
       return required("IG_USER_ID");
     },
     get accessToken() {
       return required("IG_ACCESS_TOKEN");
+    },
+    // 토큰 자동 갱신에만 사용 (Facebook 앱 자격증명)
+    app: {
+      get id() {
+        return required("FB_APP_ID");
+      },
+      get secret() {
+        return required("FB_APP_SECRET");
+      },
     },
   },
   video: {

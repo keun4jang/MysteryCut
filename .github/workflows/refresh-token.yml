@@ -1,0 +1,53 @@
+name: 인스타 토큰 자동 갱신
+
+# 인스타(Facebook) 장기 토큰은 약 60일 후 만료됩니다.
+# 매주 재교환하여 항상 새 60일 토큰으로 유지하고, 저장소 시크릿을 자동 갱신합니다.
+on:
+  schedule:
+    - cron: "0 3 * * 1" # 매주 월요일 03:00 UTC
+  workflow_dispatch: # 수동 갱신(테스트)
+
+concurrency:
+  group: refresh-token
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Refresh long-lived token
+        id: refresh
+        env:
+          FB_APP_ID: ${{ secrets.FB_APP_ID }}
+          FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_GRAPH_VERSION: ${{ vars.IG_GRAPH_VERSION }}
+        run: |
+          NEW_TOKEN="$(npm run --silent refresh-token)"
+          if [ -z "$NEW_TOKEN" ]; then
+            echo "새 토큰을 받지 못했습니다." >&2
+            exit 1
+          fi
+          # 로그에 토큰이 노출되지 않도록 마스킹
+          echo "::add-mask::$NEW_TOKEN"
+          # 파일로 넘겨 다음 스텝에서 사용 (argv 노출 방지)
+          printf '%s' "$NEW_TOKEN" > "$RUNNER_TEMP/ig_token"
+
+      - name: Update repository secret
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }} # Secrets 쓰기 권한 PAT
+        run: |
+          gh secret set IG_ACCESS_TOKEN --repo "$GITHUB_REPOSITORY" < "$RUNNER_TEMP/ig_token"
+          rm -f "$RUNNER_TEMP/ig_token"
+          echo "IG_ACCESS_TOKEN 시크릿을 갱신했습니다."

@@ -57,10 +57,24 @@ npm run studio                    # Remotion 스튜디오로 영상 연출 미�
 저장소 **Settings → Secrets and variables → Actions** 에 등록:
 
 - **Secrets**: `GEMINI_API_KEY`, `IG_USER_ID`, `IG_ACCESS_TOKEN`
-- **Variables**(선택): `GEMINI_MODEL`, `TTS_VOICE`
+- **Variables**(선택): `GEMINI_MODEL`, `TTS_VOICE`, `IG_GRAPH_VERSION`
 
 게시 시간대를 바꾸려면 워크플로의 `cron`(UTC 기준, KST=UTC+9)을 수정하세요.
 수동 테스트는 Actions 탭에서 **Run workflow** 로 즉시 실행할 수 있습니다.
+
+## 인스타 토큰 자동 갱신 (60일 만료 대비)
+
+인스타 장기 토큰은 약 60일 후 만료됩니다. `.github/workflows/refresh-token.yml` 이
+**매주** 토큰을 재발급하고 저장소의 `IG_ACCESS_TOKEN` 시크릿을 자동으로 갱신합니다.
+
+추가로 등록할 **Secrets**:
+
+- `FB_APP_ID`, `FB_APP_SECRET` — Facebook 개발자 앱의 자격증명 (토큰 재교환용)
+- `GH_PAT` — 저장소 시크릿을 쓰기 위한 개인 액세스 토큰
+  (Fine-grained PAT: 대상 저장소에 **Secrets: Read and write** 권한)
+
+> 기본 `GITHUB_TOKEN` 으로는 시크릿을 쓸 수 없어 `GH_PAT` 가 필요합니다.
+> 로컬에서 즉시 갱신해 보려면: `npm run refresh-token` (새 토큰이 출력됩니다).
 
 > 💡 GitHub Actions 무료 한도: 공개 저장소는 무제한, 비공개는 월 2,000분.
 > 짧은 렌더 기준 하루 2개는 비공개에서도 한도 내입니다.

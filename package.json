@@ -9,6 +9,7 @@
     "ideate": "tsx src/index.ts --only=ideate",
     "studio": "remotion studio src/remotion/index.ts",
     "render": "tsx src/render.ts",
+    "refresh-token": "tsx src/tools/refreshInstagramToken.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

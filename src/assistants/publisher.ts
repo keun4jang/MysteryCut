@@ -2,8 +2,9 @@ import fs from "node:fs/promises";
 import { config } from "../config.js";
 import type { ReelMetadata } from "../types.js";
 
-const GRAPH = "https://graph.facebook.com/v21.0";
-const RUPLOAD = "https://rupload.facebook.com/ig-api-upload/v21.0";
+const V = config.instagram.graphVersion;
+const GRAPH = `https://graph.facebook.com/${V}`;
+const RUPLOAD = `https://rupload.facebook.com/ig-api-upload/${V}`;
 
 /**
  * 업로드 어시스트.
