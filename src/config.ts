@@ -40,16 +40,26 @@ export const config = {
     rate: process.env.TTS_RATE ?? "-8%",
     pitch: process.env.TTS_PITCH ?? "-4Hz",
   },
-  // 업로드: Instagram Graph API (무료). 프로페셔널 계정 + Facebook 연동 필요.
+  // 업로드: Instagram Graph API (무료).
+  //  - instagram_login: Instagram Login 방식 (graph.instagram.com, Facebook 페이지 불필요) ← 기본, 더 간단
+  //  - facebook_login : Facebook Login 방식 (graph.facebook.com, 연결된 FB 페이지 필요)
   instagram: {
+    mode: (process.env.IG_API_MODE ?? "instagram_login") as
+      | "instagram_login"
+      | "facebook_login",
     graphVersion: process.env.IG_GRAPH_VERSION ?? "v21.0",
+    get apiBase() {
+      return (process.env.IG_API_MODE ?? "instagram_login") === "facebook_login"
+        ? "https://graph.facebook.com"
+        : "https://graph.instagram.com";
+    },
     get userId() {
       return required("IG_USER_ID");
     },
     get accessToken() {
       return required("IG_ACCESS_TOKEN");
     },
-    // 토큰 자동 갱신에만 사용 (Facebook 앱 자격증명)
+    // 앱 자격증명 (최초 장기 토큰 교환에 사용. Instagram Login 갱신에는 불필요)
     app: {
       get id() {
         return required("FB_APP_ID");

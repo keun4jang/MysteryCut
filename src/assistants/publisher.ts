@@ -3,7 +3,9 @@ import { config } from "../config.js";
 import type { ReelMetadata } from "../types.js";
 
 const V = config.instagram.graphVersion;
-const GRAPH = `https://graph.facebook.com/${V}`;
+// 컨테이너 생성/게시는 모드에 따라 graph.instagram.com 또는 graph.facebook.com
+const GRAPH = `${config.instagram.apiBase}/${V}`;
+// 리줌 업로드 호스트는 두 방식 모두 동일
 const RUPLOAD = `https://rupload.facebook.com/ig-api-upload/${V}`;
 
 /**

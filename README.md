@@ -30,26 +30,33 @@ storyIdeator   scriptWriter   metadataWriter    narrator        Remotion      pu
 
 1. **Node.js 18+**
 2. **Gemini API 키** — https://aistudio.google.com/apikey (무료)
-3. **Instagram 프로페셔널 계정** + Facebook 페이지 연동 + Graph API 토큰
-   - https://developers.facebook.com 앱 생성 → `instagram_content_publish` 권한
-   - `IG_USER_ID`(인스타 비즈니스 계정 ID), 장기 `IG_ACCESS_TOKEN`
+3. **Instagram 프로페셔널 계정**(비즈니스/크리에이터) + 게시 권한 토큰
    - (TTS는 키가 필요 없습니다.)
+
+   두 가지 연동 방식이 있고, 코드는 `IG_API_MODE` 로 전환합니다:
+
+   | 방식 | Facebook 페이지 | 토큰 갱신 |
+   |---|---|---|
+   | **`instagram_login`** (기본·권장) | **불필요** | 토큰만으로 갱신(앱 시크릿 X) |
+   | `facebook_login` | 필요 | 앱 시크릿으로 재교환 |
 
 ### 인스타 최초 셋업 (한 번만)
 
-인스타 프로 계정을 Facebook 페이지에 연결한 뒤, 아래로 `IG_USER_ID`와
-장기 `IG_ACCESS_TOKEN`을 한 번에 뽑을 수 있습니다:
+`IG_USER_ID` 와 장기 `IG_ACCESS_TOKEN` 을 셋업 도구로 한 번에 뽑습니다.
 
+**Instagram Login (권장):**
+1. Meta 앱 대시보드 → **Instagram → API setup with Instagram login → Generate access tokens** 에서 토큰 발급.
+2. `.env` 에 `IG_API_MODE=instagram_login`, `IG_USER_TOKEN`(위 토큰), (선택) `FB_APP_SECRET`(Instagram app secret — 장기 토큰 교환용) 입력.
+3. `npm run setup-instagram` → 출력된 `IG_USER_ID` / `IG_ACCESS_TOKEN` 저장.
+
+**Facebook Login:**
 1. [Graph API Explorer](https://developers.facebook.com/tools/explorer/)에서
    `instagram_basic, instagram_content_publish, pages_show_list, pages_read_engagement, business_management`
-   권한으로 **사용자 토큰**을 발급.
-2. `.env` 에 `FB_APP_ID`, `FB_APP_SECRET`, `FB_USER_TOKEN`(위 토큰) 입력.
-3. 실행:
-   ```bash
-   npm run setup-instagram
-   ```
-   출력된 `IG_USER_ID` / `IG_ACCESS_TOKEN`(장기)을 `.env` 또는 GitHub Secrets 에 넣으면 끝.
-   (`FB_USER_TOKEN`은 이후 지워도 됩니다.)
+   권한으로 사용자 토큰 발급.
+2. `.env` 에 `IG_API_MODE=facebook_login`, `FB_APP_ID`, `FB_APP_SECRET`, `IG_USER_TOKEN`, (선택)`PAGE_NAME` 입력.
+3. `npm run setup-instagram` → 출력값 저장.
+
+(`IG_USER_TOKEN` 은 셋업 후 지워도 됩니다.)
 
 ## 로컬 실행
 
@@ -73,7 +80,7 @@ npm run studio                    # Remotion 스튜디오로 영상 연출 미�
 저장소 **Settings → Secrets and variables → Actions** 에 등록:
 
 - **Secrets**: `GEMINI_API_KEY`, `IG_USER_ID`, `IG_ACCESS_TOKEN`
-- **Variables**(선택): `GEMINI_MODEL`, `TTS_VOICE`, `IG_GRAPH_VERSION`
+- **Variables**(선택): `IG_API_MODE`(instagram_login/facebook_login), `GEMINI_MODEL`, `TTS_VOICE`, `IG_GRAPH_VERSION`
 
 게시 시간대를 바꾸려면 워크플로의 `cron`(UTC 기준, KST=UTC+9)을 수정하세요.
 수동 테스트는 Actions 탭에서 **Run workflow** 로 즉시 실행할 수 있습니다.
@@ -85,9 +92,10 @@ npm run studio                    # Remotion 스튜디오로 영상 연출 미�
 
 추가로 등록할 **Secrets**:
 
-- `FB_APP_ID`, `FB_APP_SECRET` — Facebook 개발자 앱의 자격증명 (토큰 재교환용)
 - `GH_PAT` — 저장소 시크릿을 쓰기 위한 개인 액세스 토큰
   (Fine-grained PAT: 대상 저장소에 **Secrets: Read and write** 권한)
+- `facebook_login` 모드일 때만: `FB_APP_ID`, `FB_APP_SECRET`
+  (`instagram_login` 모드는 갱신에 앱 시크릿이 필요 없습니다.)
 
 > 기본 `GITHUB_TOKEN` 으로는 시크릿을 쓸 수 없어 `GH_PAT` 가 필요합니다.
 > 로컬에서 즉시 갱신해 보려면: `npm run refresh-token` (새 토큰이 출력됩니다).
