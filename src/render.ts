@@ -51,6 +51,11 @@ export async function renderReel(
     codec: "h264",
     outputLocation,
     inputProps,
+    // 용량↓·속도↑ (인스타 업로드용으로 적당한 화질)
+    crf: 24,
+    x264Preset: "veryfast",
+    jpegQuality: 80,
+    concurrency: null, // 사용 가능한 코어 자동 활용
   });
 
   return outputLocation;
