@@ -47,6 +47,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # 무료 TTS (Microsoft Edge 뉴럴 음성)
+      - name: Install edge-tts
+        run: pipx install edge-tts
+
       # 스케줄 실행일 때만 0~3시간 랜덤 지연 (수동 실행은 즉시)
       - name: Random delay (스케줄 실행만)
         if: github.event_name == 'schedule'
