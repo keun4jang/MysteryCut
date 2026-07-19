@@ -11,6 +11,15 @@ function required(name: string): string {
   return v;
 }
 
+/**
+ * 선택 환경변수 읽기. undefined 뿐 아니라 빈 문자열("")도 미설정으로 보고 기본값을 씁니다.
+ * (GitHub Actions 는 미설정 vars 를 빈 문자열로 넘기므로 `?? 기본값` 만으로는 부족)
+ */
+function opt(name: string, fallback: string): string {
+  const v = process.env[name];
+  return v != null && v.trim() !== "" ? v : fallback;
+}
+
 export const paths = {
   root: ROOT,
   /** Remotion static 파일 루트 (렌더 시 이 폴더가 serve 됩니다) */
@@ -23,33 +32,31 @@ export const paths = {
 export const config = {
   paths,
   channel: {
-    language: process.env.CHANNEL_LANGUAGE ?? "한국어",
-    niche: process.env.CHANNEL_NICHE ?? "미스터리, 도시전설, 미해결 사건, 심리 스릴러",
+    language: opt("CHANNEL_LANGUAGE", "한국어"),
+    niche: opt("CHANNEL_NICHE", "미스터리, 도시전설, 미해결 사건, 심리 스릴러"),
   },
   // 스토리·대본·캡션 생성: Google Gemini 무료 등급 (하루 몇 개는 무료 한도 안에서 충분)
   llm: {
     get apiKey() {
       return required("GEMINI_API_KEY");
     },
-    model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+    model: opt("GEMINI_MODEL", "gemini-2.5-flash"),
   },
   // 나레이션: Microsoft Edge TTS (무료, API 키 불필요, 한국어 뉴럴 음성)
   tts: {
-    voice: process.env.TTS_VOICE ?? "ko-KR-SunHiNeural",
+    voice: opt("TTS_VOICE", "ko-KR-SunHiNeural"),
     // 미스터리 톤: 살짝 느리고 낮게
-    rate: process.env.TTS_RATE ?? "-8%",
-    pitch: process.env.TTS_PITCH ?? "-4Hz",
+    rate: opt("TTS_RATE", "-8%"),
+    pitch: opt("TTS_PITCH", "-4Hz"),
   },
   // 업로드: Instagram Graph API (무료).
   //  - instagram_login: Instagram Login 방식 (graph.instagram.com, Facebook 페이지 불필요) ← 기본, 더 간단
   //  - facebook_login : Facebook Login 방식 (graph.facebook.com, 연결된 FB 페이지 필요)
   instagram: {
-    mode: (process.env.IG_API_MODE ?? "instagram_login") as
-      | "instagram_login"
-      | "facebook_login",
-    graphVersion: process.env.IG_GRAPH_VERSION ?? "v21.0",
+    mode: opt("IG_API_MODE", "instagram_login") as "instagram_login" | "facebook_login",
+    graphVersion: opt("IG_GRAPH_VERSION", "v21.0"),
     get apiBase() {
-      return (process.env.IG_API_MODE ?? "instagram_login") === "facebook_login"
+      return opt("IG_API_MODE", "instagram_login") === "facebook_login"
         ? "https://graph.facebook.com"
         : "https://graph.instagram.com";
     },
