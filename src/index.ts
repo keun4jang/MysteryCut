@@ -1,9 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config.js";
-import { ideateStory } from "./assistants/storyIdeator.js";
-import { writeScript } from "./assistants/scriptWriter.js";
-import { writeMetadata } from "./assistants/metadataWriter.js";
+import { writeReelPlan } from "./assistants/producer.js";
 import { narrate } from "./assistants/narrator.js";
 import { attachBroll } from "./assistants/broll.js";
 import { renderReel } from "./render.js";
@@ -23,20 +21,15 @@ import type { ReelInputProps } from "./types.js";
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
-  console.log("① 스토리 구상...");
-  const idea = await ideateStory(args.seed);
+  // 스토리·대본·캡션을 한 번의 LLM 호출로 (Gemini 무료 할당량 절약: 3콜→1콜)
+  console.log("①~③ 스토리·대본·캡션 통합 생성...");
+  const { idea, script, metadata } = await writeReelPlan(args.seed);
   console.log(`   💡 ${idea.title} — ${idea.hook}`);
+  console.log(`   📝 세그먼트 ${script.segments.length}개`);
   if (args.only === "ideate") {
     console.log(JSON.stringify(idea, null, 2));
     return;
   }
-
-  console.log("② 대본 작성...");
-  const script = await writeScript(idea);
-  console.log(`   📝 세그먼트 ${script.segments.length}개`);
-
-  console.log("③ 캡션/해시태그...");
-  const metadata = await writeMetadata(idea, script);
 
   console.log("④ 나레이션(TTS) 합성...");
   const segments = await narrate(script);
