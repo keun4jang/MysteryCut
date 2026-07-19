@@ -14,6 +14,18 @@ async function getServeUrl(): Promise<string> {
     entryPoint: config.paths.remotionEntry,
     // public/ 의 오디오 등 static 파일을 함께 serve
     publicDir: config.paths.public,
+    // ESM `.js` 임포트를 실제 `.ts/.tsx` 로 해석하도록
+    webpackOverride: (c) => ({
+      ...c,
+      resolve: {
+        ...c.resolve,
+        extensionAlias: {
+          ".js": [".ts", ".tsx", ".js"],
+          ".jsx": [".tsx", ".jsx"],
+          ...(c.resolve?.extensionAlias ?? {}),
+        },
+      },
+    }),
   });
   return cachedServeUrl;
 }

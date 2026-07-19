@@ -74,7 +74,7 @@ const Caption: React.FC<{ text: string; color: string }> = ({ text, color }) => 
           transform: `translateY(${y}px)`,
           opacity: enter,
           color,
-          fontFamily: '"Noto Sans KR", system-ui, sans-serif',
+          fontFamily: '"Noto Sans CJK KR", "Noto Sans KR", system-ui, sans-serif',
           fontSize: 72,
           fontWeight: 800,
           lineHeight: 1.35,

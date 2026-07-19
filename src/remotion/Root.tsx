@@ -1,10 +1,12 @@
 import React from "react";
 import { Composition } from "remotion";
-import { config } from "../config.js";
 import type { ReelInputProps } from "../types.js";
 import { MysteryReel } from "./MysteryReel.js";
 
-const FPS = config.video.fps;
+// 브라우저에서 번들되므로 Node 전용 config 를 import 하지 않고 상수로 둔다.
+const FPS = 30;
+const WIDTH = 1080;
+const HEIGHT = 1920;
 
 /** 세그먼트 길이 합으로 전체 프레임 수를 계산 */
 function totalDurationInFrames(segments: ReelInputProps["segments"]): number {
@@ -28,8 +30,8 @@ export const RemotionRoot: React.FC = () => {
       component={MysteryReel}
       durationInFrames={totalDurationInFrames(defaultProps.segments)}
       fps={FPS}
-      width={config.video.width}
-      height={config.video.height}
+      width={WIDTH}
+      height={HEIGHT}
       defaultProps={defaultProps}
       // 렌더 시 넘어온 실제 세그먼트로 길이를 다시 계산
       calculateMetadata={({ props }) => ({
