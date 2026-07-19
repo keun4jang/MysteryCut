@@ -128,11 +128,13 @@ const Caption: React.FC<{ text: string; color: string; fps: number }> = ({
           style={{
             color,
             fontFamily: '"Noto Sans CJK KR", "Noto Sans KR", system-ui, sans-serif',
-            fontSize: 80,
-            fontWeight: 900,
-            lineHeight: 1.3,
+            fontSize: 58,
+            fontWeight: 800,
+            lineHeight: 1.35,
             letterSpacing: "-0.5px",
             textAlign: "center",
+            // 한국어를 단어 중간에서 끊지 않고 띄어쓰기 단위(구절)로 줄바꿈
+            wordBreak: "keep-all",
             textShadow: "0 3px 16px rgba(0,0,0,0.9)",
           }}
         >
