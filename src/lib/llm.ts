@@ -16,18 +16,25 @@ function getAI(): GoogleGenAI {
  */
 const MODEL_CANDIDATES = [
   config.llm.model, // 사용자가 GEMINI_MODEL 로 지정했으면 최우선
-  "gemini-3-flash",
-  "gemini-flash-latest",
   "gemini-2.0-flash",
   "gemini-2.5-flash-lite",
+  "gemini-flash-latest", // 실험판(제한 빡빡) — 최후 후보
 ].filter((v, i, a) => !!v && a.indexOf(v) === i);
 
 let workingModel: string | null = null;
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function statusOf(err: unknown): number | undefined {
+  return (err as { status?: number; code?: number })?.status ?? (err as { code?: number })?.code;
+}
 function isModelMissing(err: unknown): boolean {
-  const status = (err as { status?: number; code?: number })?.status ?? (err as { code?: number })?.code;
   const msg = String((err as { message?: unknown })?.message ?? err);
-  return status === 404 || /not[_ ]?found|no longer available|not supported/i.test(msg);
+  return statusOf(err) === 404 || /not[_ ]?found|no longer available|not supported/i.test(msg);
+}
+function isRateLimited(err: unknown): boolean {
+  const msg = String((err as { message?: unknown })?.message ?? err);
+  return statusOf(err) === 429 || /rate|quota|RESOURCE_EXHAUSTED/i.test(msg);
 }
 
 async function generateText(
@@ -46,18 +53,29 @@ async function generateText(
 
   let lastErr: unknown;
   for (const model of tryModels) {
-    try {
-      const res = await getAI().models.generateContent({ model, contents: user, config: cfg });
-      if (workingModel !== model) {
-        workingModel = model;
-        console.log(`  🤖 Gemini 모델: ${model}`);
+    // 429(요청 한도)면 백오프 후 재시도
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const res = await getAI().models.generateContent({ model, contents: user, config: cfg });
+        if (workingModel !== model) {
+          workingModel = model;
+          console.log(`  🤖 Gemini 모델: ${model}`);
+        }
+        return res.text ?? "";
+      } catch (e) {
+        lastErr = e;
+        if (isRateLimited(e) && attempt < 3) {
+          const wait = [6000, 18000, 45000][attempt];
+          console.log(`  ⏳ Gemini 429 — ${wait / 1000}s 후 재시도 (${model})`);
+          await sleep(wait);
+          continue;
+        }
+        break; // 429 아님(또는 재시도 소진) → 다음 후보 모델로
       }
-      return res.text ?? "";
-    } catch (e) {
-      lastErr = e;
-      if (isModelMissing(e)) continue; // 다음 후보 모델 시도
-      throw e; // 그 외 오류(인증/할당량 등)는 그대로
     }
+    if (isModelMissing(lastErr)) continue; // 모델 없음 → 다음 후보
+    if (isRateLimited(lastErr)) continue; // 한도 지속 → 다른 모델로 분산
+    throw lastErr; // 그 외(인증 등)는 그대로
   }
 
   // 후보 전부 실패 → 계정에서 쓸 수 있는 flash 모델 자동 탐색

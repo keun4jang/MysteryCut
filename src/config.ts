@@ -42,7 +42,7 @@ export const config = {
     get apiKey() {
       return required("GEMINI_API_KEY");
     },
-    model: opt("GEMINI_MODEL", "gemini-3-flash"),
+    model: opt("GEMINI_MODEL", "gemini-2.0-flash"),
   },
   // 나레이션 TTS.
   //  - edge  : Microsoft Edge TTS (무료, 키 불필요) — 기본
