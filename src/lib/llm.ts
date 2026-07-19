@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import type { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { config } from "../config.js";
 
 let ai: GoogleGenAI | null = null;
@@ -29,8 +30,18 @@ function isModelMissing(err: unknown): boolean {
   return status === 404 || /not[_ ]?found|no longer available|not supported/i.test(msg);
 }
 
-async function generateText(system: string, user: string, temperature: number): Promise<string> {
-  const cfg = { systemInstruction: system, responseMimeType: "application/json", temperature };
+async function generateText(
+  system: string,
+  user: string,
+  temperature: number,
+  jsonSchema: Record<string, unknown>,
+): Promise<string> {
+  const cfg = {
+    systemInstruction: system,
+    responseMimeType: "application/json",
+    responseJsonSchema: jsonSchema, // 스키마를 강제해 필수 필드 누락 방지
+    temperature,
+  };
   const tryModels = workingModel ? [workingModel] : [...MODEL_CANDIDATES];
 
   let lastErr: unknown;
@@ -95,10 +106,11 @@ export async function generateStructured<S extends z.ZodType>(opts: {
   const { schema, system, user, temperature = 1.1, maxRetries = 2 } = opts;
   const sys =
     system + "\n\n반드시 유효한 JSON 하나만 출력해라. 코드블록 표시나 설명 문장은 넣지 마라.";
+  const jsonSchema = toJsonSchema(schema);
 
   let lastErr: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const text = await generateText(sys, user, temperature);
+    const text = await generateText(sys, user, temperature, jsonSchema);
     try {
       return schema.parse(JSON.parse(stripFences(text)));
     } catch (e) {
@@ -106,6 +118,13 @@ export async function generateStructured<S extends z.ZodType>(opts: {
     }
   }
   throw new Error(`Gemini 구조화 출력 실패 (${maxRetries + 1}회 시도): ${String(lastErr)}`);
+}
+
+/** zod 스키마 → Gemini responseJsonSchema 용 JSON Schema (ref 인라인, $schema 제거) */
+function toJsonSchema(schema: z.ZodType): Record<string, unknown> {
+  const js = zodToJsonSchema(schema, { $refStrategy: "none" }) as Record<string, unknown>;
+  delete js.$schema;
+  return js;
 }
 
 /** 모델이 ```json 펜스로 감싼 경우 제거 */
