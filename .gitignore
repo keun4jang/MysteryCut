@@ -2,5 +2,6 @@ node_modules/
 .env
 out/
 public/audio/
+public/broll/
 *.log
 .DS_Store

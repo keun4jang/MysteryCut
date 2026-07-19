@@ -25,6 +25,8 @@ export const paths = {
   /** Remotion static 파일 루트 (렌더 시 이 폴더가 serve 됩니다) */
   public: path.join(ROOT, "public"),
   audio: path.join(ROOT, "public", "audio"),
+  broll: path.join(ROOT, "public", "broll"),
+  bgm: path.join(ROOT, "public", "bgm"),
   out: path.join(ROOT, "out"),
   remotionEntry: path.join(ROOT, "src", "remotion", "index.ts"),
 };
@@ -42,12 +44,35 @@ export const config = {
     },
     model: opt("GEMINI_MODEL", "gemini-3-flash"),
   },
-  // 나레이션: Microsoft Edge TTS (무료, API 키 불필요, 한국어 뉴럴 음성)
+  // 나레이션 TTS.
+  //  - edge  : Microsoft Edge TTS (무료, 키 불필요) — 기본
+  //  - google: Google Cloud TTS Neural2 (무료 등급 내, 더 자연스러움) — GOOGLE_TTS_API_KEY 있으면 자동 사용
   tts: {
-    voice: opt("TTS_VOICE", "ko-KR-SunHiNeural"),
-    // 미스터리 톤: 살짝 느리고 낮게
-    rate: opt("TTS_RATE", "-8%"),
-    pitch: opt("TTS_PITCH", "-4Hz"),
+    get provider() {
+      const p = opt("TTS_PROVIDER", "");
+      if (p === "edge" || p === "google") return p;
+      return process.env.GOOGLE_TTS_API_KEY?.trim() ? "google" : "edge";
+    },
+    // edge (미스터리 톤: 낮은 남성 음성, 살짝 느리게)
+    voice: opt("TTS_VOICE", "ko-KR-InJoonNeural"),
+    rate: opt("TTS_RATE", "-10%"),
+    pitch: opt("TTS_PITCH", "-3Hz"),
+    google: {
+      get apiKey() {
+        return required("GOOGLE_TTS_API_KEY");
+      },
+      voice: opt("GOOGLE_TTS_VOICE", "ko-KR-Neural2-C"),
+      speakingRate: Number(opt("GOOGLE_TTS_RATE", "0.92")),
+      pitch: Number(opt("GOOGLE_TTS_PITCH", "-2.0")),
+    },
+  },
+  // 배경 자료화면: Pexels 무료 스톡 (키 없으면 그라디언트 폴백)
+  pexels: {
+    apiKey: opt("PEXELS_API_KEY", ""),
+  },
+  // BGM: public/bgm/ 에 mp3 가 있으면 자동으로 깔림 (볼륨 낮게)
+  bgm: {
+    volume: Number(opt("BGM_VOLUME", "0.14")),
   },
   // 업로드: Instagram Graph API (무료).
   //  - instagram_login: Instagram Login 방식 (graph.instagram.com, Facebook 페이지 불필요) ← 기본, 더 간단

@@ -48,9 +48,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # 무료 TTS (Microsoft Edge 뉴럴 음성)
+      # 무료 TTS (Microsoft Edge 뉴럴 음성) — GOOGLE_TTS_API_KEY 있으면 자동으로 Google TTS 사용
       - name: Install edge-tts
         run: pipx install edge-tts
+
+      # BGM_URL 시크릿/변수가 있으면 내려받아 배경음악으로 사용 (선택)
+      - name: Fetch BGM (optional)
+        env:
+          BGM_URL: ${{ secrets.BGM_URL }}
+        run: |
+          if [ -n "$BGM_URL" ]; then
+            mkdir -p public/bgm
+            curl -sSL --max-time 60 -o public/bgm/track.mp3 "$BGM_URL" \
+              && echo "BGM 다운로드 완료" || echo "BGM 다운로드 실패(무음으로 진행)"
+          else
+            echo "BGM_URL 미설정 — 배경음악 없이 진행"
+          fi
 
       # 스케줄 실행일 때만 0~3시간 랜덤 지연 (수동 실행은 즉시)
       - name: Random delay (스케줄 실행만)
@@ -68,7 +81,13 @@ jobs:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_GRAPH_VERSION: ${{ vars.IG_GRAPH_VERSION }}
+          # 배경 자료화면 (Pexels 무료 스톡)
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          # 나레이션: GOOGLE_TTS_API_KEY 있으면 자연스러운 Google TTS, 없으면 edge-tts
+          GOOGLE_TTS_API_KEY: ${{ secrets.GOOGLE_TTS_API_KEY }}
+          TTS_PROVIDER: ${{ vars.TTS_PROVIDER }}
           TTS_VOICE: ${{ vars.TTS_VOICE }}
+          GOOGLE_TTS_VOICE: ${{ vars.GOOGLE_TTS_VOICE }}
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             echo "🧪 드라이런: 게시 없이 영상만 생성합니다."

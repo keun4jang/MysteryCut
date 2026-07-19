@@ -5,6 +5,7 @@ import { ideateStory } from "./assistants/storyIdeator.js";
 import { writeScript } from "./assistants/scriptWriter.js";
 import { writeMetadata } from "./assistants/metadataWriter.js";
 import { narrate } from "./assistants/narrator.js";
+import { attachBroll } from "./assistants/broll.js";
 import { renderReel } from "./render.js";
 import { publishReel } from "./assistants/publisher.js";
 import type { ReelInputProps } from "./types.js";
@@ -40,10 +41,14 @@ async function main() {
   console.log("④ 나레이션(TTS) 합성...");
   const segments = await narrate(script);
 
+  console.log("④-b 배경 자료화면(Pexels)...");
+  await attachBroll(segments);
+
   const inputProps: ReelInputProps = {
     title: idea.title,
     segments,
     moodKeywords: idea.moodKeywords,
+    bgmSrc: await findBgm(),
   };
 
   // 산출물을 out/ 에 함께 저장 (재현/디버깅용)
@@ -64,6 +69,22 @@ async function main() {
   } else {
     console.log("   ⏭️  업로드 생략 (--no-publish). 영상 파일만 생성했습니다.");
   }
+}
+
+/** public/bgm/ 에 mp3 가 있으면 그 상대경로 반환 (없으면 undefined) */
+async function findBgm(): Promise<string | undefined> {
+  try {
+    const files = await fs.readdir(config.paths.bgm);
+    const mp3 = files.find((f) => f.toLowerCase().endsWith(".mp3"));
+    if (mp3) {
+      console.log(`   🎵 BGM: bgm/${mp3}`);
+      return `bgm/${mp3}`;
+    }
+  } catch {
+    /* bgm 폴더 없음 */
+  }
+  console.log("   🎵 BGM 없음 (public/bgm/ 에 mp3 를 넣으면 자동 적용)");
+  return undefined;
 }
 
 function parseArgs(argv: string[]) {

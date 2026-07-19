@@ -9,14 +9,15 @@ import type { NarratedSegment, ReelScript } from "../types.js";
 const execFileAsync = promisify(execFile);
 
 /**
- * 나레이션(TTS) 어시스트 — Python `edge-tts` CLI (무료, API 키 불필요).
- * Microsoft Edge 뉴럴 음성을 사용하며, 필요한 보안 토큰을 라이브러리가 처리합니다.
- *
- * 사전 설치: pipx install edge-tts   (또는 pip install edge-tts)
+ * 나레이션(TTS) 어시스트.
+ *  - google: Google Cloud TTS Neural2 (무료 등급, 더 자연스러움) — GOOGLE_TTS_API_KEY 필요
+ *  - edge  : Python edge-tts CLI (무료, 키 불필요)   ← 기본
  */
 export async function narrate(script: ReelScript): Promise<NarratedSegment[]> {
   await fs.mkdir(config.paths.audio, { recursive: true });
-  await ensureEdgeTts();
+  const provider = config.tts.provider;
+  if (provider === "edge") await ensureEdgeTts();
+  console.log(`  🔊 TTS 제공자: ${provider}`);
 
   const result: NarratedSegment[] = [];
   for (let i = 0; i < script.segments.length; i++) {
@@ -24,7 +25,8 @@ export async function narrate(script: ReelScript): Promise<NarratedSegment[]> {
     const fileName = `seg-${i}.mp3`;
     const absPath = path.join(config.paths.audio, fileName);
 
-    await synthesizeToFile(seg.text, absPath);
+    if (provider === "google") await synthesizeGoogle(seg.text, absPath);
+    else await synthesizeEdge(seg.text, absPath);
 
     const bytes = await fs.readFile(absPath);
     const meta = await parseBuffer(new Uint8Array(bytes), { mimeType: "audio/mpeg" });
@@ -33,19 +35,44 @@ export async function narrate(script: ReelScript): Promise<NarratedSegment[]> {
     result.push({
       text: seg.text,
       emphasis: seg.emphasis,
-      audioSrc: `audio/${fileName}`, // public/ 기준 상대경로 → staticFile()
+      audioSrc: `audio/${fileName}`,
       durationInSeconds,
+      visualQuery: seg.visualQuery,
     });
     console.log(
       `  🎙️  세그먼트 ${i + 1}/${script.segments.length} (${durationInSeconds.toFixed(1)}s)`,
     );
   }
-
   return result;
 }
 
-/** 한 문장을 edge-tts 로 합성해 파일로 저장 */
-async function synthesizeToFile(text: string, absPath: string): Promise<void> {
+/** Google Cloud TTS (REST + API 키) — 자연스러운 Neural2 음성 */
+async function synthesizeGoogle(text: string, absPath: string): Promise<void> {
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${config.tts.google.apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input: { text },
+        voice: { languageCode: "ko-KR", name: config.tts.google.voice },
+        audioConfig: {
+          audioEncoding: "MP3",
+          speakingRate: config.tts.google.speakingRate,
+          pitch: config.tts.google.pitch,
+        },
+      }),
+    },
+  );
+  const json = (await res.json()) as { audioContent?: string; error?: unknown };
+  if (!res.ok || !json.audioContent) {
+    throw new Error(`Google TTS 실패: ${JSON.stringify(json).slice(0, 300)}`);
+  }
+  await fs.writeFile(absPath, Buffer.from(json.audioContent, "base64"));
+}
+
+/** Python edge-tts CLI */
+async function synthesizeEdge(text: string, absPath: string): Promise<void> {
   await execFileAsync("edge-tts", [
     "--voice",
     config.tts.voice,
@@ -58,7 +85,6 @@ async function synthesizeToFile(text: string, absPath: string): Promise<void> {
   ]);
 }
 
-/** edge-tts 설치 여부 확인 (없으면 안내) */
 async function ensureEdgeTts(): Promise<void> {
   try {
     await execFileAsync("edge-tts", ["--list-voices"]);

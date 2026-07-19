@@ -31,6 +31,8 @@ export const ReelScriptSchema = z.object({
       text: z.string(),
       /** 화면 강조용(선택) — 이 세그먼트의 감정/톤 */
       emphasis: z.enum(["normal", "tension", "reveal"]).default("normal"),
+      /** 이 장면의 배경 스톡 검색어 (영어, Pexels 검색용). 예: "foggy dark forest night" */
+      visualQuery: z.string(),
     }),
   ),
 });
@@ -45,13 +47,16 @@ export const ReelMetadataSchema = z.object({
 });
 export type ReelMetadata = z.infer<typeof ReelMetadataSchema>;
 
-/** 나레이션 완료된 세그먼트 (오디오 경로 + 길이) */
+/** 나레이션 완료된 세그먼트 (오디오 경로 + 길이 + 배경) */
 export interface NarratedSegment {
   text: string;
   emphasis: "normal" | "tension" | "reveal";
   /** public/ 기준 상대경로 (예: audio/seg-0.mp3) — staticFile() 로 참조 */
   audioSrc: string;
   durationInSeconds: number;
+  visualQuery: string;
+  /** 배경 이미지 public/ 상대경로 (예: broll/seg-0.jpg). 없으면 그라디언트 폴백 */
+  bgSrc?: string;
 }
 
 /** Remotion 컴포지션 입력 props */
@@ -59,6 +64,8 @@ export interface ReelInputProps {
   title: string;
   segments: NarratedSegment[];
   moodKeywords: string[];
+  /** BGM public/ 상대경로 (예: bgm/track.mp3). 없으면 무음 */
+  bgmSrc?: string;
   // Remotion Composition props 는 인덱스 시그니처(Record<string, unknown>)를 요구
   [key: string]: unknown;
 }
