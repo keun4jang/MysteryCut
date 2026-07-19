@@ -19,6 +19,18 @@ export async function narrate(script: ReelScript): Promise<NarratedSegment[]> {
   if (provider === "edge") await ensureEdgeTts();
   console.log(`  🔊 TTS 제공자: ${provider}`);
 
+  // Google TTS 무료 한도 보호: 영상 1개당 글자수 상한
+  if (provider === "google") {
+    const totalChars = script.segments.reduce((a, s) => a + s.text.length, 0);
+    const cap = config.tts.google.maxCharsPerRun;
+    console.log(`  🔒 Google TTS 글자수 ${totalChars} / 상한 ${cap}`);
+    if (totalChars > cap) {
+      throw new Error(
+        `Google TTS 안전 한도 초과: 이번 영상 ${totalChars}자 > 상한 ${cap}자. 무료 한도 보호를 위해 중단합니다.`,
+      );
+    }
+  }
+
   const result: NarratedSegment[] = [];
   for (let i = 0; i < script.segments.length; i++) {
     const seg = script.segments[i];

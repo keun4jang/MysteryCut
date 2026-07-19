@@ -64,6 +64,8 @@ export const config = {
       voice: opt("GOOGLE_TTS_VOICE", "ko-KR-Neural2-C"),
       speakingRate: Number(opt("GOOGLE_TTS_RATE", "0.92")),
       pitch: Number(opt("GOOGLE_TTS_PITCH", "-2.0")),
+      // 무료 한도(월 100만 자) 보호: 영상 1개당 글자수 상한 (2/day 기준 월 90만 자 미만)
+      maxCharsPerRun: Number(opt("GOOGLE_TTS_MAX_CHARS", "15000")),
     },
   },
   // 배경 자료화면: Pexels 무료 스톡 (키 없으면 그라디언트 폴백)
