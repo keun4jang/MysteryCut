@@ -7,12 +7,17 @@ on:
     # UTC 기준. KST = UTC+9.
     - cron: "0 1 * * *" # 오전 창: 10:00 KST + 랜덤(~13:00)
     - cron: "0 10 * * *" # 저녁 창: 19:00 KST + 랜덤(~22:00)
-  workflow_dispatch: # 수동 실행(테스트용) — 랜덤 지연 없이 바로 게시
+  workflow_dispatch: # 수동 실행(테스트용) — 랜덤 지연 없이 바로 실행
     inputs:
       seed:
         description: "스토리 소재 힌트(선택)"
         required: false
         default: ""
+      dry_run:
+        description: "게시 없이 영상만 생성(검증용)"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: post-reel
@@ -59,14 +64,20 @@ jobs:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_GRAPH_VERSION: ${{ vars.IG_GRAPH_VERSION }}
           TTS_VOICE: ${{ vars.TTS_VOICE }}
-        run: npm run pipeline -- --seed="${{ github.event.inputs.seed }}"
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "🧪 드라이런: 게시 없이 영상만 생성합니다."
+            npm run pipeline -- --no-publish --seed="${{ github.event.inputs.seed }}"
+          else
+            npm run pipeline -- --seed="${{ github.event.inputs.seed }}"
+          fi
 
-      # 실패 시 산출물 확인용
-      - name: Upload artifacts on failure
-        if: failure()
+      # 드라이런이거나 실패 시 산출물(영상/JSON) 업로드해서 확인
+      - name: Upload artifacts
+        if: ${{ failure() || github.event.inputs.dry_run == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: reel-debug
+          name: reel-output
           path: |
             out/
           if-no-files-found: ignore
