@@ -53,10 +53,12 @@ export const config = {
       if (p === "edge" || p === "google") return p;
       return process.env.GOOGLE_TTS_API_KEY?.trim() ? "google" : "edge";
     },
-    // edge (미스터리 톤: 낮은 남성 음성, 살짝 느리게)
+    // edge (미스터리 톤: 낮고 묵직한 남성 음성, 또박또박 빠른 편)
+    //  - rate +8%: -10% 균일 스트레치는 로봇/멍한 톤의 주범이라 오히려 살짝 빠르게
+    //  - pitch -4Hz: InJoon 은 원래 저음, 더 낮춰 무게감(어두운 미스터리 톤)
     voice: opt("TTS_VOICE", "ko-KR-InJoonNeural"),
-    rate: opt("TTS_RATE", "-10%"),
-    pitch: opt("TTS_PITCH", "-3Hz"),
+    rate: opt("TTS_RATE", "+8%"),
+    pitch: opt("TTS_PITCH", "-4Hz"),
     google: {
       get apiKey() {
         return required("GOOGLE_TTS_API_KEY");
@@ -72,9 +74,10 @@ export const config = {
   pexels: {
     apiKey: opt("PEXELS_API_KEY", ""),
   },
-  // BGM: public/bgm/ 에 mp3 가 있으면 자동으로 깔림 (볼륨 낮게)
+  // BGM: public/bgm/ 에 mp3 가 있으면 자동으로 깔림. 기본 eerie.mp3(저장소 포함)가 항상 재생됨.
+  // (실제 믹스 볼륨은 MysteryReel.tsx 의 BGM_VOLUME 상수에서 적용)
   bgm: {
-    volume: Number(opt("BGM_VOLUME", "0.14")),
+    volume: Number(opt("BGM_VOLUME", "0.22")),
   },
   // 업로드: Instagram Graph API (무료).
   //  - instagram_login: Instagram Login 방식 (graph.instagram.com, Facebook 페이지 불필요) ← 기본, 더 간단

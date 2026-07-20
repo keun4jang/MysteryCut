@@ -67,7 +67,7 @@ async function main() {
 /** public/bgm/ 에 mp3 가 있으면 그 상대경로 반환 (없으면 undefined) */
 async function findBgm(): Promise<string | undefined> {
   try {
-    const files = await fs.readdir(config.paths.bgm);
+    const files = (await fs.readdir(config.paths.bgm)).sort(); // 결정적 선택(override 는 앞 글자로 우선)
     const mp3 = files.find((f) => f.toLowerCase().endsWith(".mp3"));
     if (mp3) {
       console.log(`   🎵 BGM: bgm/${mp3}`);

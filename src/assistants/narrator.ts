@@ -35,10 +35,15 @@ export async function narrate(script: ReelScript): Promise<NarratedSegment[]> {
   for (let i = 0; i < script.segments.length; i++) {
     const seg = script.segments[i];
     const fileName = `seg-${i}.mp3`;
+    const rawPath = path.join(config.paths.audio, `seg-${i}.raw.mp3`);
     const absPath = path.join(config.paths.audio, fileName);
 
-    if (provider === "google") await synthesizeGoogle(seg.text, absPath);
-    else await synthesizeEdge(seg.text, absPath);
+    if (provider === "google") await synthesizeGoogle(seg.text, rawPath);
+    else await synthesizeEdge(seg.text, rawPath);
+
+    // 문장 앞뒤 무음(edge-tts 패딩) 제거 → 문장 사이 로봇 같은 공백 없앰.
+    // 사이 '숨'은 Remotion 타임라인에서 일정 간격으로 다시 넣는다(timing.ts).
+    await trimSilence(rawPath, absPath);
 
     const bytes = await fs.readFile(absPath);
     const meta = await parseBuffer(new Uint8Array(bytes), { mimeType: "audio/mpeg" });
@@ -56,6 +61,37 @@ export async function narrate(script: ReelScript): Promise<NarratedSegment[]> {
     );
   }
   return result;
+}
+
+/**
+ * 오디오 앞뒤 무음을 잘라낸다(양끝 80ms 는 자음 어택 보호용으로 남김).
+ * ffmpeg 2-패스: 앞 트림 → 뒤집어 뒤 트림 → 원복. ffmpeg 가 없거나 실패하면 원본을 그대로 쓴다.
+ */
+async function trimSilence(src: string, dst: string): Promise<void> {
+  const filter =
+    "silenceremove=start_periods=1:start_silence=0.08:start_threshold=-45dB:detection=peak," +
+    "areverse," +
+    "silenceremove=start_periods=1:start_silence=0.08:start_threshold=-45dB:detection=peak," +
+    "areverse";
+  try {
+    await execFileAsync("ffmpeg", [
+      "-y",
+      "-i",
+      src,
+      "-af",
+      filter,
+      "-c:a",
+      "libmp3lame",
+      "-q:a",
+      "2",
+      dst,
+    ]);
+    // 트리밍이 과해 사실상 비면(전부 무음 등) 원본으로 폴백
+    const st = await fs.stat(dst);
+    if (st.size < 512) throw new Error("트리밍 결과가 비정상적으로 작음");
+  } catch {
+    await fs.copyFile(src, dst); // ffmpeg 미설치/실패 → 원본 사용(파이프라인 계속)
+  }
 }
 
 /** Google Cloud TTS (REST + API 키) — 자연스러운 Neural2 음성 */
