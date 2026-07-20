@@ -36,6 +36,19 @@ function isRateLimited(err: unknown): boolean {
   const msg = String((err as { message?: unknown })?.message ?? err);
   return statusOf(err) === 429 || /rate|quota|RESOURCE_EXHAUSTED/i.test(msg);
 }
+/** 일시적 서버 혼잡(503 UNAVAILABLE / 500). 잠시 후 또는 다른 모델로 재시도 가능. */
+function isTransient(err: unknown): boolean {
+  const s = statusOf(err);
+  const msg = String((err as { message?: unknown })?.message ?? err);
+  return s === 503 || s === 500 || /UNAVAILABLE|high demand|overloaded|internal error/i.test(msg);
+}
+/** 재시도해볼 가치가 있는 오류(한도·혼잡·모델없음) — 인증 오류 등은 즉시 실패 */
+function isRetryable(err: unknown): boolean {
+  return isRateLimited(err) || isTransient(err) || isModelMissing(err);
+}
+
+// 라운드별 대기: 1라운드는 대기 없이 전 모델을 즉시 한 번씩 시도 → 작동 모델을 초 단위로 발견
+const ROUND_BACKOFF_MS = [0, 8000, 25000, 50000];
 
 async function generateText(
   system: string,
@@ -49,12 +62,18 @@ async function generateText(
     responseJsonSchema: jsonSchema, // 스키마를 강제해 필수 필드 누락 방지
     temperature,
   };
-  const tryModels = workingModel ? [workingModel] : [...MODEL_CANDIDATES];
+  const candidates = workingModel ? [workingModel, ...MODEL_CANDIDATES] : [...MODEL_CANDIDATES];
+  const dead = new Set<string>(); // 404(존재하지 않음) 모델은 이후 라운드에서 건너뜀
 
   let lastErr: unknown;
-  for (const model of tryModels) {
-    // 429(요청 한도)면 백오프 후 재시도
-    for (let attempt = 0; attempt < 4; attempt++) {
+  for (let round = 0; round < ROUND_BACKOFF_MS.length; round++) {
+    const wait = ROUND_BACKOFF_MS[round];
+    if (wait > 0) {
+      console.log(`  ⏳ Gemini 전 후보 혼잡/한도 — ${wait / 1000}s 후 재시도 (라운드 ${round + 1})`);
+      await sleep(wait);
+    }
+    for (const model of candidates) {
+      if (dead.has(model)) continue;
       try {
         const res = await getAI().models.generateContent({ model, contents: user, config: cfg });
         if (workingModel !== model) {
@@ -64,27 +83,33 @@ async function generateText(
         return res.text ?? "";
       } catch (e) {
         lastErr = e;
-        if (isRateLimited(e) && attempt < 3) {
-          const wait = [6000, 18000, 45000][attempt];
-          console.log(`  ⏳ Gemini 429 — ${wait / 1000}s 후 재시도 (${model})`);
-          await sleep(wait);
+        if (isModelMissing(e)) {
+          dead.add(model); // 존재하지 않는 모델 — 재시도 안 함
+          if (workingModel === model) workingModel = null;
           continue;
         }
-        break; // 429 아님(또는 재시도 소진) → 다음 후보 모델로
+        if (isRateLimited(e) || isTransient(e)) {
+          if (workingModel === model) workingModel = null;
+          continue; // 다음 후보 모델로 즉시
+        }
+        throw e; // 인증 등 치명적 오류는 즉시 실패
       }
     }
-    if (isModelMissing(lastErr)) continue; // 모델 없음 → 다음 후보
-    if (isRateLimited(lastErr)) continue; // 한도 지속 → 다른 모델로 분산
-    throw lastErr; // 그 외(인증 등)는 그대로
+    // 이번 라운드 전 후보 실패 — 재시도 불가한 오류였다면 중단
+    if (!isRetryable(lastErr)) break;
   }
 
   // 후보 전부 실패 → 계정에서 쓸 수 있는 flash 모델 자동 탐색
   const discovered = await discoverFlashModel();
-  if (discovered) {
-    const res = await getAI().models.generateContent({ model: discovered, contents: user, config: cfg });
-    workingModel = discovered;
-    console.log(`  🤖 Gemini 모델(자동탐색): ${discovered}`);
-    return res.text ?? "";
+  if (discovered && !dead.has(discovered)) {
+    try {
+      const res = await getAI().models.generateContent({ model: discovered, contents: user, config: cfg });
+      workingModel = discovered;
+      console.log(`  🤖 Gemini 모델(자동탐색): ${discovered}`);
+      return res.text ?? "";
+    } catch (e) {
+      lastErr = e;
+    }
   }
   throw lastErr ?? new Error("사용 가능한 Gemini 모델을 찾지 못했습니다.");
 }
