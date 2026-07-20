@@ -53,11 +53,11 @@ export const config = {
       if (p === "edge" || p === "google") return p;
       return process.env.GOOGLE_TTS_API_KEY?.trim() ? "google" : "edge";
     },
-    // edge (미스터리 톤: 낮고 묵직한 남성 음성, 또박또박 빠른 편)
-    //  - rate +8%: -10% 균일 스트레치는 로봇/멍한 톤의 주범이라 오히려 살짝 빠르게
+    // edge (미스터리 톤: 낮고 묵직한 남성 음성, 차분한 보통 속도)
+    //  - rate 0%: +8% 는 너무 빨라서 보통 속도로. (-10% 처럼 크게 늘리면 로봇 톤)
     //  - pitch -4Hz: InJoon 은 원래 저음, 더 낮춰 무게감(어두운 미스터리 톤)
     voice: opt("TTS_VOICE", "ko-KR-InJoonNeural"),
-    rate: opt("TTS_RATE", "+8%"),
+    rate: opt("TTS_RATE", "+0%"),
     pitch: opt("TTS_PITCH", "-4Hz"),
     google: {
       get apiKey() {
@@ -65,7 +65,7 @@ export const config = {
       },
       // 낮고 묵직한 남성 톤(ko-KR-Neural2-C), edge 와 동일하게 살짝 빠르고 더 낮게
       voice: opt("GOOGLE_TTS_VOICE", "ko-KR-Neural2-C"),
-      speakingRate: Number(opt("GOOGLE_TTS_RATE", "1.08")), // 1.0=보통, 살짝 빠르게
+      speakingRate: Number(opt("GOOGLE_TTS_RATE", "1.0")), // 1.0=보통 속도
       pitch: Number(opt("GOOGLE_TTS_PITCH", "-4.0")), // 반음 단위, 더 낮고 무겁게
       // 무료 한도(월 100만 자) 보호: 영상 1개당 글자수 상한 (2/day 기준 월 9만 자 수준)
       maxCharsPerRun: Number(opt("GOOGLE_TTS_MAX_CHARS", "15000")),

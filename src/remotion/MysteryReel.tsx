@@ -18,8 +18,8 @@ const EMPHASIS_COLOR: Record<NarratedSegment["emphasis"], string> = {
   tension: "#ffd76b",
   reveal: "#ff5a5a",
 };
-// 어두운 미스터리 배경음(항상 깔리도록) — 나레이션보다 확실히 아래지만 들리는 레벨
-const BGM_VOLUME = 0.22;
+// 어두운 미스터리 배경음(항상 깔리도록) — 나레이션보다 아래지만 확실히 들리는 레벨
+const BGM_VOLUME = 0.3;
 
 /** 미스터리 릴스: 배경 자료화면(켄번즈) + 어두운 오버레이 + 자막 + 나레이션 + BGM */
 export const MysteryReel: React.FC<ReelInputProps> = ({ segments, bgmSrc }) => {
