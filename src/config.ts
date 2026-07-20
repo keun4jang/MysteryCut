@@ -113,8 +113,10 @@ export const config = {
   // 업로드: YouTube Data API v3 (무료, Shorts 자동 분류). OAuth 필요.
   //  YT_CLIENT_ID / YT_CLIENT_SECRET / YT_REFRESH_TOKEN 이 모두 있으면 자동으로 유튜브에도 게시.
   youtube: {
-    // 세 값이 모두 있어야 활성화 (하나라도 없으면 유튜브 업로드 건너뜀)
+    // 세 값이 모두 있어야 활성화 (하나라도 없으면 유튜브 업로드 건너뜀).
+    // SKIP_YOUTUBE=1 이면(인스타만 테스트할 때) 유튜브 게시 생략.
     get enabled() {
+      if (process.env.SKIP_YOUTUBE?.trim() && process.env.SKIP_YOUTUBE !== "false") return false;
       return Boolean(
         process.env.YT_CLIENT_ID?.trim() &&
           process.env.YT_CLIENT_SECRET?.trim() &&

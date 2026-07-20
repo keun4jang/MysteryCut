@@ -18,10 +18,19 @@ on:
         type: boolean
         required: false
         default: false
+      skip_youtube:
+        description: "유튜브 업로드 생략(인스타만 테스트)"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: post-reel
   cancel-in-progress: false
+
+# 인스타 업로드용 임시 공개 호스팅(릴리스 생성/삭제)에 필요
+permissions:
+  contents: write
 
 jobs:
   post:
@@ -95,6 +104,10 @@ jobs:
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           YT_PRIVACY: ${{ vars.YT_PRIVACY }}
           YT_CATEGORY_ID: ${{ vars.YT_CATEGORY_ID }}
+          # 인스타 업로드용 임시 공개 호스팅(GitHub 릴리스)에 사용
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 유튜브 생략 옵션(인스타만 테스트할 때)
+          SKIP_YOUTUBE: ${{ github.event.inputs.skip_youtube }}
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             echo "🧪 드라이런: 게시 없이 영상만 생성합니다."
