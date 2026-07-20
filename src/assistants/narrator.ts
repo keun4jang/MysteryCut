@@ -94,29 +94,51 @@ async function trimSilence(src: string, dst: string): Promise<void> {
   }
 }
 
-/** Google Cloud TTS (REST + API 키) — 자연스러운 Neural2 음성 */
+/** Google Cloud TTS (REST + API 키). Chirp3-HD 딥보이스 우선, 실패 시 Neural2 폴백 */
 async function synthesizeGoogle(text: string, absPath: string): Promise<void> {
+  const g = config.tts.google;
+  try {
+    const audio = await googleSynthOnce(text, g.voice);
+    await fs.writeFile(absPath, Buffer.from(audio, "base64"));
+  } catch (e) {
+    // Chirp3-HD 음성이 실패(미지원/오류)하면 남성 Neural2 로 폴백
+    if (g.fallbackVoice && g.fallbackVoice !== g.voice) {
+      console.log(`  ⚠️ Google TTS(${g.voice}) 실패 → ${g.fallbackVoice} 로 폴백`);
+      const audio = await googleSynthOnce(text, g.fallbackVoice);
+      await fs.writeFile(absPath, Buffer.from(audio, "base64"));
+    } else {
+      throw e;
+    }
+  }
+}
+
+/** 단일 음성으로 Google TTS 1회 호출 → base64 오디오. Chirp3-HD 는 pitch 미지원이라 제외 */
+async function googleSynthOnce(text: string, voice: string): Promise<string> {
+  const g = config.tts.google;
+  const isChirp = /chirp/i.test(voice);
+  const audioConfig: Record<string, unknown> = {
+    audioEncoding: "MP3",
+    speakingRate: g.speakingRate,
+  };
+  if (!isChirp) audioConfig.pitch = g.pitch; // Chirp3-HD 는 pitch 파라미터 미지원
+
   const res = await fetch(
-    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${config.tts.google.apiKey}`,
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${g.apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         input: { text },
-        voice: { languageCode: "ko-KR", name: config.tts.google.voice },
-        audioConfig: {
-          audioEncoding: "MP3",
-          speakingRate: config.tts.google.speakingRate,
-          pitch: config.tts.google.pitch,
-        },
+        voice: { languageCode: "ko-KR", name: voice },
+        audioConfig,
       }),
     },
   );
   const json = (await res.json()) as { audioContent?: string; error?: unknown };
   if (!res.ok || !json.audioContent) {
-    throw new Error(`Google TTS 실패: ${JSON.stringify(json).slice(0, 300)}`);
+    throw new Error(`Google TTS 실패(${voice}): ${JSON.stringify(json).slice(0, 300)}`);
   }
-  await fs.writeFile(absPath, Buffer.from(json.audioContent, "base64"));
+  return json.audioContent;
 }
 
 /** Python edge-tts CLI */

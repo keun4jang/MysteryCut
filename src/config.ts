@@ -63,10 +63,13 @@ export const config = {
       get apiKey() {
         return required("GOOGLE_TTS_API_KEY");
       },
-      // 낮고 묵직한 남성 톤(ko-KR-Neural2-C), edge 와 동일하게 살짝 빠르고 더 낮게
-      voice: opt("GOOGLE_TTS_VOICE", "ko-KR-Neural2-C"),
-      speakingRate: Number(opt("GOOGLE_TTS_RATE", "1.0")), // 1.0=보통 속도
-      pitch: Number(opt("GOOGLE_TTS_PITCH", "-4.0")), // 반음 단위, 더 낮고 무겁게
+      // 저음 남성 딥보이스: Google 최신 Chirp3-HD Charon(묵직한 남성).
+      //  - Chirp3-HD 는 pitch 파라미터 미지원 → narrator 가 자동으로 pitch 를 빼고 요청.
+      //  - 실패 시 남성 Neural2-C(pitch 지원)로 자동 폴백.
+      voice: opt("GOOGLE_TTS_VOICE", "ko-KR-Chirp3-HD-Charon"),
+      fallbackVoice: opt("GOOGLE_TTS_FALLBACK_VOICE", "ko-KR-Neural2-C"),
+      speakingRate: Number(opt("GOOGLE_TTS_RATE", "0.96")), // 살짝 느리고 무게감 있게
+      pitch: Number(opt("GOOGLE_TTS_PITCH", "-4.0")), // 반음 단위(Chirp3-HD 엔 미적용)
       // 무료 한도(월 100만 자) 보호: 영상 1개당 글자수 상한 (2/day 기준 월 9만 자 수준)
       maxCharsPerRun: Number(opt("GOOGLE_TTS_MAX_CHARS", "15000")),
     },
