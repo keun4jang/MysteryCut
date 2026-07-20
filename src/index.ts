@@ -6,6 +6,7 @@ import { narrate } from "./assistants/narrator.js";
 import { attachBroll } from "./assistants/broll.js";
 import { renderReel } from "./render.js";
 import { publishReel } from "./assistants/publisher.js";
+import { publishYouTube } from "./assistants/youtubePublisher.js";
 import type { ReelInputProps } from "./types.js";
 
 /**
@@ -56,9 +57,32 @@ async function main() {
   console.log(`   🎬 ${videoPath}`);
 
   if (args.publish) {
+    // 인스타·유튜브를 각각 독립 게시 (한쪽이 실패해도 다른 쪽은 진행)
+    let anyFail = false;
+
     console.log("⑥ 인스타그램 업로드...");
-    const { mediaId } = await publishReel(videoPath, metadata);
-    console.log(`   ✅ 게시 완료 (media id: ${mediaId})`);
+    try {
+      const { mediaId } = await publishReel(videoPath, metadata);
+      console.log(`   ✅ 인스타 게시 완료 (media id: ${mediaId})`);
+    } catch (e) {
+      anyFail = true;
+      console.error(`   ❌ 인스타 게시 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    if (config.youtube.enabled) {
+      console.log("⑦ 유튜브 업로드...");
+      try {
+        const { videoId } = await publishYouTube(videoPath, idea, metadata);
+        console.log(`   ✅ 유튜브 게시 완료: https://youtu.be/${videoId}`);
+      } catch (e) {
+        anyFail = true;
+        console.error(`   ❌ 유튜브 게시 실패: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    } else {
+      console.log("   ⏭️  유튜브 미설정(YT_CLIENT_ID/SECRET/REFRESH_TOKEN) — 유튜브 게시 건너뜀");
+    }
+
+    if (anyFail) process.exitCode = 1; // 하나라도 실패하면 워크플로가 알 수 있게
   } else {
     console.log("   ⏭️  업로드 생략 (--no-publish). 영상 파일만 생성했습니다.");
   }

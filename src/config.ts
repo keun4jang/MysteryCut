@@ -110,6 +110,30 @@ export const config = {
       },
     },
   },
+  // 업로드: YouTube Data API v3 (무료, Shorts 자동 분류). OAuth 필요.
+  //  YT_CLIENT_ID / YT_CLIENT_SECRET / YT_REFRESH_TOKEN 이 모두 있으면 자동으로 유튜브에도 게시.
+  youtube: {
+    // 세 값이 모두 있어야 활성화 (하나라도 없으면 유튜브 업로드 건너뜀)
+    get enabled() {
+      return Boolean(
+        process.env.YT_CLIENT_ID?.trim() &&
+          process.env.YT_CLIENT_SECRET?.trim() &&
+          process.env.YT_REFRESH_TOKEN?.trim(),
+      );
+    },
+    get clientId() {
+      return required("YT_CLIENT_ID");
+    },
+    get clientSecret() {
+      return required("YT_CLIENT_SECRET");
+    },
+    get refreshToken() {
+      return required("YT_REFRESH_TOKEN");
+    },
+    // public | unlisted | private (첫 테스트는 unlisted 권장)
+    privacyStatus: opt("YT_PRIVACY", "public"),
+    categoryId: opt("YT_CATEGORY_ID", "24"), // 24 = Entertainment
+  },
   video: {
     width: 1080,
     height: 1920,

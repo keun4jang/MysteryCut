@@ -89,6 +89,12 @@ jobs:
           TTS_PROVIDER: ${{ vars.TTS_PROVIDER }}
           TTS_VOICE: ${{ vars.TTS_VOICE }}
           GOOGLE_TTS_VOICE: ${{ vars.GOOGLE_TTS_VOICE }}
+          # 유튜브 업로드 (세 값이 모두 있으면 자동으로 유튜브에도 게시)
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_PRIVACY: ${{ vars.YT_PRIVACY }}
+          YT_CATEGORY_ID: ${{ vars.YT_CATEGORY_ID }}
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             echo "🧪 드라이런: 게시 없이 영상만 생성합니다."
