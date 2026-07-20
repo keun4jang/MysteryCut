@@ -63,10 +63,11 @@ export const config = {
       get apiKey() {
         return required("GOOGLE_TTS_API_KEY");
       },
+      // 낮고 묵직한 남성 톤(ko-KR-Neural2-C), edge 와 동일하게 살짝 빠르고 더 낮게
       voice: opt("GOOGLE_TTS_VOICE", "ko-KR-Neural2-C"),
-      speakingRate: Number(opt("GOOGLE_TTS_RATE", "0.92")),
-      pitch: Number(opt("GOOGLE_TTS_PITCH", "-2.0")),
-      // 무료 한도(월 100만 자) 보호: 영상 1개당 글자수 상한 (2/day 기준 월 90만 자 미만)
+      speakingRate: Number(opt("GOOGLE_TTS_RATE", "1.08")), // 1.0=보통, 살짝 빠르게
+      pitch: Number(opt("GOOGLE_TTS_PITCH", "-4.0")), // 반음 단위, 더 낮고 무겁게
+      // 무료 한도(월 100만 자) 보호: 영상 1개당 글자수 상한 (2/day 기준 월 9만 자 수준)
       maxCharsPerRun: Number(opt("GOOGLE_TTS_MAX_CHARS", "15000")),
     },
   },
