@@ -35,7 +35,8 @@ permissions:
 jobs:
   post:
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    # 랜덤 지연(최대 90분) + 생성·렌더·게시 여유까지 포함해 넉넉히
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
@@ -75,12 +76,13 @@ jobs:
             echo "BGM_URL 미설정 — 저장소 기본 BGM(eerie.mp3) 사용"
           fi
 
-      # 스케줄 실행일 때만 0~3시간 랜덤 지연 (수동 실행은 즉시)
+      # 스케줄 실행일 때만 0~90분 랜덤 지연 (수동 실행은 즉시)
+      # (제한시간 timeout-minutes=150 안에 지연+렌더가 모두 들어가도록 90분으로 제한)
       - name: Random delay (스케줄 실행만)
         if: github.event_name == 'schedule'
         run: |
-          DELAY=$((RANDOM % 10800))
-          echo "게시까지 ${DELAY}초 대기 (자연스러운 게시 시각)"
+          DELAY=$((RANDOM % 5400))
+          echo "게시까지 ${DELAY}초(약 $((DELAY/60))분) 대기 (자연스러운 게시 시각)"
           sleep $DELAY
 
       - name: Generate & publish reel
