@@ -11,6 +11,7 @@ import {
 } from "remotion";
 import type { NarratedSegment, ReelInputProps } from "../types.js";
 import { breathFramesAfter } from "./timing.js";
+import { ensureFonts, FONT_FAMILY } from "./fonts.js";
 
 const EMPHASIS_COLOR: Record<NarratedSegment["emphasis"], string> = {
   normal: "#ffffff",
@@ -23,6 +24,7 @@ const BGM_VOLUME = 0.26;
 /** 미스터리 릴스: 배경 자료화면(켄번즈) + 어두운 오버레이 + 자막 + 나레이션 + BGM */
 export const MysteryReel: React.FC<ReelInputProps> = ({ segments, bgmSrc }) => {
   const { fps } = useVideoConfig();
+  ensureFonts(); // Pretendard 폰트 로드 (렌더 전 대기)
 
   let from = 0;
   return (
@@ -122,46 +124,52 @@ const Caption: React.FC<{ text: string; textEn?: string; color: string }> = ({
     >
       <div
         style={{
-          maxWidth: "86%",
-          padding: "20px 34px",
-          borderRadius: 22,
-          background: "rgba(8,8,12,0.58)",
-          border: "1px solid rgba(255,255,255,0.09)",
-          boxShadow: "0 10px 34px rgba(0,0,0,0.5)",
+          maxWidth: "88%",
+          padding: "26px 40px",
+          borderRadius: 24,
+          background: "rgba(8,8,12,0.6)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          boxShadow: "0 12px 38px rgba(0,0,0,0.55)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 16,
         }}
       >
-        {/* 한글 자막 (강조색) */}
+        {/* 한글 자막 (강조색, ExtraBold) */}
         <div
           style={{
             color,
-            fontFamily: '"Noto Sans CJK KR", "Noto Sans KR", system-ui, sans-serif',
-            fontSize: 46,
-            fontWeight: 700,
-            lineHeight: 1.32,
-            letterSpacing: "-0.5px",
+            fontFamily: FONT_FAMILY,
+            fontSize: 44,
+            fontWeight: 800,
+            lineHeight: 1.34,
+            letterSpacing: "-1px",
             textAlign: "center",
-            // 한국어를 단어 중간에서 끊지 않고 띄어쓰기 단위(구절)로 줄바꿈
-            wordBreak: "keep-all",
-            textShadow: "0 3px 14px rgba(0,0,0,0.9)",
+            textWrap: "balance", // 여러 줄일 때 줄 길이를 고르게(디자인 균형)
+            wordBreak: "keep-all", // 한국어를 구절 단위로 줄바꿈
+            textShadow: "0 3px 14px rgba(0,0,0,0.92)",
           }}
         >
           {text}
         </div>
 
-        {/* 영어 번역 자막 (아래, 작고 은은하게) */}
+        {/* 영어 번역 자막 (아래, 한글과 같은 크기, SemiBold, 은은한 흰색) */}
         {textEn ? (
           <div
             style={{
-              marginTop: 12,
-              paddingTop: 12,
-              borderTop: "1px solid rgba(255,255,255,0.14)",
-              color: "rgba(255,255,255,0.86)",
-              fontFamily: 'system-ui, "Segoe UI", Roboto, sans-serif',
-              fontSize: 30,
-              fontWeight: 500,
-              lineHeight: 1.28,
+              width: "100%",
+              paddingTop: 16,
+              borderTop: "1px solid rgba(255,255,255,0.16)",
+              color: "rgba(255,255,255,0.9)",
+              fontFamily: FONT_FAMILY,
+              fontSize: 44,
+              fontWeight: 600,
+              lineHeight: 1.34,
+              letterSpacing: "-0.5px",
               textAlign: "center",
-              textShadow: "0 2px 12px rgba(0,0,0,0.9)",
+              textWrap: "balance",
+              textShadow: "0 3px 14px rgba(0,0,0,0.92)",
             }}
           >
             {textEn}
