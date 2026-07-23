@@ -15,6 +15,7 @@ const defaultProps: ReelInputProps = {
   segments: [
     {
       text: "제보를 받았습니다.",
+      textEn: "We received a tip.",
       emphasis: "normal",
       audioSrc: "audio/seg-0.mp3",
       durationInSeconds: 2.5,
@@ -22,6 +23,7 @@ const defaultProps: ReelInputProps = {
     },
     {
       text: "그날 이후, 아무도 그 집에서 나오지 않았습니다.",
+      textEn: "After that day, no one ever came out of that house.",
       emphasis: "reveal",
       audioSrc: "audio/seg-1.mp3",
       durationInSeconds: 3.5,

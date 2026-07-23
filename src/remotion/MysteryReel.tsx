@@ -94,17 +94,21 @@ const SegmentView: React.FC<{ seg: NarratedSegment; durationInFrames: number }> 
         }}
       />
 
-      <Caption text={seg.text} color={EMPHASIS_COLOR[seg.emphasis]} />
+      <Caption text={seg.text} textEn={seg.textEn} color={EMPHASIS_COLOR[seg.emphasis]} />
     </AbsoluteFill>
   );
 };
 
 /**
- * 자막 — 화면 중앙 안전 밴드에 배치.
+ * 자막 — 화면 중앙 안전 밴드에 배치. 한글(위) + 영어 번역(아래) 이중 자막.
  * 인스타 릴스 UI(하단 캡션/오디오/진행바, 우측 액션 버튼)를 피하려고
  * 하단이 아니라 세로 중앙(약간 아래)로 올리고, 폭을 좁혀 우측 버튼 열도 비운다.
  */
-const Caption: React.FC<{ text: string; color: string }> = ({ text, color }) => {
+const Caption: React.FC<{ text: string; textEn?: string; color: string }> = ({
+  text,
+  textEn,
+  color,
+}) => {
   // 페이드/슬라이드 없이 컷과 동시에 즉시 표시 (등장 애니메이션 제거)
   return (
     <AbsoluteFill
@@ -119,20 +123,21 @@ const Caption: React.FC<{ text: string; color: string }> = ({ text, color }) => 
       <div
         style={{
           maxWidth: "86%",
-          padding: "22px 34px",
+          padding: "20px 34px",
           borderRadius: 22,
           background: "rgba(8,8,12,0.58)",
           border: "1px solid rgba(255,255,255,0.09)",
           boxShadow: "0 10px 34px rgba(0,0,0,0.5)",
         }}
       >
+        {/* 한글 자막 (강조색) */}
         <div
           style={{
             color,
             fontFamily: '"Noto Sans CJK KR", "Noto Sans KR", system-ui, sans-serif',
             fontSize: 46,
             fontWeight: 700,
-            lineHeight: 1.34,
+            lineHeight: 1.32,
             letterSpacing: "-0.5px",
             textAlign: "center",
             // 한국어를 단어 중간에서 끊지 않고 띄어쓰기 단위(구절)로 줄바꿈
@@ -142,6 +147,26 @@ const Caption: React.FC<{ text: string; color: string }> = ({ text, color }) => 
         >
           {text}
         </div>
+
+        {/* 영어 번역 자막 (아래, 작고 은은하게) */}
+        {textEn ? (
+          <div
+            style={{
+              marginTop: 12,
+              paddingTop: 12,
+              borderTop: "1px solid rgba(255,255,255,0.14)",
+              color: "rgba(255,255,255,0.86)",
+              fontFamily: 'system-ui, "Segoe UI", Roboto, sans-serif',
+              fontSize: 30,
+              fontWeight: 500,
+              lineHeight: 1.28,
+              textAlign: "center",
+              textShadow: "0 2px 12px rgba(0,0,0,0.9)",
+            }}
+          >
+            {textEn}
+          </div>
+        ) : null}
       </div>
     </AbsoluteFill>
   );

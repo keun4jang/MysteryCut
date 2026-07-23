@@ -51,6 +51,7 @@ export async function narrate(script: ReelScript): Promise<NarratedSegment[]> {
 
     result.push({
       text: seg.text,
+      textEn: seg.textEn,
       emphasis: seg.emphasis,
       audioSrc: `audio/${fileName}`,
       durationInSeconds,
