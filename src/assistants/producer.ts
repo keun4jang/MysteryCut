@@ -21,7 +21,22 @@ const ReelPlanSchema = z.object({
 });
 export type ReelPlan = { idea: StoryIdea; script: ReelScript; metadata: ReelMetadata };
 
-export async function writeReelPlan(seed?: string): Promise<ReelPlan> {
+export interface AvoidList {
+  caseKeys: string[];
+  titles: string[];
+}
+
+export async function writeReelPlan(seed?: string, avoid?: AvoidList): Promise<ReelPlan> {
+  const avoidBlock =
+    avoid && (avoid.caseKeys.length || avoid.titles.length)
+      ? [
+          "",
+          "★중복 금지: 아래 사건들은 이미 게시했다. 같은 사건은 물론이고, 제목만 바꾼 사실상 같은 소재도 절대 금지. 완전히 다른 새 사건/전설을 골라라.",
+          `- 이미 쓴 caseKey: ${avoid.caseKeys.join(", ") || "(없음)"}`,
+          `- 이미 쓴 제목: ${avoid.titles.join(" / ") || "(없음)"}`,
+        ].join("\n")
+      : "";
+
   const system = [
     `너는 인스타 릴스용 ${config.channel.language} 미스터리 콘텐츠 제작자다. 한 번에 아이디어·대본·캡션을 모두 만든다.`,
     `채널 주제: ${config.channel.niche}.`,
@@ -29,8 +44,11 @@ export async function writeReelPlan(seed?: string): Promise<ReelPlan> {
     "출력은 { idea, script, metadata } JSON 하나다.",
     "",
     "[idea] 가능하면 실화(실제 미제사건/역사 속 미스터리, 아주 옛날 것도 좋음) 기반.",
+    "- caseKey: 이 사건/전설의 고유 식별자를 영어 소문자 슬러그로. 같은 사건이면 항상 같은 값이 나오게 대표 명칭+연도로. 예: 'brazil-lead-masks-1966', 'dyatlov-pass-1959', 'hinterkaifeck-murders-1922'.",
     "- basedOnRealEvents 를 정직히 표시. 실존 인물(특히 생존자) 명예훼손·사적 개인 특정 금지.",
     "- factNote 에 '알려진 사실 vs 추측/미확인'을 한두 문장으로.",
+    "- 너무 유명한 소재(브라질 납가면 등)만 반복하지 말고, 덜 알려진 사건·세계 각국 사례도 폭넓게.",
+    avoidBlock,
     "",
     "[script] 실제 사람이 친구한테 신기한 얘기 들려주듯, 빠르고 자연스러운 구어체 나레이션. 세그먼트 배열.",
     "- 세그먼트 20~40개(짧게 요청하면 12~18개). 첫 2~3개 강한 훅, 중반 오픈루프, 후반 반전, 마지막은 사인오프.",

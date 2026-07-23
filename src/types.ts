@@ -2,6 +2,11 @@ import { z } from "zod";
 
 /** 1단계: 스토리 구상 어시스트 산출물 */
 export const StoryIdeaSchema = z.object({
+  /**
+   * 사건/전설의 고유 식별자 (영어 소문자 슬러그). 제목이 달라도 같은 사건이면 같은 값.
+   * 중복 게시 방지에 사용. 예: "brazil-lead-masks-1966", "dyatlov-pass-1959".
+   */
+  caseKey: z.string(),
   /** 릴스 훅(첫 3초 자막) — 스크롤을 멈추게 하는 한 문장 */
   hook: z.string(),
   /** 미스터리 제목 */

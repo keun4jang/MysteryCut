@@ -7,6 +7,12 @@ import { attachBroll } from "./assistants/broll.js";
 import { renderReel } from "./render.js";
 import { publishReel } from "./assistants/publisher.js";
 import { publishYouTube } from "./assistants/youtubePublisher.js";
+import {
+  loadHistory,
+  recentAvoidList,
+  isDuplicate,
+  appendPost,
+} from "./assistants/history.js";
 import type { ReelInputProps } from "./types.js";
 
 /**
@@ -22,10 +28,28 @@ import type { ReelInputProps } from "./types.js";
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
+  // 중복 방지: 이미 게시한 사건 목록을 불러와 LLM 에 '겹치지 마라'로 전달
+  const history = await loadHistory();
+  const avoid = recentAvoidList(history);
+  console.log(`🗂️  게시 이력 ${history.posts.length}건 (중복 회피)`);
+
   // 스토리·대본·캡션을 한 번의 LLM 호출로 (Gemini 무료 할당량 절약: 3콜→1콜)
   console.log("①~③ 스토리·대본·캡션 통합 생성...");
-  const { idea, script, metadata } = await writeReelPlan(args.seed);
+  let { idea, script, metadata } = await writeReelPlan(args.seed, avoid);
+
+  // 그래도 겹치면 재생성 (최대 3회). 겹친 caseKey 는 회피 목록에 누적.
+  for (let tries = 0; tries < 3 && isDuplicate(history, idea.caseKey); tries++) {
+    console.log(`   ♻️  중복 소재(${idea.caseKey}) — 다른 소재로 재생성`);
+    avoid.caseKeys.push(idea.caseKey);
+    avoid.titles.push(idea.title);
+    ({ idea, script, metadata } = await writeReelPlan(args.seed, avoid));
+  }
+  if (isDuplicate(history, idea.caseKey)) {
+    console.warn(`   ⚠️ 재생성에도 중복(${idea.caseKey}) — 그대로 진행(다음엔 회피됨)`);
+  }
+
   console.log(`   💡 ${idea.title} — ${idea.hook}`);
+  console.log(`   🔑 caseKey: ${idea.caseKey}`);
   console.log(`   📝 세그먼트 ${script.segments.length}개`);
   if (args.only === "ideate") {
     console.log(JSON.stringify(idea, null, 2));
@@ -59,11 +83,13 @@ async function main() {
   if (args.publish) {
     // 인스타·유튜브를 각각 독립 게시 (한쪽이 실패해도 다른 쪽은 진행)
     let anyFail = false;
+    let anyPublished = false;
 
     console.log("⑥ 인스타그램 업로드...");
     try {
       const { mediaId } = await publishReel(videoPath, metadata);
       console.log(`   ✅ 인스타 게시 완료 (media id: ${mediaId})`);
+      anyPublished = true;
     } catch (e) {
       anyFail = true;
       console.error(`   ❌ 인스타 게시 실패: ${e instanceof Error ? e.message : String(e)}`);
@@ -74,6 +100,7 @@ async function main() {
       try {
         const { videoId } = await publishYouTube(videoPath, idea, metadata);
         console.log(`   ✅ 유튜브 게시 완료: https://youtu.be/${videoId}`);
+        anyPublished = true;
       } catch (e) {
         anyFail = true;
         console.error(`   ❌ 유튜브 게시 실패: ${e instanceof Error ? e.message : String(e)}`);
@@ -81,6 +108,9 @@ async function main() {
     } else {
       console.log("   ⏭️  유튜브 미설정(YT_CLIENT_ID/SECRET/REFRESH_TOKEN) — 유튜브 게시 건너뜀");
     }
+
+    // 한 곳이라도 실제 게시됐으면 이력에 기록 (다음 실행부터 이 소재를 회피)
+    if (anyPublished) await appendPost(idea);
 
     if (anyFail) process.exitCode = 1; // 하나라도 실패하면 워크플로가 알 수 있게
   } else {
