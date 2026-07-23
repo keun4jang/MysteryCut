@@ -54,12 +54,10 @@ export const config = {
       const p = opt("TTS_PROVIDER", "");
       return p === "google" ? "google" : "edge";
     },
-    // edge (미스터리 톤: 낮고 묵직한 남성 음성, 차분한 보통 속도)
-    //  - rate 0%: +8% 는 너무 빨라서 보통 속도로. (-10% 처럼 크게 늘리면 로봇 톤)
-    //  - pitch -4Hz: InJoon 은 원래 저음, 더 낮춰 무게감(어두운 미스터리 톤)
-    voice: opt("TTS_VOICE", "ko-KR-InJoonNeural"),
-    rate: opt("TTS_RATE", "+0%"),
-    pitch: opt("TTS_PITCH", "-4Hz"),
+    // edge (남성 Hyunsu 음성을 낮추고 살짝 빠르게 — 사용자 선택 톤)
+    voice: opt("TTS_VOICE", "ko-KR-HyunsuMultilingualNeural"),
+    rate: opt("TTS_RATE", "+15%"),
+    pitch: opt("TTS_PITCH", "-6Hz"),
     google: {
       get apiKey() {
         return required("GOOGLE_TTS_API_KEY");
