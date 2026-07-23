@@ -49,9 +49,10 @@ export const config = {
   //  - google: Google Cloud TTS Neural2 (무료 등급 내, 더 자연스러움) — GOOGLE_TTS_API_KEY 있으면 자동 사용
   tts: {
     get provider() {
+      // 기본값 edge(완전 무료·카드 불필요). Google TTS 는 TTS_PROVIDER=google 로
+      // 명시할 때만 사용 → 키가 등록돼 있어도 실수로 과금될 일이 없음.
       const p = opt("TTS_PROVIDER", "");
-      if (p === "edge" || p === "google") return p;
-      return process.env.GOOGLE_TTS_API_KEY?.trim() ? "google" : "edge";
+      return p === "google" ? "google" : "edge";
     },
     // edge (미스터리 톤: 낮고 묵직한 남성 음성, 차분한 보통 속도)
     //  - rate 0%: +8% 는 너무 빨라서 보통 속도로. (-10% 처럼 크게 늘리면 로봇 톤)
