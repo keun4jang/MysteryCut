@@ -164,7 +164,7 @@ const Caption: React.FC<{ text: string; textEn?: string; color: string }> = ({
               color: "rgba(255,255,255,0.9)",
               fontFamily: FONT_FAMILY,
               fontSize: 44,
-              fontWeight: 600,
+              fontWeight: 500,
               lineHeight: 1.34,
               letterSpacing: "-0.5px",
               textAlign: "center",

@@ -15,6 +15,7 @@ export function ensureFonts(): void {
   started = true;
   const handle = delayRender("Pretendard 로딩");
   const faces: Array<{ weight: string; file: string }> = [
+    { weight: "500", file: "fonts/Pretendard-Medium.woff2" },
     { weight: "600", file: "fonts/Pretendard-SemiBold.woff2" },
     { weight: "700", file: "fonts/Pretendard-Bold.woff2" },
     { weight: "800", file: "fonts/Pretendard-ExtraBold.woff2" },
