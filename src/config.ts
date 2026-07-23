@@ -70,8 +70,9 @@ export const config = {
       fallbackVoice: opt("GOOGLE_TTS_FALLBACK_VOICE", "ko-KR-Neural2-C"),
       speakingRate: Number(opt("GOOGLE_TTS_RATE", "0.96")), // 살짝 느리고 무게감 있게
       pitch: Number(opt("GOOGLE_TTS_PITCH", "-4.0")), // 반음 단위(Chirp3-HD 엔 미적용)
-      // 무료 한도(월 100만 자) 보호: 영상 1개당 글자수 상한 (2/day 기준 월 9만 자 수준)
-      maxCharsPerRun: Number(opt("GOOGLE_TTS_MAX_CHARS", "15000")),
+      // 무료 한도 보호: 영상 1개당 글자수 상한. 실제 영상은 1.5~2.5천 자라 6천이면
+      // 충분한 여유이면서 폭주(무한루프 등)로 인한 과금을 차단. (3/day 정상 운영 = 월 ~14만 자)
+      maxCharsPerRun: Number(opt("GOOGLE_TTS_MAX_CHARS", "6000")),
     },
   },
   // 배경 자료화면: Pexels 무료 스톡 (키 없으면 그라디언트 폴백)
