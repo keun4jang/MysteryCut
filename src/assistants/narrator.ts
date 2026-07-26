@@ -13,11 +13,25 @@ const execFileAsync = promisify(execFile);
  *  - google: Google Cloud TTS Neural2 (무료 등급, 더 자연스러움) — GOOGLE_TTS_API_KEY 필요
  *  - edge  : Python edge-tts CLI (무료, 키 불필요)   ← 기본
  */
-export async function narrate(script: ReelScript): Promise<NarratedSegment[]> {
+export interface VoiceOverride {
+  voice: string;
+  rate: string;
+  pitch: string;
+}
+
+export async function narrate(
+  script: ReelScript,
+  voiceOverride?: VoiceOverride,
+): Promise<NarratedSegment[]> {
   await fs.mkdir(config.paths.audio, { recursive: true });
   const provider = config.tts.provider;
   if (provider === "edge") await ensureEdgeTts();
   console.log(`  🔊 TTS 제공자: ${provider}`);
+  if (voiceOverride) {
+    console.log(
+      `  🎭 보이스 로테이션: ${voiceOverride.voice} (rate ${voiceOverride.rate}, pitch ${voiceOverride.pitch})`,
+    );
+  }
 
   // Google TTS 무료 한도 보호: 영상 1개당 글자수 상한
   if (provider === "google") {
@@ -39,7 +53,7 @@ export async function narrate(script: ReelScript): Promise<NarratedSegment[]> {
     const absPath = path.join(config.paths.audio, fileName);
 
     if (provider === "google") await synthesizeGoogle(seg.text, rawPath);
-    else await synthesizeEdge(seg.text, rawPath);
+    else await synthesizeEdge(seg.text, rawPath, voiceOverride);
 
     // 문장 앞뒤 무음(edge-tts 패딩) 제거 → 문장 사이 로봇 같은 공백 없앰.
     // 사이 '숨'은 Remotion 타임라인에서 일정 간격으로 다시 넣는다(timing.ts).
@@ -142,13 +156,17 @@ async function googleSynthOnce(text: string, voice: string): Promise<string> {
   return json.audioContent;
 }
 
-/** Python edge-tts CLI */
-async function synthesizeEdge(text: string, absPath: string): Promise<void> {
+/** Python edge-tts CLI (보이스 로테이션 오버라이드 지원) */
+async function synthesizeEdge(
+  text: string,
+  absPath: string,
+  ov?: VoiceOverride,
+): Promise<void> {
   await execFileAsync("edge-tts", [
     "--voice",
-    config.tts.voice,
-    `--rate=${config.tts.rate}`,
-    `--pitch=${config.tts.pitch}`,
+    ov?.voice ?? config.tts.voice,
+    `--rate=${ov?.rate ?? config.tts.rate}`,
+    `--pitch=${ov?.pitch ?? config.tts.pitch}`,
     "--text",
     text,
     "--write-media",

@@ -9,6 +9,8 @@ export interface HistoryPost {
   title: string;
   premise?: string;
   at: string; // ISO 날짜 (YYYY-MM-DD)
+  /** 이 게시물에 쓴 해시태그 (다음 게시에서 같은 세트 반복 방지) */
+  hashtags?: string[];
 }
 interface HistoryFile {
   posts: HistoryPost[];
@@ -40,15 +42,18 @@ export function usedKeySet(hist: HistoryFile): Set<string> {
   return new Set(hist.posts.map((p) => normalizeKey(p.caseKey)));
 }
 
-/** LLM 프롬프트에 넘길 '최근 사용 소재' 요약 (caseKey + 제목), 최신 순 최대 n개 */
+/** LLM 프롬프트에 넘길 '최근 사용 소재' 요약 (caseKey + 제목 + 최근 해시태그) */
 export function recentAvoidList(
   hist: HistoryFile,
   n = 80,
-): { caseKeys: string[]; titles: string[] } {
+): { caseKeys: string[]; titles: string[]; recentHashtags: string[] } {
   const recent = hist.posts.slice(-n);
+  // 해시태그는 최근 5개 게시물 것만 (그 이전 반복은 자연스러움)
+  const recentTags = hist.posts.slice(-5).flatMap((p) => p.hashtags ?? []);
   return {
     caseKeys: recent.map((p) => p.caseKey),
     titles: recent.map((p) => p.title),
+    recentHashtags: [...new Set(recentTags)],
   };
 }
 
@@ -57,7 +62,7 @@ export function isDuplicate(hist: HistoryFile, caseKey: string): boolean {
 }
 
 /** 이력에 1건 추가하고 파일 저장 (게시 성공 후 호출) */
-export async function appendPost(idea: StoryIdea): Promise<void> {
+export async function appendPost(idea: StoryIdea, hashtags?: string[]): Promise<void> {
   const hist = await loadHistory();
   const at = new Date().toISOString().slice(0, 10);
   hist.posts.push({
@@ -65,6 +70,7 @@ export async function appendPost(idea: StoryIdea): Promise<void> {
     title: idea.title,
     premise: idea.premise,
     at,
+    hashtags,
   });
   await fs.mkdir(path.dirname(HISTORY_PATH), { recursive: true });
   await fs.writeFile(HISTORY_PATH, `${JSON.stringify(hist, null, 2)}\n`, "utf8");

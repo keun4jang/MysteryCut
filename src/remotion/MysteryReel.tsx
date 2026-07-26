@@ -9,22 +9,24 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import type { NarratedSegment, ReelInputProps } from "../types.js";
+import type { NarratedSegment, ReelInputProps, ReelTheme } from "../types.js";
 import { breathFramesAfter } from "./timing.js";
 import { ensureFonts, FONT_FAMILY } from "./fonts.js";
 
-const EMPHASIS_COLOR: Record<NarratedSegment["emphasis"], string> = {
-  normal: "#ffffff",
-  tension: "#ffd76b",
-  reveal: "#ff5a5a",
+// 기본 테마 (theme 미지정 시)
+const DEFAULT_THEME: ReelTheme = {
+  colors: { normal: "#ffffff", tension: "#ffd76b", reveal: "#ff5a5a" },
+  boxStyle: "box",
+  kenburns: "in",
 };
 // 어두운 미스터리 배경음(항상 깔리도록) — 폰 스피커에서도 들리는 중음역 포함
 const BGM_VOLUME = 0.26;
 
 /** 미스터리 릴스: 배경 자료화면(켄번즈) + 어두운 오버레이 + 자막 + 나레이션 + BGM */
-export const MysteryReel: React.FC<ReelInputProps> = ({ segments, bgmSrc }) => {
+export const MysteryReel: React.FC<ReelInputProps> = ({ segments, bgmSrc, theme }) => {
   const { fps } = useVideoConfig();
   ensureFonts(); // Pretendard 폰트 로드 (렌더 전 대기)
+  const t = theme ?? DEFAULT_THEME;
 
   let from = 0;
   return (
@@ -40,7 +42,7 @@ export const MysteryReel: React.FC<ReelInputProps> = ({ segments, bgmSrc }) => {
           <Sequence key={i} from={from} durationInFrames={segFrames}>
             {/* 나레이션: 오디오는 audioFrames 동안 재생되고, 남는 breath 동안은 자연 무음(호흡) */}
             <Audio src={staticFile(seg.audioSrc)} />
-            <SegmentView seg={seg} durationInFrames={segFrames} />
+            <SegmentView seg={seg} index={i} durationInFrames={segFrames} theme={t} />
           </Sequence>
         );
         from += segFrames;
@@ -53,14 +55,19 @@ export const MysteryReel: React.FC<ReelInputProps> = ({ segments, bgmSrc }) => {
   );
 };
 
-const SegmentView: React.FC<{ seg: NarratedSegment; durationInFrames: number }> = ({
-  seg,
-  durationInFrames,
-}) => {
+const SegmentView: React.FC<{
+  seg: NarratedSegment;
+  index: number;
+  durationInFrames: number;
+  theme: ReelTheme;
+}> = ({ seg, index, durationInFrames, theme }) => {
   const frame = useCurrentFrame();
 
-  // 페이드 없이 하드컷. 배경만 아주 은은하게 켄번즈 줌(움직임이라 눈에 안 거슬림).
-  const scale = interpolate(frame, [0, durationInFrames], [1.04, 1.12], {
+  // 켄번즈 방향: 테마에 따라 확대/축소/교차 (페이드 없이 하드컷, 움직임만)
+  const zoomIn =
+    theme.kenburns === "in" || (theme.kenburns === "mixed" && index % 2 === 0);
+  const [s0, s1] = zoomIn ? [1.04, 1.12] : [1.12, 1.04];
+  const scale = interpolate(frame, [0, durationInFrames], [s0, s1], {
     extrapolateRight: "clamp",
   });
 
@@ -96,7 +103,12 @@ const SegmentView: React.FC<{ seg: NarratedSegment; durationInFrames: number }> 
         }}
       />
 
-      <Caption text={seg.text} textEn={seg.textEn} color={EMPHASIS_COLOR[seg.emphasis]} />
+      <Caption
+        text={seg.text}
+        textEn={seg.textEn}
+        color={theme.colors[seg.emphasis]}
+        boxStyle={theme.boxStyle}
+      />
     </AbsoluteFill>
   );
 };
@@ -106,11 +118,40 @@ const SegmentView: React.FC<{ seg: NarratedSegment; durationInFrames: number }> 
  * 인스타 릴스 UI(하단 캡션/오디오/진행바, 우측 액션 버튼)를 피하려고
  * 하단이 아니라 세로 중앙(약간 아래)로 올리고, 폭을 좁혀 우측 버튼 열도 비운다.
  */
-const Caption: React.FC<{ text: string; textEn?: string; color: string }> = ({
-  text,
-  textEn,
-  color,
-}) => {
+const Caption: React.FC<{
+  text: string;
+  textEn?: string;
+  color: string;
+  boxStyle: ReelTheme["boxStyle"];
+}> = ({ text, textEn, color, boxStyle }) => {
+  // 자막 배경 스타일 3종 (버라이어티 팩이 영상마다 선택)
+  const boxCss: React.CSSProperties =
+    boxStyle === "minimal"
+      ? {
+          // 배경 없음 — 강한 그림자만으로 가독성 확보
+          maxWidth: "88%",
+          padding: "10px 8px",
+          filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.95))",
+        }
+      : boxStyle === "bar"
+        ? {
+            // 화면 가로를 꽉 채우는 띠
+            width: "100%",
+            padding: "26px 48px",
+            borderRadius: 0,
+            background:
+              "linear-gradient(90deg, rgba(8,8,12,0) 0%, rgba(8,8,12,0.72) 12%, rgba(8,8,12,0.72) 88%, rgba(8,8,12,0) 100%)",
+          }
+        : {
+            // 기본: 반투명 라운드 박스
+            maxWidth: "88%",
+            padding: "26px 40px",
+            borderRadius: 24,
+            background: "rgba(8,8,12,0.6)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            boxShadow: "0 12px 38px rgba(0,0,0,0.55)",
+          };
+
   // 페이드/슬라이드 없이 컷과 동시에 즉시 표시 (등장 애니메이션 제거)
   return (
     <AbsoluteFill
@@ -118,22 +159,17 @@ const Caption: React.FC<{ text: string; textEn?: string; color: string }> = ({
         // 세로 중앙(약간 아래로 바이어스)에 배치 → 릴스 상/하단 UI 모두 회피
         justifyContent: "center",
         alignItems: "center",
-        padding: "0 70px",
+        padding: boxStyle === "bar" ? 0 : "0 70px",
         transform: "translateY(70px)",
       }}
     >
       <div
         style={{
-          maxWidth: "88%",
-          padding: "26px 40px",
-          borderRadius: 24,
-          background: "rgba(8,8,12,0.6)",
-          border: "1px solid rgba(255,255,255,0.10)",
-          boxShadow: "0 12px 38px rgba(0,0,0,0.55)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           gap: 16,
+          ...boxCss,
         }}
       >
         {/* 한글 자막 (강조색, ExtraBold) */}

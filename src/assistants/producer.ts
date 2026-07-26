@@ -24,9 +24,20 @@ export type ReelPlan = { idea: StoryIdea; script: ReelScript; metadata: ReelMeta
 export interface AvoidList {
   caseKeys: string[];
   titles: string[];
+  /** 최근 게시물의 해시태그 (같은 세트 반복 금지용) */
+  recentHashtags?: string[];
 }
 
-export async function writeReelPlan(seed?: string, avoid?: AvoidList): Promise<ReelPlan> {
+export interface PlanOptions {
+  /** 버라이어티 팩이 고른 오프닝 훅 방식 지시문 */
+  hookStyle?: string;
+}
+
+export async function writeReelPlan(
+  seed?: string,
+  avoid?: AvoidList,
+  opts?: PlanOptions,
+): Promise<ReelPlan> {
   const avoidBlock =
     avoid && (avoid.caseKeys.length || avoid.titles.length)
       ? [
@@ -52,7 +63,7 @@ export async function writeReelPlan(seed?: string, avoid?: AvoidList): Promise<R
     "",
     "[script] 실제 사람이 친구한테 신기한 얘기 들려주듯, 빠르고 자연스러운 구어체 나레이션. 세그먼트 배열.",
     "- 세그먼트 20~40개(짧게 요청하면 12~18개). 첫 2~3개 강한 훅, 중반 오픈루프, 후반 반전, 마지막은 사인오프.",
-    "[오프닝 실화 후킹] basedOnRealEvents=true 면 첫 1~2세그먼트에서 '이거 실제로 있었던 일이에요' 같은 실화 기반임을 자연스럽게 밝혀 신뢰+호기심을 동시에 자극하라. 예: '이거 지어낸 얘기 아니에요. 실제로 1966년에 있었던 일이거든요.' / '진짜 있었던 미제사건이에요.' 딱딱한 '실화입니다' 말고 입말로.",
+    `[오프닝] ${opts?.hookStyle ?? "훅 방식: '실화 선언형' — 첫 문장에서 지어낸 얘기가 아님을 밝히며 시작."} basedOnRealEvents=true 면 앞부분(1~3세그먼트 안)에서 실화 기반임을 자연스럽게 입말로 밝혀라. 딱딱한 '실화입니다' 금지.`,
     "- 각 세그먼트에 visualQuery(영어 스톡 검색어 2~4단어) 필수. 예: 'foggy dark forest night','old handwritten notebook'. 실존 인물명 금지.",
     "- 각 세그먼트에 textEn 필수: text(한국어)의 자연스러운 영어 번역. 원어민 구어체, 직역·번역투 금지. 화면 자막이 한/영 위아래로 나란히 나오니 길이를 한국어와 비슷하게(간결한 한 문장, 화면 2줄 이내)로 맞춰라. 불필요하게 길게 늘이지 말 것.",
     "- emphasis: 긴장 'tension', 반전 'reveal', 나머지 'normal'.",
@@ -67,6 +78,10 @@ export async function writeReelPlan(seed?: string, avoid?: AvoidList): Promise<R
     "좋은 예시: '몸엔 상처 하나 없었어요. 독극물도 안 나왔고요. 근데 두 사람은 죽어 있었죠.' / '주머니엔 수첩 한 권만 덩그러니 있었어요. 근데 거기 적힌 메모가 좀 이상했거든요.'",
     "",
     "[metadata] caption(첫 줄 후킹, 실화면 '실화 바탕' 뉘앙스, 마지막 질문으로 댓글 유도) + hashtags 8~15개(# 포함).",
+    "- caption 끝에 신뢰 문구 한 줄: '※ 실제 사건 기록을 바탕으로 재구성한 콘텐츠입니다. 일부 장면은 자료화면입니다.' (독창성·사실성 표시)",
+    avoid?.recentHashtags?.length
+      ? `- ★해시태그 반복 금지: 최근 게시물에서 이미 쓴 태그 세트와 겹치지 않게 절반 이상 새로 구성하라. 최근 사용: ${avoid.recentHashtags.slice(-40).join(" ")}`
+      : "- 해시태그는 사건 특성에 맞게 매번 다르게 구성(고정 세트 반복 금지).",
     "",
     "안전: 확인 안 된 사실을 진짜처럼 단정하지 말 것. 과도한 잔혹성 지양.",
   ].join("\n");

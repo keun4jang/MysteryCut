@@ -68,6 +68,16 @@ export interface NarratedSegment {
   bgSrc?: string;
 }
 
+/** 영상 비주얼 테마 (버라이어티 팩이 실행마다 랜덤 선택) */
+export interface ReelTheme {
+  /** 강조색: normal/tension/reveal 자막 색 */
+  colors: { normal: string; tension: string; reveal: string };
+  /** 자막 배경 스타일: 반투명 박스 / 배경 없음(그림자만) / 가로 바 */
+  boxStyle: "box" | "minimal" | "bar";
+  /** 켄번즈 줌 방향: 확대 / 축소 / 세그먼트마다 교차 */
+  kenburns: "in" | "out" | "mixed";
+}
+
 /** Remotion 컴포지션 입력 props */
 export interface ReelInputProps {
   title: string;
@@ -75,6 +85,8 @@ export interface ReelInputProps {
   moodKeywords: string[];
   /** BGM public/ 상대경로 (예: bgm/track.mp3). 없으면 무음 */
   bgmSrc?: string;
+  /** 비주얼 테마 (없으면 기본값) */
+  theme?: ReelTheme;
   // Remotion Composition props 는 인덱스 시그니처(Record<string, unknown>)를 요구
   [key: string]: unknown;
 }
