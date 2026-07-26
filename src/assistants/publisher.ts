@@ -38,8 +38,8 @@ export async function publishReel(
 }
 
 function buildCaption(m: ReelMetadata): string {
-  const tags = m.hashtags.map((t) => (t.startsWith("#") ? t : `#${t}`)).join(" ");
-  return `${m.caption}\n\n${tags}`;
+  // 해시태그는 붙이지 않는다 — 키워드는 본문 문장에 자연스럽게 녹아 있음
+  return m.caption;
 }
 
 /**

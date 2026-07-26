@@ -89,9 +89,11 @@ function buildTitle(idea: StoryIdea): string {
   return base.length > 90 ? `${base.slice(0, 89)}…` : base;
 }
 
-/** 유튜브 설명 = 캡션 + 해시태그(+#Shorts 로 쇼츠 분류 유도) */
+/**
+ * 유튜브 설명 = 캡션 본문만 (해시태그 없음 — 키워드는 본문에 녹아 있음).
+ * 검색용 키워드는 snippet.tags(화면에 안 보이는 내부 메타데이터)로만 전달.
+ * 세로 1080x1920·3분 미만이라 #Shorts 없이도 쇼츠로 자동 분류됨.
+ */
 function buildDescription(m: ReelMetadata): string {
-  const tags = m.hashtags.map((t) => (t.startsWith("#") ? t : `#${t}`));
-  if (!tags.some((t) => /^#shorts$/i.test(t))) tags.push("#Shorts");
-  return `${m.caption}\n\n${tags.join(" ")}`;
+  return m.caption;
 }
