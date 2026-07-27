@@ -22,6 +22,7 @@ const tension = process.argv[4] ?? "#ffd76b";
 
 const inputProps: ReelInputProps = {
   title: "미스터리 예시",
+  thumbTitle: "피가 전부\n사라졌다",
   moodKeywords: ["긴장", "밤"],
   theme: {
     colors: { normal: "#ffffff", tension, reveal: "#ff5a5a" },
@@ -42,5 +43,7 @@ const inputProps: ReelInputProps = {
 
 const composition = await selectComposition({ serveUrl, id: "MysteryReel", inputProps });
 const output = path.resolve(process.argv[2] ?? "scratchpad/still.png");
-await renderStill({ composition, serveUrl, output, inputProps, frame: 20 });
+// frame 0 = 썸네일 카드, 그 외 = 자막 화면
+const frame = Number(process.argv[5] ?? 20);
+await renderStill({ composition, serveUrl, output, inputProps, frame });
 console.log("STILL:", output);

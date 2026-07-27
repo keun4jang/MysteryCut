@@ -10,7 +10,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import type { NarratedSegment, ReelInputProps, ReelTheme } from "../types.js";
-import { breathFramesAfter } from "./timing.js";
+import { breathFramesAfter, THUMB_FRAMES } from "./timing.js";
 import { ensureFonts, FONT_FAMILY } from "./fonts.js";
 
 // 기본 테마 (theme 미지정 시)
@@ -23,14 +23,25 @@ const DEFAULT_THEME: ReelTheme = {
 const BGM_VOLUME = 0.26;
 
 /** 미스터리 릴스: 배경 자료화면(켄번즈) + 어두운 오버레이 + 자막 + 나레이션 + BGM */
-export const MysteryReel: React.FC<ReelInputProps> = ({ segments, bgmSrc, theme }) => {
+export const MysteryReel: React.FC<ReelInputProps> = ({
+  segments,
+  bgmSrc,
+  theme,
+  thumbTitle,
+}) => {
   const { fps } = useVideoConfig();
   ensureFonts(); // Pretendard 폰트 로드 (렌더 전 대기)
   const t = theme ?? DEFAULT_THEME;
 
-  let from = 0;
+  // 썸네일 카드: 맨 앞 2프레임 — 재생 시엔 순간이지만 커버/썸네일로 잡힘
+  let from = thumbTitle ? THUMB_FRAMES : 0;
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
+      {thumbTitle ? (
+        <Sequence from={0} durationInFrames={THUMB_FRAMES}>
+          <ThumbnailCard title={thumbTitle} bgSrc={segments[0]?.bgSrc} theme={t} />
+        </Sequence>
+      ) : null}
       {segments.map((seg, i) => {
         const audioFrames = Math.max(1, Math.round(seg.durationInSeconds * fps));
         // '숨' 간격을 세그먼트 길이에 포함시켜 화면을 끊김 없이 이어 붙인다.
@@ -212,6 +223,114 @@ const Caption: React.FC<{
           </div>
         ) : null}
       </div>
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * 썸네일(커버) 카드 — 영상 맨 앞 2프레임.
+ * 인스타 커버·유튜브 썸네일이 첫 프레임을 쓰므로 피드에서 이 카드가 보인다.
+ * 데드존 회피: 텍스트를 세로 중앙 밴드(상단 UI·하단 캡션바 사이)에, 좌우 90px 안쪽.
+ * 인스타 그리드는 커버를 3:4 중앙 크롭하므로 중앙 배치가 그리드에서도 안전.
+ */
+const ThumbnailCard: React.FC<{ title: string; bgSrc?: string; theme: ReelTheme }> = ({
+  title,
+  bgSrc,
+  theme,
+}) => {
+  const lines = title.split("\n");
+  const longest = Math.max(...lines.map((l) => l.length), 1);
+  // 글자수에 따라 크기 자동 조절 (짧을수록 큼직하게)
+  const fontSize = longest <= 7 ? 160 : longest <= 10 ? 136 : longest <= 14 ? 112 : 94;
+
+  return (
+    <AbsoluteFill>
+      {/* 배경: 첫 장면 자료화면(어둡게) 또는 그라디언트 */}
+      {bgSrc ? (
+        <Img
+          src={staticFile(bgSrc)}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transform: "scale(1.08)",
+            filter: "brightness(0.55) saturate(0.9)",
+          }}
+        />
+      ) : (
+        <AbsoluteFill
+          style={{
+            background: "radial-gradient(circle at 50% 40%, #1a1030 0%, #0a0a12 60%, #000 100%)",
+          }}
+        />
+      )}
+      {/* 어두운 비네트 + 핏빛 기운 */}
+      <AbsoluteFill
+        style={{
+          background:
+            "radial-gradient(ellipse at 50% 52%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.72) 100%), linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.12) 35%, rgba(80,0,10,0.28) 100%)",
+        }}
+      />
+
+      {/* 텍스트 블록 — 세로 중앙 밴드(데드존·그리드 크롭 모두 안전) */}
+      <AbsoluteFill
+        style={{
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "0 90px",
+          transform: "translateY(-20px)",
+        }}
+      >
+        {/* 실화 배지 */}
+        <div
+          style={{
+            background: "#c1121f",
+            color: "#ffffff",
+            fontFamily: FONT_FAMILY,
+            fontSize: 42,
+            fontWeight: 800,
+            letterSpacing: "2px",
+            padding: "10px 30px",
+            borderRadius: 10,
+            marginBottom: 34,
+            boxShadow: "0 6px 24px rgba(0,0,0,0.6)",
+          }}
+        >
+          실화 미제사건
+        </div>
+
+        {/* 초대형 타이틀 */}
+        <div
+          style={{
+            color: "#ffffff",
+            fontFamily: FONT_FAMILY,
+            fontSize,
+            fontWeight: 800,
+            lineHeight: 1.14,
+            letterSpacing: "-2px",
+            textAlign: "center",
+            wordBreak: "keep-all",
+            textWrap: "balance",
+            textShadow: "0 6px 30px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.9)",
+          }}
+        >
+          {lines.map((l, i) => (
+            <div key={i}>{l}</div>
+          ))}
+        </div>
+
+        {/* 포인트 언더라인 (테마 강조색) */}
+        <div
+          style={{
+            marginTop: 38,
+            width: 220,
+            height: 10,
+            borderRadius: 6,
+            background: theme.colors.reveal,
+            boxShadow: `0 0 24px ${theme.colors.reveal}`,
+          }}
+        />
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };

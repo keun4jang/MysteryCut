@@ -79,6 +79,7 @@ async function main() {
     moodKeywords: idea.moodKeywords,
     bgmSrc: await findBgm(),
     theme: pack.theme,
+    thumbTitle: idea.thumbTitle || idea.title,
   };
 
   // 산출물을 out/ 에 함께 저장 (재현/디버깅용)

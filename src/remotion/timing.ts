@@ -16,9 +16,20 @@ export function breathFramesAfter(emphasis: NarratedSegment["emphasis"], fps: nu
   return Math.round(breathSecondsAfter(emphasis) * fps);
 }
 
-/** 세그먼트 재생 길이 + 문장 사이 호흡을 모두 더한 전체 프레임 수 (마지막 뒤 호흡은 제외) */
-export function totalDurationInFrames(segments: ReelInputProps["segments"], fps: number): number {
-  let frames = 0;
+/**
+ * 썸네일 카드 프레임 수 — 영상 맨 앞 2프레임(약 0.07초)에만 표시.
+ * 재생 시엔 순간 스쳐 지나가지만, 인스타 커버·유튜브 썸네일은 첫 프레임을
+ * 쓰기 때문에 피드에서는 이 카드가 커버로 보인다.
+ */
+export const THUMB_FRAMES = 2;
+
+/** 세그먼트 재생 길이 + 호흡 + (있다면) 썸네일 카드를 더한 전체 프레임 수 */
+export function totalDurationInFrames(
+  segments: ReelInputProps["segments"],
+  fps: number,
+  hasThumb = false,
+): number {
+  let frames = hasThumb ? THUMB_FRAMES : 0;
   segments.forEach((seg, i) => {
     frames += Math.max(1, Math.round(seg.durationInSeconds * fps));
     if (i < segments.length - 1) frames += breathFramesAfter(seg.emphasis, fps);

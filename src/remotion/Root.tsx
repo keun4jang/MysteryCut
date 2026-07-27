@@ -11,6 +11,7 @@ const HEIGHT = 1920;
 
 const defaultProps: ReelInputProps = {
   title: "미스터리 예시",
+  thumbTitle: "피가 전부\n사라졌다",
   moodKeywords: ["긴장", "밤", "도시전설"],
   segments: [
     {
@@ -37,14 +38,18 @@ export const RemotionRoot: React.FC = () => {
     <Composition
       id="MysteryReel"
       component={MysteryReel}
-      durationInFrames={totalDurationInFrames(defaultProps.segments, FPS)}
+      durationInFrames={totalDurationInFrames(
+        defaultProps.segments,
+        FPS,
+        Boolean(defaultProps.thumbTitle),
+      )}
       fps={FPS}
       width={WIDTH}
       height={HEIGHT}
       defaultProps={defaultProps}
-      // 렌더 시 넘어온 실제 세그먼트로 길이를 다시 계산
+      // 렌더 시 넘어온 실제 세그먼트로 길이를 다시 계산 (썸네일 카드 포함)
       calculateMetadata={({ props }) => ({
-        durationInFrames: totalDurationInFrames(props.segments, FPS),
+        durationInFrames: totalDurationInFrames(props.segments, FPS, Boolean(props.thumbTitle)),
       })}
     />
   );
