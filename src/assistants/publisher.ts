@@ -38,8 +38,10 @@ export async function publishReel(
 }
 
 function buildCaption(m: ReelMetadata): string {
-  // 해시태그는 붙이지 않는다 — 키워드는 본문 문장에 자연스럽게 녹아 있음
-  return m.caption;
+  // 한글(위) + 영어 번역(아래) — 글로벌 시청자 대응. 해시태그 없음(키워드는 본문에).
+  return m.captionEn?.trim()
+    ? `${m.caption}\n\n———\n\n${m.captionEn}`
+    : m.caption;
 }
 
 /**

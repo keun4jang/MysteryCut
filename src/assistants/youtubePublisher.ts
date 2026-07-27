@@ -137,10 +137,12 @@ function buildTitle(idea: StoryIdea): string {
 }
 
 /**
- * 유튜브 설명 = 캡션 본문만 (해시태그 없음 — 키워드는 본문에 녹아 있음).
- * 검색용 키워드는 snippet.tags(화면에 안 보이는 내부 메타데이터)로만 전달.
+ * 유튜브 설명 = 한글 캡션(위) + 영어 번역(아래) — 글로벌 시청자 대응.
+ * 해시태그 없음(키워드는 본문에 녹아 있음). 검색용 키워드는 snippet.tags 로만.
  * 세로 1080x1920·3분 미만이라 #Shorts 없이도 쇼츠로 자동 분류됨.
  */
 function buildDescription(m: ReelMetadata): string {
-  return m.caption;
+  return m.captionEn?.trim()
+    ? `${m.caption}\n\n———\n\n${m.captionEn}`
+    : m.caption;
 }

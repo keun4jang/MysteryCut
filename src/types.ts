@@ -49,8 +49,10 @@ export type ReelScript = z.infer<typeof ReelScriptSchema>;
 
 /** 3단계: 캡션/키워드 어시스트 산출물 */
 export const ReelMetadataSchema = z.object({
-  /** 게시물 본문 캡션 — 해시태그 없이 키워드를 문장에 녹여 씀 (첫 줄이 후킹) */
+  /** 게시물 본문 캡션(한국어) — 해시태그 없이 키워드를 문장에 녹여 씀 (첫 줄이 후킹) */
   caption: z.string(),
+  /** 캡션의 영어 번역 — 게시 시 한국어 아래에 붙어 글로벌 시청자 대응 */
+  captionEn: z.string(),
   /** 검색 키워드 (# 없음) — 유튜브 내부 태그(snippet.tags) 전용, 화면/본문 미표시 */
   hashtags: z.array(z.string()),
 });
