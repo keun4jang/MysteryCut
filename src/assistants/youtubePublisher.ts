@@ -81,7 +81,7 @@ async function setThumbnail(
   try {
     const img = await fs.readFile(thumbPath);
     const res = await fetch(
-      `https://uploads.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}&uploadType=media`,
+      `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}&uploadType=media`,
       {
         method: "POST",
         headers: {
@@ -95,7 +95,7 @@ async function setThumbnail(
     if (res.ok) {
       console.log("   🖼️  유튜브 커스텀 썸네일 지정 완료");
     } else {
-      const body = (await res.text()).slice(0, 300);
+      const body = (await res.text()).replace(/\s+/g, " ").slice(0, 300);
       console.warn(
         `   ⚠️ 유튜브 썸네일 지정 실패(게시는 완료됨): HTTP ${res.status} ${body}` +
           (res.status === 403
