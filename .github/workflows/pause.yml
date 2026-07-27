@@ -1,0 +1,23 @@
+name: "⏸️ 자동 게시 멈추기"
+
+# 사용법: GitHub 저장소 → Actions 탭 → 왼쪽에서 "⏸️ 자동 게시 멈추기" 선택
+#        → 오른쪽 "Run workflow" 버튼 → 초록색 "Run workflow" 클릭.
+# 효과: 하루 3회 자동 게시(post-reel.yml)가 완전히 멈춥니다.
+#       다시 켜려면 "▶️ 자동 게시 다시 시작"을 실행하세요. (모두 무료)
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  pause:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: post-reel 워크플로 비활성화
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow disable post-reel.yml -R "${{ github.repository }}"
+          echo "⏸️ 자동 게시를 멈췄습니다. 재개하려면 '▶️ 자동 게시 다시 시작'을 실행하세요."

@@ -1,0 +1,22 @@
+name: "▶️ 자동 게시 다시 시작"
+
+# 사용법: GitHub 저장소 → Actions 탭 → 왼쪽에서 "▶️ 자동 게시 다시 시작" 선택
+#        → 오른쪽 "Run workflow" 버튼 → 초록색 "Run workflow" 클릭.
+# 효과: 멈춰 있던 하루 3회 자동 게시(post-reel.yml)가 다시 돌아갑니다. (모두 무료)
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  resume:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: post-reel 워크플로 활성화
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow enable post-reel.yml -R "${{ github.repository }}"
+          echo "▶️ 자동 게시를 다시 시작했습니다. 다음 예약 시간부터 게시가 재개됩니다."
