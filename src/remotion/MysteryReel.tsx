@@ -281,19 +281,19 @@ const ThumbnailCard: React.FC<{ title: string; bgSrc?: string; theme: ReelTheme 
           transform: "translateY(-20px)",
         }}
       >
-        {/* 실화 배지 */}
+        {/* 실화 배지 — 그리드 축소판에서도 읽히도록 큼직하게 */}
         <div
           style={{
             background: "#c1121f",
             color: "#ffffff",
             fontFamily: FONT_FAMILY,
-            fontSize: 42,
+            fontSize: 72,
             fontWeight: 800,
-            letterSpacing: "2px",
-            padding: "10px 30px",
-            borderRadius: 10,
-            marginBottom: 34,
-            boxShadow: "0 6px 24px rgba(0,0,0,0.6)",
+            letterSpacing: "1px",
+            padding: "16px 44px",
+            borderRadius: 16,
+            marginBottom: 40,
+            boxShadow: "0 8px 30px rgba(0,0,0,0.65)",
           }}
         >
           실화 미제사건
