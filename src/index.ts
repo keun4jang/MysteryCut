@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { config } from "./config.js";
 import { writeReelPlan } from "./assistants/producer.js";
 import { narrate } from "./assistants/narrator.js";
@@ -93,6 +95,10 @@ async function main() {
   const videoPath = await renderReel(inputProps);
   console.log(`   🎬 ${videoPath}`);
 
+  // 첫 프레임(썸네일 카드)을 이미지로 추출 — 유튜브 커스텀 썸네일용
+  // (유튜브는 첫 프레임을 자동 채택하지 않으므로 thumbnails.set 으로 직접 지정)
+  const thumbPath = await extractThumb(videoPath);
+
   if (args.publish) {
     // 인스타·유튜브를 각각 독립 게시 (한쪽이 실패해도 다른 쪽은 진행)
     let anyFail = false;
@@ -111,7 +117,7 @@ async function main() {
     if (config.youtube.enabled) {
       console.log("⑦ 유튜브 업로드...");
       try {
-        const { videoId } = await publishYouTube(videoPath, idea, metadata);
+        const { videoId } = await publishYouTube(videoPath, idea, metadata, thumbPath);
         console.log(`   ✅ 유튜브 게시 완료: https://youtu.be/${videoId}`);
         anyPublished = true;
       } catch (e) {
@@ -128,6 +134,37 @@ async function main() {
     if (anyFail) process.exitCode = 1; // 하나라도 실패하면 워크플로가 알 수 있게
   } else {
     console.log("   ⏭️  업로드 생략 (--no-publish). 영상 파일만 생성했습니다.");
+  }
+}
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * 렌더된 영상의 첫 프레임(썸네일 카드)을 jpg 로 추출.
+ * ffmpeg 미설치/실패 시 undefined (썸네일 지정만 생략, 게시는 계속).
+ */
+async function extractThumb(videoPath: string): Promise<string | undefined> {
+  const thumbPath = path.join(config.paths.out, "thumb.jpg");
+  try {
+    await execFileAsync("ffmpeg", [
+      "-y",
+      "-i",
+      videoPath,
+      "-vf",
+      "select=eq(n\\,0)",
+      "-frames:v",
+      "1",
+      "-q:v",
+      "2",
+      thumbPath,
+    ]);
+    const st = await fs.stat(thumbPath);
+    if (st.size < 1024 || st.size > 2 * 1024 * 1024) throw new Error(`비정상 크기 ${st.size}B`);
+    console.log(`   🖼️  썸네일 추출: ${thumbPath} (${Math.round(st.size / 1024)}KB)`);
+    return thumbPath;
+  } catch (e) {
+    console.warn(`   ⚠️ 썸네일 추출 실패(게시는 계속): ${e instanceof Error ? e.message : e}`);
+    return undefined;
   }
 }
 

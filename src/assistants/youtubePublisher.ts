@@ -15,6 +15,8 @@ export async function publishYouTube(
   videoPath: string,
   idea: StoryIdea,
   metadata: ReelMetadata,
+  /** 커스텀 썸네일 jpg 경로 (유튜브는 첫 프레임을 자동 채택하지 않으므로 직접 지정) */
+  thumbPath?: string,
 ): Promise<{ videoId: string }> {
   const accessToken = await getAccessToken();
   const bytes = await fs.readFile(videoPath);
@@ -60,7 +62,52 @@ export async function publishYouTube(
   if (!upRes.ok || !json.id) {
     throw new Error(`YouTube 업로드 실패: ${JSON.stringify(json).slice(0, 400)}`);
   }
+
+  // 3) 커스텀 썸네일 지정 (실패해도 게시 자체는 성공으로 처리)
+  if (thumbPath) await setThumbnail(json.id, thumbPath, accessToken);
+
   return { videoId: json.id };
+}
+
+/**
+ * thumbnails.set — 업로드한 영상에 커스텀 썸네일 지정.
+ * 채널이 전화번호 인증(고급 기능)돼 있어야 허용됨. 403 이면 안내만 남기고 계속.
+ */
+async function setThumbnail(
+  videoId: string,
+  thumbPath: string,
+  accessToken: string,
+): Promise<void> {
+  try {
+    const img = await fs.readFile(thumbPath);
+    const res = await fetch(
+      `https://uploads.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}&uploadType=media`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "image/jpeg",
+          "Content-Length": String(img.byteLength),
+        },
+        body: new Uint8Array(img),
+      },
+    );
+    if (res.ok) {
+      console.log("   🖼️  유튜브 커스텀 썸네일 지정 완료");
+    } else {
+      const body = (await res.text()).slice(0, 300);
+      console.warn(
+        `   ⚠️ 유튜브 썸네일 지정 실패(게시는 완료됨): HTTP ${res.status} ${body}` +
+          (res.status === 403
+            ? " — 채널 전화번호 인증이 필요할 수 있음: https://www.youtube.com/verify"
+            : ""),
+      );
+    }
+  } catch (e) {
+    console.warn(
+      `   ⚠️ 유튜브 썸네일 지정 실패(게시는 완료됨): ${e instanceof Error ? e.message : e}`,
+    );
+  }
 }
 
 /** 리프레시 토큰으로 새 액세스 토큰 발급 */
