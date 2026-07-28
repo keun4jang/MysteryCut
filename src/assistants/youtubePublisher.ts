@@ -82,15 +82,15 @@ export async function suppressAutoCaptions(
   videoId: string,
   accessToken: string,
 ): Promise<boolean> {
-  // 완전히 빈 파일은 거부될 수 있어 0.1초짜리 공백 큐 하나를 넣는다
-  const blankSrt = "1\n00:00:00,000 --> 00:00:00,100\n \n\n";
+  // 완전히 빈 파일은 거부될 수 있어 0.4초짜리 공백 큐 하나를 넣는다 (검증된 포맷)
+  const blankSrt = "1\n00:00:00,000 --> 00:00:00,400\n \n";
   const meta = JSON.stringify({
     snippet: { videoId, language: "ko", name: "", isDraft: false },
   });
   const boundary = "mysterycut_caption_boundary";
   const body =
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
-    `--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${blankSrt}\r\n` +
+    `--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n${blankSrt}\r\n` +
     `--${boundary}--`;
 
   try {
@@ -118,6 +118,8 @@ export async function suppressAutoCaptions(
     } else if (res.status === 409) {
       console.log("   🔇 자막 트랙이 이미 존재 — 건너뜀");
       return true;
+    } else if (res.status === 403 && /quota/i.test(text)) {
+      console.warn("   ⚠️ 유튜브 일일 쿼터 초과 — 남은 영상은 내일 이어서 처리하세요.");
     } else {
       console.warn(`   ⚠️ 자막 등록 실패(게시는 완료됨): HTTP ${res.status} ${text}`);
     }
