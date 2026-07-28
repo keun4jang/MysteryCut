@@ -66,7 +66,70 @@ export async function publishYouTube(
   // 3) 커스텀 썸네일 지정 (실패해도 게시 자체는 성공으로 처리)
   if (thumbPath) await setThumbnail(json.id, thumbPath, accessToken);
 
+  // 4) 자동자막 억제: 빈 한국어 자막 트랙 등록 (있으면 유튜브가 자동자막 대신 사용)
+  await suppressAutoCaptions(json.id, accessToken);
+
   return { videoId: json.id };
+}
+
+/**
+ * 자동 생성 자막이 화면 자막과 겹쳐 보이는 문제 억제.
+ * 유튜브는 업로드된 자막 트랙이 있으면 자동자막 대신 그것을 쓰므로,
+ * 사실상 빈 한국어 SRT 를 등록해 아무것도 표시되지 않게 한다.
+ * captions.insert 는 youtube.force-ssl 스코프 필요 — 없으면 안내만 남기고 계속.
+ */
+export async function suppressAutoCaptions(
+  videoId: string,
+  accessToken: string,
+): Promise<boolean> {
+  // 완전히 빈 파일은 거부될 수 있어 0.1초짜리 공백 큐 하나를 넣는다
+  const blankSrt = "1\n00:00:00,000 --> 00:00:00,100\n \n\n";
+  const meta = JSON.stringify({
+    snippet: { videoId, language: "ko", name: "", isDraft: false },
+  });
+  const boundary = "mysterycut_caption_boundary";
+  const body =
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
+    `--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${blankSrt}\r\n` +
+    `--${boundary}--`;
+
+  try {
+    const res = await fetch(
+      "https://www.googleapis.com/upload/youtube/v3/captions?uploadType=multipart&part=snippet",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": `multipart/related; boundary=${boundary}`,
+        },
+        body,
+      },
+    );
+    if (res.ok) {
+      console.log("   🔇 자동자막 억제용 빈 자막 트랙 등록 완료");
+      return true;
+    }
+    const text = (await res.text()).replace(/\s+/g, " ").slice(0, 250);
+    if (res.status === 403 && /insufficient|scope/i.test(text)) {
+      console.warn(
+        "   ⚠️ 자막 등록 권한 부족(youtube.force-ssl 스코프 필요) — YT_REFRESH_TOKEN 을 " +
+          "youtube.upload + youtube.force-ssl 두 스코프로 재발급하면 자동자막 억제가 활성화됩니다.",
+      );
+    } else if (res.status === 409) {
+      console.log("   🔇 자막 트랙이 이미 존재 — 건너뜀");
+      return true;
+    } else {
+      console.warn(`   ⚠️ 자막 등록 실패(게시는 완료됨): HTTP ${res.status} ${text}`);
+    }
+  } catch (e) {
+    console.warn(`   ⚠️ 자막 등록 실패(게시는 완료됨): ${e instanceof Error ? e.message : e}`);
+  }
+  return false;
+}
+
+/** 리프레시 토큰으로 액세스 토큰 발급 (백필 스크립트에서도 사용) */
+export async function getYoutubeAccessToken(): Promise<string> {
+  return getAccessToken();
 }
 
 /**

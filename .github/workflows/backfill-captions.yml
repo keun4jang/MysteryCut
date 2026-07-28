@@ -1,0 +1,30 @@
+name: "🔇 기존 영상 자동자막 끄기"
+
+# 사용법: Actions 탭 → "🔇 기존 영상 자동자막 끄기" → Run workflow.
+# 기존에 올라간 유튜브 영상들에 '빈 자막 트랙'을 등록해 자동자막이 안 뜨게 합니다.
+# 한 번에 최대 N개(기본 8, 쿼터 보호) — 영상이 많으면 며칠에 나눠 실행하세요. (무료)
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "이번 실행에서 처리할 최대 영상 수"
+        required: false
+        default: "8"
+
+jobs:
+  backfill:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: 빈 자막 트랙 일괄 등록
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: npx tsx scripts/backfillCaptions.mts "${{ github.event.inputs.limit }}"
