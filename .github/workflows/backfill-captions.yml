@@ -1,7 +1,8 @@
 name: "🔇 기존 영상 자동자막 끄기"
 
 # 기존에 올라간 유튜브 영상들에 '빈 자막 트랙'을 등록해 자동자막이 안 뜨게 합니다.
-# - 매일 자동 실행(하루 6개, 무료 쿼터 보호)되며, 전부 끝나면 스스로 비활성화됩니다.
+# - 매일 자동 실행(하루 4개 — 게시 4회가 몰리는 쿼터일에도 무료 한도 안전)되며,
+#   전부 끝나면 스스로 비활성화됩니다.
 # - 수동 실행: Actions 탭 → "🔇 기존 영상 자동자막 끄기" → Run workflow (개수 조절 가능).
 # - 처리 기록은 data/captionsBackfill.json 에 저장되어 중복 호출 없이 이어서 처리합니다.
 on:
@@ -12,7 +13,7 @@ on:
       limit:
         description: "이번 실행에서 처리할 최대 영상 수"
         required: false
-        default: "6"
+        default: "4"
 
 permissions:
   contents: write
@@ -35,7 +36,7 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
-        run: npx tsx scripts/backfillCaptions.mts "${{ github.event.inputs.limit || '6' }}"
+        run: npx tsx scripts/backfillCaptions.mts "${{ github.event.inputs.limit || '4' }}"
       - name: 처리 기록 저장
         run: |
           git config user.name "mysterycut-bot"

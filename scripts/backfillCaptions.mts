@@ -2,9 +2,10 @@
  * 기존에 올라간 유튜브 영상 전체에 '빈 자막 트랙'을 등록해 자동자막을 억제한다.
  * (이미 수동 자막이 있는 영상은 건너뜀)
  *
- * 사용: npx tsx scripts/backfillCaptions.mts [최대 처리 개수=6]
- * 쿼터: 영상당 약 450 유닛(captions.list 50 + insert 400). 하루 게시(약 6,200)와
- *       합쳐 10,000 무료 쿼터를 넘지 않도록 기본 6개 — 매일 자동 실행으로 이어서 처리.
+ * 사용: npx tsx scripts/backfillCaptions.mts [최대 처리 개수=4]
+ * 쿼터: 영상당 약 450 유닛(captions.list 50 + insert 400). 유튜브 쿼터일(태평양 자정
+ *       기준)에 게시가 4회 몰리는 날(랜덤 지연이 경계를 넘는 경우, 약 8,200유닛)에도
+ *       10,000 무료 쿼터를 넘지 않도록 기본 4개 — 매일 자동 실행으로 이어서 처리.
  *
  * 처리한 영상은 data/captionsBackfill.json 에 기록해 다음 실행에서 API 호출 없이
  * 건너뛴다 (쿼터 낭비 방지). 남은 개수는 GITHUB_OUTPUT(remaining)으로 내보낸다.
@@ -16,7 +17,7 @@ import {
 } from "../src/assistants/youtubePublisher.js";
 
 const CHECKPOINT = "data/captionsBackfill.json";
-const limit = Math.max(0, Number(process.argv[2] || "6") || 0);
+const limit = Math.max(0, Number(process.argv[2] || "4") || 0);
 const token = await getYoutubeAccessToken();
 const H = { Authorization: `Bearer ${token}` };
 
