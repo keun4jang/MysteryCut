@@ -101,9 +101,6 @@ jobs:
           TTS_PROVIDER: ${{ vars.TTS_PROVIDER }}
           TTS_VOICE: ${{ vars.TTS_VOICE }}
           GOOGLE_TTS_VOICE: ${{ vars.GOOGLE_TTS_VOICE }}
-          # 페이스북 릴스 교차게시 (두 값이 모두 있으면 자동 활성화)
-          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           # 유튜브 업로드 (세 값이 모두 있으면 자동으로 유튜브에도 게시)
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
