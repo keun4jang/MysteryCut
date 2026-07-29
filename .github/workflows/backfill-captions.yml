@@ -1,15 +1,22 @@
 name: "🔇 기존 영상 자동자막 끄기"
 
-# 사용법: Actions 탭 → "🔇 기존 영상 자동자막 끄기" → Run workflow.
 # 기존에 올라간 유튜브 영상들에 '빈 자막 트랙'을 등록해 자동자막이 안 뜨게 합니다.
-# 한 번에 최대 N개(기본 8, 쿼터 보호) — 영상이 많으면 며칠에 나눠 실행하세요. (무료)
+# - 매일 자동 실행(하루 6개, 무료 쿼터 보호)되며, 전부 끝나면 스스로 비활성화됩니다.
+# - 수동 실행: Actions 탭 → "🔇 기존 영상 자동자막 끄기" → Run workflow (개수 조절 가능).
+# - 처리 기록은 data/captionsBackfill.json 에 저장되어 중복 호출 없이 이어서 처리합니다.
 on:
+  schedule:
+    - cron: "40 20 * * *" # 매일 05:40 KST — 게시 시간대(10~21시 KST)와 겹치지 않음
   workflow_dispatch:
     inputs:
       limit:
         description: "이번 실행에서 처리할 최대 영상 수"
         required: false
-        default: "8"
+        default: "6"
+
+permissions:
+  contents: write
+  actions: write
 
 jobs:
   backfill:
@@ -23,8 +30,28 @@ jobs:
           cache: npm
       - run: npm ci
       - name: 빈 자막 트랙 일괄 등록
+        id: backfill
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
-        run: npx tsx scripts/backfillCaptions.mts "${{ github.event.inputs.limit }}"
+        run: npx tsx scripts/backfillCaptions.mts "${{ github.event.inputs.limit || '6' }}"
+      - name: 처리 기록 저장
+        run: |
+          git config user.name "mysterycut-bot"
+          git config user.email "actions@github.com"
+          git add data/captionsBackfill.json
+          if git diff --cached --quiet; then
+            echo "변경 없음 — 커밋 생략"
+          else
+            git commit -m "chore: 자동자막 백필 기록 업데이트 [skip ci]"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - name: 전부 완료되면 자동 비활성화
+        if: steps.backfill.outputs.remaining == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow disable backfill-captions.yml -R "${{ github.repository }}"
+          echo "🎉 모든 영상 처리 완료 — 이 워크플로를 비활성화했습니다. (필요시 Actions 탭에서 다시 활성화 가능)"
