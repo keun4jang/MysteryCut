@@ -1,0 +1,30 @@
+name: "📊 조회수·반응 리포트"
+
+# 사용법: Actions 탭 → "📊 조회수·반응 리포트" → Run workflow.
+# 유튜브·인스타그램 최근 게시물의 조회수/좋아요/댓글을 로그로 출력합니다. (읽기 전용, 무료)
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "최근 몇 개까지 볼지"
+        required: false
+        default: "15"
+
+jobs:
+  report:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: 통계 조회
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+        run: npx tsx scripts/statsReport.mts "${{ github.event.inputs.limit }}"
