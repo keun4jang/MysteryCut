@@ -114,10 +114,12 @@ async function main() {
       console.error(`   ❌ 인스타 게시 실패: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    let ytVideoId: string | undefined;
     if (config.youtube.enabled) {
       console.log("⑦ 유튜브 업로드...");
       try {
         const { videoId } = await publishYouTube(videoPath, idea, metadata, thumbPath);
+        ytVideoId = videoId;
         console.log(`   ✅ 유튜브 게시 완료: https://youtu.be/${videoId}`);
         anyPublished = true;
       } catch (e) {
@@ -131,6 +133,10 @@ async function main() {
     // 한 곳이라도 실제 게시됐으면 이력에 기록 (소재·해시태그 회피용)
     if (anyPublished) await appendPost(idea, metadata.hashtags);
 
+    // 썸네일 카드를 저장소 thumbnails/ 폴더에 보관 — 유튜브가 쇼츠 썸네일
+    // API 를 열기 전까지 수동 지정용 원본으로 사용 (워크플로가 커밋)
+    if (anyPublished && thumbPath) await archiveThumb(thumbPath, idea.caseKey, ytVideoId);
+
     if (anyFail) process.exitCode = 1; // 하나라도 실패하면 워크플로가 알 수 있게
   } else {
     console.log("   ⏭️  업로드 생략 (--no-publish). 영상 파일만 생성했습니다.");
@@ -138,6 +144,27 @@ async function main() {
 }
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * 게시된 영상의 썸네일 카드를 thumbnails/날짜-사건키-영상ID.jpg 로 보관.
+ * 실패해도 게시 결과에는 영향 없음.
+ */
+async function archiveThumb(
+  thumbPath: string,
+  caseKey: string,
+  videoId?: string,
+): Promise<void> {
+  try {
+    const dir = "thumbnails";
+    await fs.mkdir(dir, { recursive: true });
+    const date = new Date().toISOString().slice(0, 10);
+    const name = `${date}-${caseKey}${videoId ? `-${videoId}` : ""}.jpg`;
+    await fs.copyFile(thumbPath, path.join(dir, name));
+    console.log(`   🗂️  썸네일 보관: thumbnails/${name}`);
+  } catch (e) {
+    console.warn(`   ⚠️ 썸네일 보관 실패(게시는 완료됨): ${e instanceof Error ? e.message : e}`);
+  }
+}
 
 /**
  * 렌더된 영상의 첫 프레임(썸네일 카드)을 jpg 로 추출.
