@@ -9,6 +9,7 @@ import { attachBroll } from "./assistants/broll.js";
 import { renderReel } from "./render.js";
 import { publishReel } from "./assistants/publisher.js";
 import { publishYouTube } from "./assistants/youtubePublisher.js";
+import { publishFacebookReel } from "./assistants/facebookPublisher.js";
 import {
   loadHistory,
   recentAvoidList,
@@ -138,6 +139,22 @@ async function main() {
       }
     } else {
       console.log("   ⏭️  유튜브 미설정(YT_CLIENT_ID/SECRET/REFRESH_TOKEN) — 유튜브 게시 건너뜀");
+    }
+
+    if (config.facebook.enabled) {
+      console.log("⑧ 페이스북 릴스 업로드...");
+      try {
+        const { videoId, asReel } = await publishFacebookReel(videoPath, metadata);
+        console.log(
+          `   ✅ 페이스북 게시 완료 (${asReel ? "릴스" : "동영상"} id: ${videoId})`,
+        );
+        anyPublished = true;
+      } catch (e) {
+        anyFail = true;
+        console.error(`   ❌ 페이스북 게시 실패: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    } else {
+      console.log("   ⏭️  페이스북 미설정(FB_PAGE_ID/FB_PAGE_TOKEN) — 페이스북 게시 건너뜀");
     }
 
     // 한 곳이라도 실제 게시됐으면 이력에 기록 (소재·해시태그 회피용)

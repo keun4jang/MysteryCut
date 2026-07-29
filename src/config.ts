@@ -110,6 +110,22 @@ export const config = {
       },
     },
   },
+  // 업로드: Facebook 릴스 (Meta Graph API, 무료). 페이스북 페이지 필요.
+  //  FB_PAGE_ID / FB_PAGE_TOKEN 이 모두 있으면 자동으로 페이스북에도 게시.
+  //  (콘텐츠 수익화 프로그램 자격이 열리면 조회수 수익 대상이 됨)
+  facebook: {
+    get enabled() {
+      if (process.env.SKIP_FACEBOOK?.trim() && process.env.SKIP_FACEBOOK !== "false") return false;
+      return Boolean(process.env.FB_PAGE_ID?.trim() && process.env.FB_PAGE_TOKEN?.trim());
+    },
+    get pageId() {
+      return required("FB_PAGE_ID");
+    },
+    get pageToken() {
+      return required("FB_PAGE_TOKEN");
+    },
+    graphVersion: opt("FB_GRAPH_VERSION", "v21.0"),
+  },
   // 업로드: YouTube Data API v3 (무료, Shorts 자동 분류). OAuth 필요.
   //  YT_CLIENT_ID / YT_CLIENT_SECRET / YT_REFRESH_TOKEN 이 모두 있으면 자동으로 유튜브에도 게시.
   youtube: {
