@@ -140,22 +140,23 @@ const Caption: React.FC<{
     boxStyle === "minimal"
       ? {
           // 배경 없음 — 강한 그림자만으로 가독성 확보
-          maxWidth: "88%",
+          // 폭을 우측 릴스 버튼 열(하트/댓글) 앞에서 끊는다 — 길면 균형 2줄로 줄바꿈
+          maxWidth: "82%",
           padding: "10px 8px",
           filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.95))",
         }
       : boxStyle === "bar"
         ? {
-            // 화면 가로를 꽉 채우는 띠
+            // 화면 가로를 꽉 채우는 띠 (글자는 우측 버튼 열을 피해 안쪽에만)
             width: "100%",
-            padding: "26px 48px",
+            padding: "26px 130px",
             borderRadius: 0,
             background:
               "linear-gradient(90deg, rgba(8,8,12,0) 0%, rgba(8,8,12,0.72) 12%, rgba(8,8,12,0.72) 88%, rgba(8,8,12,0) 100%)",
           }
         : {
             // 기본: 반투명 라운드 박스
-            maxWidth: "88%",
+            maxWidth: "84%",
             padding: "26px 40px",
             borderRadius: 24,
             background: "rgba(8,8,12,0.6)",
