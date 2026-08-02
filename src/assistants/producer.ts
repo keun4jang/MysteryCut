@@ -83,6 +83,7 @@ export async function writeReelPlan(
     "[metadata] caption(게시글 본문) + hashtags(검색 키워드 목록).",
     "- ★caption 에 해시태그(#) 절대 금지. 대신 검색될 키워드(미스터리, 실화, 미제사건, 사건 지역/연대/소재 등)를 본문 문장 안에 자연스럽게 녹여 써라. 예: '1977년 미국의 한 작은 마을에서 실제로 벌어진 미제사건이에요. 이런 미스터리 실화, 어떻게 생각하세요?' 처럼 키워드가 문장의 일부가 되게.",
     "- caption 구조: 첫 줄 후킹 → 사건 요약 2~3문장(키워드 자연 포함) → 마지막 질문으로 댓글 유도.",
+    "- ★모든 텍스트 필드(caption/captionEn/text/textEn/title/thumbTitle)에서 줄바꿈은 반드시 JSON 개행 이스케이프로만. 백슬래시+n 두 글자나 <br> 를 문장 안에 쓰면 게시글·화면에 그 코드가 그대로 노출되므로 절대 금지.",
     "- caption 끝에 신뢰 문구 한 줄: '※ 실제 사건 기록을 바탕으로 재구성한 콘텐츠입니다. 일부 장면은 자료화면입니다.' (독창성·사실성 표시)",
     "- captionEn 필수: caption 전체의 자연스러운 영어 번역(후킹→요약→질문→신뢰 문구까지). 원어민 구어체, 직역 금지, 해시태그 금지. 신뢰 문구는 'Based on real case records. Some scenes are stock footage.' 로. 게시 시 한국어 아래에 붙어 글로벌 시청자가 읽음.",
     "- hashtags 필드에는 # 없이 검색 키워드 8~12개만 (유튜브 내부 태그용 메타데이터 — 화면/본문엔 표시 안 됨). 예: '미스터리', '미제사건', '실화', '서클빌'.",
@@ -115,6 +116,7 @@ export async function writeReelPlan(
       temperature: 1.15,
       maxRetries: 1,
     })) as ReelPlan;
+    sanitizePlan(plan);
     const chars = plan.script.segments.reduce((n, s) => n + s.text.length, 0);
     if (chars > bestChars) {
       best = plan;
@@ -125,4 +127,40 @@ export async function writeReelPlan(
   }
   console.warn(`   ⚠️ 재생성에도 분량 미달 — 가장 긴 안(${bestChars}자)으로 진행`);
   return best!;
+}
+
+/**
+ * LLM 이 줄바꿈을 백슬래시+n 두 글자('\n')나 <br> 로 내보내면 화면·캡션에
+ * 그 코드가 그대로 노출된다. 생성 직후 한 곳에서 모두 정리한다.
+ *  - 여러 줄이 자연스러운 필드(썸네일 제목·캡션)는 실제 줄바꿈으로
+ *  - 한 줄이어야 하는 필드(자막·제목·훅 등)는 공백으로
+ */
+function sanitizePlan(plan: ReelPlan): void {
+  const toBreaks = (s: string) =>
+    s
+      .replace(/\\+n/g, "\n") // '\n' / '\\n' 문자열 → 실제 줄바꿈
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  const toSpace = (s: string) => toBreaks(s).replace(/\s*\n\s*/g, " ").trim();
+
+  const i = plan.idea;
+  i.thumbTitle = toBreaks(i.thumbTitle ?? "");
+  i.title = toSpace(i.title ?? "");
+  i.hook = toSpace(i.hook ?? "");
+  i.premise = toSpace(i.premise ?? "");
+  if (i.synopsis) i.synopsis = toSpace(i.synopsis);
+  if (i.twist) i.twist = toSpace(i.twist);
+  if (i.factNote) i.factNote = toSpace(i.factNote);
+
+  for (const seg of plan.script.segments) {
+    seg.text = toSpace(seg.text ?? "");
+    if (seg.textEn) seg.textEn = toSpace(seg.textEn);
+  }
+
+  const m = plan.metadata;
+  m.caption = toBreaks(m.caption ?? "");
+  if (m.captionEn) m.captionEn = toBreaks(m.captionEn);
+  m.hashtags = (m.hashtags ?? []).map((t) => toSpace(t).replace(/^#/, ""));
 }
