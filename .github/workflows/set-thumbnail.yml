@@ -1,0 +1,33 @@
+name: "🖼️ 유튜브 썸네일 교체"
+
+# 사용법: Actions 탭 → "🖼️ 유튜브 썸네일 교체" → Run workflow
+#        → 영상 ID 와 저장소 내 이미지 경로(thumbnails/…jpg) 입력.
+# 이미 게시된 영상의 커스텀 썸네일을 교체합니다. (무료, 쿼터 ~50유닛)
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "유튜브 영상 ID (youtu.be/ 뒤 11자)"
+        required: true
+      image_path:
+        description: "저장소 내 이미지 경로"
+        required: true
+        default: "thumbnails/"
+
+jobs:
+  set:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: 썸네일 교체
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: npx tsx scripts/setThumb.mts "${{ github.event.inputs.video_id }}" "${{ github.event.inputs.image_path }}"
