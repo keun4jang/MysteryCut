@@ -239,7 +239,13 @@ const ThumbnailCard: React.FC<{ title: string; bgSrc?: string; theme: ReelTheme 
   bgSrc,
   theme,
 }) => {
-  const lines = title.split("\n");
+  // LLM 이 줄바꿈을 실제 개행 대신 '\n' 두 글자(백슬래시+n)로 출력하는 경우가 있어
+  // 정규화 후 분리. 빈 줄/양끝 공백도 정리.
+  const lines = title
+    .replace(/\\n/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
   const longest = Math.max(...lines.map((l) => l.length), 1);
   // 글자수에 따라 크기 자동 조절 (짧을수록 큼직하게)
   const fontSize = longest <= 7 ? 160 : longest <= 10 ? 136 : longest <= 14 ? 112 : 94;

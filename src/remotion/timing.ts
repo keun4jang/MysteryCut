@@ -17,13 +17,12 @@ export function breathFramesAfter(emphasis: NarratedSegment["emphasis"], fps: nu
 }
 
 /**
- * 썸네일 카드 프레임 수 — 영상 맨 앞 1초(30fps 기준 30프레임) 동안 표시.
- * 인스타 커버·유튜브 일반 썸네일은 첫 프레임을 쓰고, 유튜브 쇼츠 그리드의
- * 세로 썸네일은 API 지정이 불가해 유튜브가 영상에서 프레임을 자동 선택한다 —
- * 카드를 1초간 보여주면 선택기가 카드를 집을 확률이 크게 올라가고,
- * 쇼츠 오프닝 타이틀 카드로서 후킹 역할도 한다. (나레이션은 카드 뒤에 시작)
+ * 썸네일 카드 프레임 수 — 영상 맨 앞 1프레임(약 0.03초)에만 표시.
+ * 재생 시엔 순간 스쳐 지나가지만, 인스타 커버와 유튜브 커스텀 썸네일
+ * (thumbnails.set, 첫 프레임 추출)은 이 카드를 쓴다.
+ * (유튜브 쇼츠 그리드 세로 썸네일은 유튜브가 자동 선택 — 카드 길이와 무관)
  */
-export const THUMB_FRAMES = 30;
+export const THUMB_FRAMES = 1;
 
 /** 세그먼트 재생 길이 + 호흡 + (있다면) 썸네일 카드를 더한 전체 프레임 수 */
 export function totalDurationInFrames(
