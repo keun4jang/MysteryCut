@@ -46,7 +46,6 @@ type Snippet = {
   tags?: string[];
   categoryId: string;
   defaultLanguage?: string;
-  defaultAudioLanguage?: string;
 };
 let flaggedCount = 0;
 let fixedCount = 0;
@@ -66,11 +65,14 @@ for (let i = 0; i < videoIds.length; i += 50) {
     if (!hits.length) continue;
     flaggedCount++;
 
+    // videos.update 는 쓰기 가능한 필드만 받는다. videos.list 응답을 그대로
+    // 되돌려보내면(thumbnails/channelId/publishedAt 등 포함) invalid argument 로 거부됨.
     const next: Snippet = {
-      ...s,
       title: softenText(s.title).slice(0, 100),
       description: softenText(s.description),
       tags: (s.tags ?? []).map(softenText),
+      categoryId: s.categoryId,
+      ...(s.defaultLanguage ? { defaultLanguage: s.defaultLanguage } : {}),
     };
     console.log(`\n🚩 ${v.id} — 걸린 표현: ${hits.join(", ")}`);
     if (next.title !== s.title) console.log(`   제목: ${s.title}\n     → ${next.title}`);
