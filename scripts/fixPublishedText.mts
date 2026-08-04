@@ -102,11 +102,13 @@ console.log(
     (apply ? `, 수정 ${fixedCount}개` : " (미리보기 — --apply 로 실제 수정)"),
 );
 
-/** 설명에서 처음 걸린 표현이 포함된 줄 하나만 뽑아 미리보기용으로 반환 */
+/** 설명에서 걸린 표현 주변만 잘라 미리보기용으로 반환 (앞뒤 50자) */
 function firstHitLine(desc: string, hits: string[]): string | undefined {
-  return desc
-    .split("\n")
-    .find((line) => hits.some((h) => line.includes(h)))
-    ?.trim()
-    .slice(0, 120);
+  for (const h of hits) {
+    const at = desc.indexOf(h);
+    if (at < 0) continue;
+    const from = Math.max(0, at - 50);
+    return (from > 0 ? "…" : "") + desc.slice(from, at + h.length + 50).replace(/\n/g, " ") + "…";
+  }
+  return undefined;
 }
