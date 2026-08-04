@@ -92,6 +92,18 @@ export async function writeReelPlan(
       : "",
     "",
     "안전: 확인 안 된 사실을 진짜처럼 단정하지 말 것. 과도한 잔혹성 지양.",
+    "",
+    "[★플랫폼 연령제한 회피 — 최우선 규칙]",
+    "인스타·유튜브는 자살/자해/섭식장애를 직접 언급한 게시물에 연령 제한(18세 미만 열람 불가)을 걸어 도달을 크게 떨어뜨린다.",
+    "caption/captionEn/thumbTitle/title/각 세그먼트 text·textEn 어디에도 아래 표현을 쓰지 마라:",
+    "- 금지(한국어): 자살, 자해, 극단적 선택, 스스로 목숨을 끊다, 목을 매다, 투신, 음독, 손목을 긋다, 거식/폭식",
+    "- 금지(영어): suicide, suicidal, self-harm, killed herself/himself, hanged, overdose, anorexia, bulimia",
+    "대신 사실을 왜곡하지 않는 중립 표현으로 바꿔 써라:",
+    "- '자살로 결론 내렸다' → '경찰은 타살 혐의점을 찾지 못하고 사건을 종결했다'",
+    "- '자살이었을까 타살이었을까' → '스스로 벌인 일이었을까, 누군가의 계획이었을까'",
+    "- 'ruled it a suicide' → 'closed the case, finding no evidence of foul play'",
+    "- 죽음의 구체적 방법·도구 묘사 금지. '어떻게 죽었는지'가 아니라 '왜 설명이 안 되는지'에 초점.",
+    "이 규칙은 사건 선택보다 우선한다 — 소재는 그대로 쓰되 표현만 중립적으로.",
   ].join("\n");
 
   const user = seed
@@ -104,11 +116,8 @@ export async function writeReelPlan(
   const MIN_CHARS = seed && /짧게|short/i.test(seed) ? 0 : 580;
   let best: ReelPlan | undefined;
   let bestChars = 0;
+  let feedback = "";
   for (let attempt = 0; attempt < 3; attempt++) {
-    const feedback =
-      attempt === 0
-        ? ""
-        : `\n★직전 시도의 대본 총 글자수가 ${bestChars}자로 부족했다. 사건 디테일(수사 과정·증언·배제된 가설)을 더 채워 반드시 공백 포함 600~700자로 다시 써라. 문장 늘이기 말고 내용 추가로.`;
     const plan = (await generateStructured({
       schema: ReelPlanSchema,
       system,
@@ -118,15 +127,124 @@ export async function writeReelPlan(
     })) as ReelPlan;
     sanitizePlan(plan);
     const chars = plan.script.segments.reduce((n, s) => n + s.text.length, 0);
+    // 연령제한 유발 표현이 남아 있으면 분량과 무관하게 재생성 (도달 손실이 더 크다)
+    const flagged = findSensitive(plan);
     if (chars > bestChars) {
       best = plan;
       bestChars = chars;
     }
-    if (chars >= MIN_CHARS) return plan;
-    console.warn(`   ⚠️ 대본 분량 부족(${chars}자 < ${MIN_CHARS}자) — 재생성 (${attempt + 1}/2)`);
+    if (!flagged.length && chars >= MIN_CHARS) return plan;
+
+    feedback = "";
+    if (flagged.length) {
+      console.warn(`   ⚠️ 연령제한 위험 표현 발견(${flagged.join(", ")}) — 재생성 (${attempt + 1}/2)`);
+      feedback += `\n★직전 시도에 플랫폼 연령제한을 유발하는 표현(${flagged.join(", ")})이 들어 있었다. 사건 사실은 유지하되 그 단어를 절대 쓰지 말고 중립 표현('타살 혐의점을 찾지 못했다', 'found no evidence of foul play' 등)으로 다시 써라.`;
+    }
+    if (chars < MIN_CHARS) {
+      console.warn(`   ⚠️ 대본 분량 부족(${chars}자 < ${MIN_CHARS}자) — 재생성 (${attempt + 1}/2)`);
+      feedback += `\n★직전 시도의 대본 총 글자수가 ${chars}자로 부족했다. 사건 디테일(수사 과정·증언·배제된 가설)을 더 채워 반드시 공백 포함 600~700자로 다시 써라. 문장 늘이기 말고 내용 추가로.`;
+    }
   }
-  console.warn(`   ⚠️ 재생성에도 분량 미달 — 가장 긴 안(${bestChars}자)으로 진행`);
+  // 3회 재생성에도 남으면 기계적으로 중립화 (게시 자체를 막기보다 표현만 순화)
+  const leftover = findSensitive(best!);
+  if (leftover.length) {
+    softenSensitive(best!);
+    console.warn(`   ⚠️ 재생성에도 위험 표현 잔존(${leftover.join(", ")}) — 자동 중립화 적용`);
+  }
+  if (bestChars < MIN_CHARS) {
+    console.warn(`   ⚠️ 재생성에도 분량 미달 — 가장 긴 안(${bestChars}자)으로 진행`);
+  }
   return best!;
+}
+
+/** 연령제한(자살·자해·섭식장애)을 유발하는 표현 패턴 */
+const SENSITIVE_PATTERNS: RegExp[] = [
+  /자살/g,
+  /자해/g,
+  /극단적\s*선택/g,
+  /스스로\s*목숨을\s*끊/g,
+  /목을\s*매/g,
+  /투신/g,
+  /음독/g,
+  /손목을\s*긋/g,
+  /거식증|폭식증/g,
+  /\bsuicid\w*/gi,
+  /\bself[-\s]?harm\w*/gi,
+  /\bhanged?\s+(?:her|him)self/gi,
+  /\bkilled\s+(?:her|him)self/gi,
+  /\banorexi\w*|\bbulimi\w*/gi,
+];
+
+/** 계획 전체 텍스트에서 위험 표현을 찾아 매칭된 단어 목록 반환 */
+function findSensitive(plan: ReelPlan): string[] {
+  const texts = collectTexts(plan);
+  const hits = new Set<string>();
+  for (const re of SENSITIVE_PATTERNS) {
+    for (const t of texts) {
+      for (const m of t.match(re) ?? []) hits.add(m.trim());
+    }
+  }
+  return [...hits];
+}
+
+function collectTexts(plan: ReelPlan): string[] {
+  const i = plan.idea;
+  const m = plan.metadata;
+  return [
+    i.thumbTitle,
+    i.title,
+    i.hook,
+    i.premise,
+    i.synopsis,
+    i.twist,
+    i.factNote,
+    m.caption,
+    m.captionEn,
+    ...(m.hashtags ?? []),
+    ...plan.script.segments.flatMap((s) => [s.text, s.textEn ?? ""]),
+  ].filter((s): s is string => Boolean(s));
+}
+
+/** 최후 수단: 사실 왜곡 없이 중립 표현으로 치환 */
+function softenSensitive(plan: ReelPlan): void {
+  const fix = (s: string): string =>
+    s
+      // 구체적인 문맥부터 자연스러운 표현으로 (일반 치환은 마지막에)
+      .replace(/(?:자살|극단적\s*선택)(?:로|으로)?\s*결론(?:을)?\s*내/g, "타살 혐의점을 찾지 못했다고 결론 내")
+      .replace(/자살로\s*(결론|판단|종결)[^.?!]*/g, "타살 혐의점을 찾지 못한 채 종결")
+      .replace(/(?:자살|극단적\s*선택)을\s*했?다는/g, "스스로 벌인 일이라는")
+      .replace(/(자살|극단적\s*선택)\s*(결론|판단)/g, "의문사 종결")
+      .replace(/(자살|극단적\s*선택)\s*(미스터리|사건|의혹|설)/g, "의문사 $2")
+      .replace(/스스로\s*목숨을\s*끊[^\s.?!]*/g, "숨을 거둔")
+      .replace(/극단적\s*선택|자살/g, "의문의 죽음")
+      .replace(/자해/g, "스스로 입힌 상처")
+      .replace(/목을\s*매(달)?/g, "숨진")
+      .replace(/투신/g, "추락")
+      .replace(/음독/g, "중독")
+      .replace(/손목을\s*긋는?/g, "상처를 내는")
+      .replace(/거식증|폭식증/g, "섭식 문제")
+      .replace(/ruled\s+it\s+a\s+suicide/gi, "closed the case with no evidence of foul play")
+      .replace(/\bsuicides?\b/gi, "a self-inflicted act")
+      .replace(/\bsuicidal\b/gi, "despairing")
+      .replace(/\bself[-\s]?harm\w*/gi, "self-inflicted injury")
+      .replace(/\b(hanged|killed)\s+(her|him)self/gi, "died")
+      .replace(/\banorexi\w*|\bbulimi\w*/gi, "an eating disorder");
+
+  const i = plan.idea;
+  i.thumbTitle = fix(i.thumbTitle);
+  i.title = fix(i.title);
+  i.hook = fix(i.hook);
+  i.premise = fix(i.premise);
+  if (i.synopsis) i.synopsis = fix(i.synopsis);
+  if (i.twist) i.twist = fix(i.twist);
+  if (i.factNote) i.factNote = fix(i.factNote);
+  for (const s of plan.script.segments) {
+    s.text = fix(s.text);
+    if (s.textEn) s.textEn = fix(s.textEn);
+  }
+  plan.metadata.caption = fix(plan.metadata.caption);
+  if (plan.metadata.captionEn) plan.metadata.captionEn = fix(plan.metadata.captionEn);
+  plan.metadata.hashtags = (plan.metadata.hashtags ?? []).map(fix);
 }
 
 /**
