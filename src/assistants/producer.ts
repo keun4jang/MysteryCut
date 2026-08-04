@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { config } from "../config.js";
 import { generateStructured } from "../lib/llm.js";
+import { findSensitiveTerms, softenText } from "../lib/safeText.js";
 import {
   StoryIdeaSchema,
   ReelScriptSchema,
@@ -157,37 +158,12 @@ export async function writeReelPlan(
   return best!;
 }
 
-/** 연령제한(자살·자해·섭식장애)을 유발하는 표현 패턴 */
-const SENSITIVE_PATTERNS: RegExp[] = [
-  /자살/g,
-  /자해/g,
-  /극단적\s*선택/g,
-  /스스로\s*목숨을\s*끊/g,
-  /목을\s*매/g,
-  /투신/g,
-  /음독/g,
-  /손목을\s*긋/g,
-  /거식증|폭식증/g,
-  /\bsuicid\w*/gi,
-  /\bself[-\s]?harm\w*/gi,
-  /\bhanged?\s+(?:her|him)self/gi,
-  /\bkilled\s+(?:her|him)self/gi,
-  /\banorexi\w*|\bbulimi\w*/gi,
-];
-
 /** 계획 전체 텍스트에서 위험 표현을 찾아 매칭된 단어 목록 반환 */
 function findSensitive(plan: ReelPlan): string[] {
-  const texts = collectTexts(plan);
-  const hits = new Set<string>();
-  for (const re of SENSITIVE_PATTERNS) {
-    for (const t of texts) {
-      for (const m of t.match(re) ?? []) hits.add(m.trim());
-    }
-  }
-  return [...hits];
+  return findSensitiveTerms(collectTexts(plan));
 }
 
-function collectTexts(plan: ReelPlan): string[] {
+function collectTexts(plan: ReelPlan): (string | undefined)[] {
   const i = plan.idea;
   const m = plan.metadata;
   return [
@@ -201,35 +177,13 @@ function collectTexts(plan: ReelPlan): string[] {
     m.caption,
     m.captionEn,
     ...(m.hashtags ?? []),
-    ...plan.script.segments.flatMap((s) => [s.text, s.textEn ?? ""]),
-  ].filter((s): s is string => Boolean(s));
+    ...plan.script.segments.flatMap((s) => [s.text, s.textEn]),
+  ];
 }
 
 /** 최후 수단: 사실 왜곡 없이 중립 표현으로 치환 */
 function softenSensitive(plan: ReelPlan): void {
-  const fix = (s: string): string =>
-    s
-      // 구체적인 문맥부터 자연스러운 표현으로 (일반 치환은 마지막에)
-      .replace(/(?:자살|극단적\s*선택)(?:로|으로)?\s*결론(?:을)?\s*내/g, "타살 혐의점을 찾지 못했다고 결론 내")
-      .replace(/자살로\s*(결론|판단|종결)[^.?!]*/g, "타살 혐의점을 찾지 못한 채 종결")
-      .replace(/(?:자살|극단적\s*선택)을\s*했?다는/g, "스스로 벌인 일이라는")
-      .replace(/(자살|극단적\s*선택)\s*(결론|판단)/g, "의문사 종결")
-      .replace(/(자살|극단적\s*선택)\s*(미스터리|사건|의혹|설)/g, "의문사 $2")
-      .replace(/스스로\s*목숨을\s*끊[^\s.?!]*/g, "숨을 거둔")
-      .replace(/극단적\s*선택|자살/g, "의문의 죽음")
-      .replace(/자해/g, "스스로 입힌 상처")
-      .replace(/목을\s*매(달)?/g, "숨진")
-      .replace(/투신/g, "추락")
-      .replace(/음독/g, "중독")
-      .replace(/손목을\s*긋는?/g, "상처를 내는")
-      .replace(/거식증|폭식증/g, "섭식 문제")
-      .replace(/ruled\s+it\s+a\s+suicide/gi, "closed the case with no evidence of foul play")
-      .replace(/\bsuicides?\b/gi, "a self-inflicted act")
-      .replace(/\bsuicidal\b/gi, "despairing")
-      .replace(/\bself[-\s]?harm\w*/gi, "self-inflicted injury")
-      .replace(/\b(hanged|killed)\s+(her|him)self/gi, "died")
-      .replace(/\banorexi\w*|\bbulimi\w*/gi, "an eating disorder");
-
+  const fix = softenText;
   const i = plan.idea;
   i.thumbTitle = fix(i.thumbTitle);
   i.title = fix(i.title);
@@ -256,7 +210,7 @@ function softenSensitive(plan: ReelPlan): void {
 function sanitizePlan(plan: ReelPlan): void {
   const toBreaks = (s: string) =>
     s
-      .replace(/\\+n/g, "\n") // '\n' / '\\n' 문자열 → 실제 줄바꿈
+      .replace(/\\+n/g, "\n")
       .replace(/<br\s*\/?>/gi, "\n")
       .replace(/[ \t]+\n/g, "\n")
       .replace(/\n{3,}/g, "\n\n")

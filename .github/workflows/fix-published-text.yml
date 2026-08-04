@@ -1,0 +1,32 @@
+name: "🛡️ 기존 영상 연령제한 표현 수정"
+
+# 사용법: Actions 탭 → "🛡️ 기존 영상 연령제한 표현 수정" → Run workflow.
+# 이미 올라간 유튜브 영상의 제목·설명·태그에서 자살/자해 관련 표현을 찾아
+# 사실 왜곡 없이 중립 표현으로 바꿉니다. (무료)
+# 기본은 미리보기 — 무엇이 바뀔지 로그로만 확인하고, apply 를 true 로 해야 실제 수정.
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "실제로 수정 (false 면 미리보기만)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: 제목·설명·태그 검사/수정
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: npx tsx scripts/fixPublishedText.mts ${{ github.event.inputs.apply == 'true' && '--apply' || '' }}
