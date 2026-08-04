@@ -85,7 +85,7 @@ for (let i = 0; i < videoIds.length; i += 50) {
     const up = await fetch(
       "https://www.googleapis.com/youtube/v3/videos?part=snippet",
       {
-        method: "POST",
+        method: "PUT", // videos.update 는 PUT (POST 로 보내면 400)
         headers: { ...H, "Content-Type": "application/json" },
         body: JSON.stringify({ id: v.id, snippet: next }),
       },
