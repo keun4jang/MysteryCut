@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { parseBuffer } from "music-metadata";
 import { config } from "../config.js";
+import { toSpeechText } from "../lib/speech.js";
 import type { NarratedSegment, ReelScript } from "../types.js";
 
 const execFileAsync = promisify(execFile);
@@ -52,8 +53,12 @@ export async function narrate(
     const rawPath = path.join(config.paths.audio, `seg-${i}.raw.mp3`);
     const absPath = path.join(config.paths.audio, fileName);
 
-    if (provider === "google") await synthesizeGoogle(seg.text, rawPath);
-    else await synthesizeEdge(seg.text, rawPath, voiceOverride);
+    // 자막은 '3km' 그대로 두고, 읽을 때만 '3킬로미터'로 풀어 준다
+    const spoken = toSpeechText(seg.text);
+    if (spoken !== seg.text) console.log(`     🗣️  발음 변환: ${spoken.slice(0, 60)}`);
+
+    if (provider === "google") await synthesizeGoogle(spoken, rawPath);
+    else await synthesizeEdge(spoken, rawPath, voiceOverride);
 
     // 문장 앞뒤 무음(edge-tts 패딩) 제거 → 문장 사이 로봇 같은 공백 없앰.
     // 사이 '숨'은 Remotion 타임라인에서 일정 간격으로 다시 넣는다(timing.ts).
