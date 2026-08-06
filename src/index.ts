@@ -73,12 +73,14 @@ async function main() {
   console.log("④ 나레이션(TTS) 합성...");
   const segments = await narrate(script, pack.voice);
   {
-    // 최종 러닝타임 예측 로그 — 90초 안팎 목표 검증용 (틱톡 수익화 1분+ 요건)
+    // 최종 러닝타임 예측 로그 — 쇼츠 최적 구간(50~58초) 검증용
     const chars = script.segments.reduce((n, s) => n + s.text.length, 0);
     const secs = totalDurationInFrames(segments, 30, true) / 30;
     console.log(`   ⏱️ 대본 ${chars}자 → 예상 러닝타임 ${secs.toFixed(1)}초`);
-    if (secs < 61) {
-      console.warn("   ⚠️ 60초 미만 — 틱톡 리워드 요건(1분+) 미달. 다음 회차에서 분량 기준 조정 필요.");
+    if (secs > 60) {
+      console.warn(
+        `   ⚠️ 60초 초과(${secs.toFixed(1)}초) — 인스타 도달 하락·유튜브 Content ID 차단 위험 구간. 분량 기준 조정 필요.`,
+      );
     }
   }
 
