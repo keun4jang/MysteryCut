@@ -56,7 +56,7 @@ export const config = {
     },
     // edge (남성 Hyunsu 음성을 낮추고 살짝 빠르게 — 사용자 선택 톤)
     voice: opt("TTS_VOICE", "ko-KR-HyunsuMultilingualNeural"),
-    rate: opt("TTS_RATE", "+15%"),
+    rate: opt("TTS_RATE", "+28%"),
     pitch: opt("TTS_PITCH", "-6Hz"),
     google: {
       get apiKey() {

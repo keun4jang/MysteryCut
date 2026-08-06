@@ -17,15 +17,15 @@ export interface VoicePick {
 const VOICES: Array<{ weight: number; pick: VoicePick }> = [
   {
     weight: 3,
-    pick: { voice: "ko-KR-HyunsuMultilingualNeural", rate: "+15%", pitch: "-6Hz", label: "Hyunsu 기본" },
+    pick: { voice: "ko-KR-HyunsuMultilingualNeural", rate: "+28%", pitch: "-6Hz", label: "Hyunsu 기본" },
   },
   {
     weight: 2,
-    pick: { voice: "ko-KR-HyunsuMultilingualNeural", rate: "+10%", pitch: "-8Hz", label: "Hyunsu 저음" },
+    pick: { voice: "ko-KR-HyunsuMultilingualNeural", rate: "+24%", pitch: "-8Hz", label: "Hyunsu 저음" },
   },
   {
     weight: 2,
-    pick: { voice: "ko-KR-InJoonNeural", rate: "+10%", pitch: "-5Hz", label: "InJoon" },
+    pick: { voice: "ko-KR-InJoonNeural", rate: "+24%", pitch: "-5Hz", label: "InJoon" },
   },
 ];
 
