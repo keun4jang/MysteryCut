@@ -48,6 +48,50 @@ const HOOK_STYLES = [
   "훅 방식: '숫자/팩트 충격형' — 믿기 힘든 구체적 사실 하나로 시작. 예: '편지 200통. 발신인은 죽은 사람이었어요.' 그 다음 실화임을 밝힘.",
 ];
 
+/**
+ * 소재 각도 로테이션 — 실종·의문사에 쏠리는 걸 막는다.
+ * (실측: 초기 46건 중 실종 41% + 의문사 26% = 67%로 편중)
+ * 실종·의문사는 여전히 강력한 소재라 가중치를 남기되, 나머지 각도를 골고루 섞는다.
+ */
+const TOPIC_ANGLES: Array<{ weight: number; pick: string }> = [
+  {
+    weight: 2,
+    pick: "소재 각도: '설명되지 않는 현상' — 하늘에서 떨어진 것, 집단으로 목격된 이상 현상, 물리적으로 말이 안 되는 흔적, 반복되는 괴이한 소리·빛. 사람의 실종이 아니라 '현상 자체'가 주인공.",
+  },
+  {
+    weight: 2,
+    pick: "소재 각도: '기묘한 인물' — 정체가 끝내 밝혀지지 않은 사람, 이해할 수 없는 행동을 반복한 사람, 남긴 물건·기록이 더 수수께끼인 사람. 죽음이나 실종이 중심이 아니어도 된다.",
+  },
+  {
+    weight: 2,
+    pick: "소재 각도: '풀리지 않은 물건·기록' — 해독되지 않은 암호문, 출처 불명의 사진·필름·녹음, 설명 안 되는 고문서·지도·유물. 사건보다 '물건'이 주인공.",
+  },
+  {
+    weight: 2,
+    pick: "소재 각도: '집단이 겪은 이상 사건' — 마을 전체·승객 전원·학교 전체가 동시에 겪은 설명 불가한 일. 집단 환각, 집단 목격, 원인 불명의 집단 증상.",
+  },
+  {
+    weight: 2,
+    pick: "소재 각도: '기이한 장소' — 들어간 사람마다 이상한 일이 생기는 건물·숲·바다, 지도에서 지워진 마을, 버려진 시설에 남은 흔적. 장소가 주인공.",
+  },
+  {
+    weight: 2,
+    pick: "소재 각도: '미해결 범죄·협박' — 잡히지 않은 범인, 정체불명의 편지·전화·메시지, 동기를 알 수 없는 사건. (죽음 묘사는 최소화하고 '왜 설명이 안 되는지'에 집중)",
+  },
+  {
+    weight: 2,
+    pick: "소재 각도: '뒤집힌 상식' — 과학·법·역사의 정설을 흔든 사건, 나중에 완전히 다르게 밝혀진 이야기, 예상 밖의 결말이 난 분쟁.",
+  },
+  {
+    weight: 3,
+    pick: "소재 각도: '실종·행방불명' — 사람이 흔적 없이 사라진 사건. (최근 이 각도가 과하게 반복됐으니 정말 신선한 사건일 때만 고르고, 아니면 다른 각도를 택하라)",
+  },
+  {
+    weight: 2,
+    pick: "소재 각도: '설명되지 않는 죽음' — 사인이 끝내 규명되지 않은 사건. (표현은 중립적으로, 방법 묘사 금지)",
+  },
+];
+
 function weightedPick<T>(items: Array<{ weight: number; pick: T }>): T {
   const total = items.reduce((a, i) => a + i.weight, 0);
   let r = Math.random() * total;
@@ -64,6 +108,8 @@ export interface StylePack {
   voice: VoicePick;
   theme: ReelTheme;
   hookStyle: string;
+  /** 이번 회차에 다룰 소재 각도 (실종 편중 방지) */
+  topicAngle: string;
 }
 
 export function pickStylePack(): StylePack {
@@ -75,5 +121,6 @@ export function pickStylePack(): StylePack {
       kenburns: pick(KENBURNS),
     },
     hookStyle: pick(HOOK_STYLES),
+    topicAngle: weightedPick(TOPIC_ANGLES),
   };
 }

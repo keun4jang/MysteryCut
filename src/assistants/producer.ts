@@ -32,6 +32,8 @@ export interface AvoidList {
 export interface PlanOptions {
   /** 버라이어티 팩이 고른 오프닝 훅 방식 지시문 */
   hookStyle?: string;
+  /** 버라이어티 팩이 고른 소재 각도 지시문 (실종 편중 방지) */
+  topicAngle?: string;
 }
 
 export async function writeReelPlan(
@@ -61,6 +63,9 @@ export async function writeReelPlan(
     "- basedOnRealEvents 를 정직히 표시. 실존 인물(특히 생존자) 명예훼손·사적 개인 특정 금지.",
     "- factNote 에 '알려진 사실 vs 추측/미확인'을 한두 문장으로.",
     "- 너무 유명한 소재(브라질 납가면 등)만 반복하지 말고, 덜 알려진 사건·세계 각국 사례도 폭넓게.",
+    "",
+    `[★이번 회차 소재 각도 — 최우선] ${opts?.topicAngle ?? "소재 각도: 자유. 단 실종 사건에 쏠리지 않게 하라."}
+이 각도에 맞는 사건을 고르는 것이 소재 선택의 첫 번째 기준이다. 억지로 끼워 맞추지는 말되, 이 각도에 맞는 신선한 사건을 우선 탐색하라.`,
     "",
     "[소재 풀] 아래 세 갈래를 고루 섞어라 (한 갈래만 반복 금지):",
     "  (A) 해외 미제사건·역사 속 미스터리 — 지금까지의 기본 소재",

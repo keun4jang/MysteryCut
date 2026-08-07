@@ -42,11 +42,13 @@ async function main() {
   console.log(
     `🎲 버라이어티: 보이스=${pack.voice.label} | 자막=${pack.theme.boxStyle} | 줌=${pack.theme.kenburns} | 긴장색=${pack.theme.colors.tension}`,
   );
+  console.log(`   🧭 ${pack.topicAngle.split(" — ")[0]}`);
 
   // 스토리·대본·캡션을 한 번의 LLM 호출로 (Gemini 무료 할당량 절약: 3콜→1콜)
   console.log("①~③ 스토리·대본·캡션 통합 생성...");
   let { idea, script, metadata } = await writeReelPlan(args.seed, avoid, {
     hookStyle: pack.hookStyle,
+    topicAngle: pack.topicAngle,
   });
 
   // 그래도 겹치면 재생성 (최대 3회). 겹친 caseKey 는 회피 목록에 누적.
@@ -56,6 +58,7 @@ async function main() {
     avoid.titles.push(idea.title);
     ({ idea, script, metadata } = await writeReelPlan(args.seed, avoid, {
       hookStyle: pack.hookStyle,
+      topicAngle: pack.topicAngle,
     }));
   }
   if (isDuplicate(history, idea.caseKey)) {
