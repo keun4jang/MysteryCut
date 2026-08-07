@@ -92,6 +92,28 @@ const TOPIC_ANGLES: Array<{ weight: number; pick: string }> = [
   },
 ];
 
+/**
+ * 지역 로테이션 — 소재가 해외에 쏠리는 걸 막는다.
+ * (실측: 초기 46건 중 국내 소재 0건, 45건이 해외)
+ * 한국 소재는 시청자 공감·검색 유입에 유리하지만 명예훼손 리스크가 크므로
+ * '안전한 유형'(전설·수백 년 전 역사·30년 이상 된 공적 사건)으로만 한정한다.
+ */
+const REGION_ANGLES: Array<{ weight: number; pick: string }> = [
+  {
+    weight: 3,
+    pick: `지역: '한국' — 국내 소재를 골라라. 단 아래 안전 유형 안에서만 고른다(법적 리스크 회피).
+  · 한국 전설·민담·괴담 (장산범, 에밀레종, 옛 마을 괴담 등) — 실존 인물이 없어 가장 안전
+  · 조선·고려·삼국 시대 역사 미스터리 (실록·야사에 남은 설명 안 되는 기록, 왕실 의문사 논쟁 등)
+  · 30년 이상 지난, 언론·수사기관이 공식 발표해 널리 알려진 미제사건
+  · 확정 판결로 사실관계가 정리된 기이한 사건 (아래 (C) 규칙 준수)
+  ★생존 인물이 특정될 수 있는 최근 사건은 절대 금지. 실명·정확한 지역명 금지.`,
+  },
+  { weight: 2, pick: "지역: '아시아(한국 외)' — 일본·중국·대만·동남아·인도·중앙아시아 등의 사건이나 전승." },
+  { weight: 2, pick: "지역: '유럽' — 영국·프랑스·독일·북유럽·동유럽·러시아 등의 사건이나 전승." },
+  { weight: 2, pick: "지역: '미주' — 북미·중남미의 사건이나 전승. 미국에만 쏠리지 말고 캐나다·멕시코·브라질 등도." },
+  { weight: 2, pick: "지역: '그 외 지역' — 아프리카·중동·오세아니아·극지·대양(선박·섬) 등 덜 다뤄진 지역." },
+];
+
 function weightedPick<T>(items: Array<{ weight: number; pick: T }>): T {
   const total = items.reduce((a, i) => a + i.weight, 0);
   let r = Math.random() * total;
@@ -110,6 +132,8 @@ export interface StylePack {
   hookStyle: string;
   /** 이번 회차에 다룰 소재 각도 (실종 편중 방지) */
   topicAngle: string;
+  /** 이번 회차에 다룰 지역 (해외 편중 방지) */
+  regionAngle: string;
 }
 
 export function pickStylePack(): StylePack {
@@ -122,5 +146,6 @@ export function pickStylePack(): StylePack {
     },
     hookStyle: pick(HOOK_STYLES),
     topicAngle: weightedPick(TOPIC_ANGLES),
+    regionAngle: weightedPick(REGION_ANGLES),
   };
 }
