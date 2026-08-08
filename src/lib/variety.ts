@@ -176,7 +176,14 @@ export interface StylePack {
 }
 
 export function pickStylePack(): StylePack {
-  const topic = weightedItem(TOPIC_ANGLES);
+  // FORCE_ANGLE 로 특정 소재 각도를 지정할 수 있다 (샘플·검증용. 미지정이면 평소대로 랜덤)
+  const force = process.env.FORCE_ANGLE?.trim();
+  const forced = force ? TOPIC_ANGLES.find((t) => t.pick.includes(force)) : undefined;
+  if (force && !forced) {
+    console.warn(`   ⚠️ FORCE_ANGLE="${force}" 와 일치하는 소재 각도가 없어 무시합니다.`);
+  }
+  const topic = forced ?? weightedItem(TOPIC_ANGLES);
+  if (forced) console.log(`   📌 소재 각도 강제 지정: ${forced.pick.split(" — ")[0]}`);
   return {
     voice: weightedPick(VOICES),
     theme: {
