@@ -101,6 +101,7 @@ async function main() {
     bgmSrc: await findBgm(),
     theme: pack.theme,
     thumbTitle: idea.thumbTitle || idea.title,
+    thumbBadge: idea.thumbBadge,
   };
 
   // 산출물을 out/ 에 함께 저장 (재현/디버깅용)

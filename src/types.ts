@@ -9,6 +9,8 @@ export const StoryIdeaSchema = z.object({
   caseKey: z.string(),
   /** 썸네일(커버) 카드용 초자극 문구 — 6~16자, 최대 2줄('\n' 허용). 피드에서 시선을 잡는 한 방 */
   thumbTitle: z.string(),
+  /** 썸네일 상단 빨간 배지 문구 — 소재 종류에 맞춰 4~7자 (예: '실화 미제사건', '실화 법정사건') */
+  thumbBadge: z.string(),
   /** 릴스 훅(첫 3초 자막) — 스크롤을 멈추게 하는 한 문장 */
   hook: z.string(),
   /** 미스터리 제목 */
@@ -93,6 +95,8 @@ export interface ReelInputProps {
   theme?: ReelTheme;
   /** 썸네일(커버) 카드 문구 — 있으면 맨 앞 2프레임에 대형 타이틀 카드 삽입 */
   thumbTitle?: string;
+  /** 썸네일 상단 배지 문구 — 미지정 시 '실화 미스터리' */
+  thumbBadge?: string;
   // Remotion Composition props 는 인덱스 시그니처(Record<string, unknown>)를 요구
   [key: string]: unknown;
 }

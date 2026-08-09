@@ -12,6 +12,7 @@ const HEIGHT = 1920;
 const defaultProps: ReelInputProps = {
   title: "미스터리 예시",
   thumbTitle: "피가 전부\n사라졌다",
+  thumbBadge: "실화 미스터리",
   moodKeywords: ["긴장", "밤", "도시전설"],
   segments: [
     {

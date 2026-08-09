@@ -23,6 +23,8 @@ const tension = process.argv[4] ?? "#ffd76b";
 const inputProps: ReelInputProps = {
   title: "미스터리 예시",
   thumbTitle: "피가 전부\n사라졌다",
+  // 6번째 인자로 배지 문구 지정 (미지정 시 컴포넌트 기본값 확인용으로 undefined)
+  thumbBadge: process.argv[6],
   moodKeywords: ["긴장", "밤"],
   theme: {
     colors: { normal: "#ffffff", tension, reveal: "#ff5a5a" },

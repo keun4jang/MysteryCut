@@ -28,6 +28,7 @@ export const MysteryReel: React.FC<ReelInputProps> = ({
   bgmSrc,
   theme,
   thumbTitle,
+  thumbBadge,
 }) => {
   const { fps } = useVideoConfig();
   ensureFonts(); // Pretendard 폰트 로드 (렌더 전 대기)
@@ -39,7 +40,7 @@ export const MysteryReel: React.FC<ReelInputProps> = ({
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
       {thumbTitle ? (
         <Sequence from={0} durationInFrames={THUMB_FRAMES}>
-          <ThumbnailCard title={thumbTitle} bgSrc={segments[0]?.bgSrc} theme={t} />
+          <ThumbnailCard title={thumbTitle} badge={thumbBadge} bgSrc={segments[0]?.bgSrc} theme={t} />
         </Sequence>
       ) : null}
       {segments.map((seg, i) => {
@@ -234,11 +235,12 @@ const Caption: React.FC<{
  * 데드존 회피: 텍스트를 세로 중앙 밴드(상단 UI·하단 캡션바 사이)에, 좌우 90px 안쪽.
  * 인스타 그리드는 커버를 3:4 중앙 크롭하므로 중앙 배치가 그리드에서도 안전.
  */
-const ThumbnailCard: React.FC<{ title: string; bgSrc?: string; theme: ReelTheme }> = ({
-  title,
-  bgSrc,
-  theme,
-}) => {
+const ThumbnailCard: React.FC<{
+  title: string;
+  badge?: string;
+  bgSrc?: string;
+  theme: ReelTheme;
+}> = ({ title, badge, bgSrc, theme }) => {
   // LLM 이 줄바꿈을 실제 개행 대신 '\n' 두 글자(백슬래시+n)로 출력하는 경우가 있어
   // 정규화 후 분리. 빈 줄/양끝 공백도 정리.
   const lines = title
@@ -288,7 +290,8 @@ const ThumbnailCard: React.FC<{ title: string; bgSrc?: string; theme: ReelTheme 
           transform: "translateY(-20px)",
         }}
       >
-        {/* 실화 배지 — 그리드 축소판에서도 읽히도록 큼직하게 */}
+        {/* 실화 배지 — 소재 종류에 맞춰 LLM 이 정한다(미제사건/법정사건/괴담 등).
+            그리드 축소판에서도 읽히도록 큼직하게. */}
         <div
           style={{
             background: "#c1121f",
@@ -303,7 +306,7 @@ const ThumbnailCard: React.FC<{ title: string; bgSrc?: string; theme: ReelTheme 
             boxShadow: "0 8px 30px rgba(0,0,0,0.65)",
           }}
         >
-          실화 미제사건
+          {badge?.trim() || "실화 미스터리"}
         </div>
 
         {/* 초대형 타이틀 */}
