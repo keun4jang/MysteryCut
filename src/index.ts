@@ -78,14 +78,16 @@ async function main() {
   console.log("④ 나레이션(TTS) 합성...");
   const segments = await narrate(script, pack.voice);
   {
-    // 최종 러닝타임 예측 로그 — 쇼츠 최적 구간(50~58초) 검증용
+    // 최종 러닝타임 예측 로그 — 목표 구간(95~108초) 검증용
     const chars = script.segments.reduce((n, s) => n + s.text.length, 0);
     const secs = totalDurationInFrames(segments, 30, true) / 30;
     console.log(`   ⏱️ 대본 ${chars}자 → 예상 러닝타임 ${secs.toFixed(1)}초`);
-    if (secs > 60) {
+    if (secs > 115) {
       console.warn(
-        `   ⚠️ 60초 초과(${secs.toFixed(1)}초) — 인스타 도달 하락·유튜브 Content ID 차단 위험 구간. 분량 기준 조정 필요.`,
+        `   ⚠️ 115초 초과(${secs.toFixed(1)}초) — 인스타 릴스 도달률이 120초부터 3.5%대로 떨어지는 구간. 분량 기준 조정 필요.`,
       );
+    } else if (secs < 85) {
+      console.warn(`   ⚠️ 85초 미만(${secs.toFixed(1)}초) — 목표(95~108초)보다 짧음. 분량 기준 확인 필요.`);
     }
   }
 

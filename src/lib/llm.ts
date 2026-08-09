@@ -61,6 +61,10 @@ async function generateText(
     responseMimeType: "application/json",
     responseJsonSchema: jsonSchema, // 스키마를 강제해 필수 필드 누락 방지
     temperature,
+    // 대본이 30세그먼트(한/영 자막 + visualQuery)로 길어져 모델 기본 상한(8k)에
+    // 걸리면 JSON 이 잘려 파싱에 실패한다. 무료 등급은 토큰당 과금이 없으므로
+    // 상한만 넉넉히 열어둔다(실제 사용량만큼만 소비됨).
+    maxOutputTokens: 16384,
   };
   const candidates = workingModel ? [workingModel, ...MODEL_CANDIDATES] : [...MODEL_CANDIDATES];
   const dead = new Set<string>(); // 404(존재하지 않음) 모델은 이후 라운드에서 건너뜀
