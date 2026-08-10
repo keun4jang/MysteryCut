@@ -43,11 +43,15 @@ async function main() {
     `🎲 버라이어티: 보이스=${pack.voice.label} | 자막=${pack.theme.boxStyle} | 줌=${pack.theme.kenburns} | 긴장색=${pack.theme.colors.tension}`,
   );
   console.log(`   🧭 ${pack.topicAngle.split(" — ")[0]} | ${pack.regionAngle.split(" — ")[0]}`);
+  console.log(
+    `   🎬 ${pack.hookStyle.split(" — ")[0]} | ${pack.signoffStyle.split(" — ")[0]}`,
+  );
 
   // 스토리·대본·캡션을 한 번의 LLM 호출로 (Gemini 무료 할당량 절약: 3콜→1콜)
   console.log("①~③ 스토리·대본·캡션 통합 생성...");
   let { idea, script, metadata } = await writeReelPlan(args.seed, avoid, {
     hookStyle: pack.hookStyle,
+    signoffStyle: pack.signoffStyle,
     topicAngle: pack.topicAngle,
     regionAngle: pack.regionAngle,
   });
@@ -59,6 +63,7 @@ async function main() {
     avoid.titles.push(idea.title);
     ({ idea, script, metadata } = await writeReelPlan(args.seed, avoid, {
       hookStyle: pack.hookStyle,
+      signoffStyle: pack.signoffStyle,
       topicAngle: pack.topicAngle,
       regionAngle: pack.regionAngle,
     }));
