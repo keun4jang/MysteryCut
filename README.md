@@ -13,6 +13,9 @@
 storyIdeator   scriptWriter   metadataWriter    narrator        Remotion      publisher
 ```
 
+> **운영·유지보수는 [OPERATIONS.md](OPERATIONS.md) 를 보세요.**
+> 워크플로 지도, 시크릿 관리, 고장 시 확인 순서, 자주 바꾸는 설정값이 정리돼 있습니다.
+
 ## 무료 기술 스택
 
 | 단계 | 도구 | 비용 |
