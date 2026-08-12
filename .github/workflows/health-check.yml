@@ -5,6 +5,9 @@ name: "🩺 자동화 건강 점검"
 #     약 60일 뒤 인스타 게시가 통째로 멈춘다. 원인 찾기가 매우 어려운 고장.
 #  ② 게시 중단 — 오래 멈추면 커밋도 끊기고, 저장소 60일 무활동으로
 #     GitHub 이 예약 워크플로를 영구히 꺼버린다.
+#  ③ YT_REFRESH_TOKEN 무효화 — access_token 과 달리 자동 재발급이 불가능해서
+#     (사람이 OAuth 재인증을 해야 함) 죽으면 유튜브 게시가 그날부터 멈춘다.
+#     실제 게시 전에 미리 알아채도록 매주 직접 토큰을 확인한다.
 # 문제가 있으면 이 워크플로가 '실패'하고, GitHub 이 실패 알림 메일을 보냅니다.
 on:
   schedule:
@@ -109,6 +112,41 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # ── ③ YT_REFRESH_TOKEN 유효성 ───────────────────────────────
+      # access_token 은 자동 재발급되지만 refresh_token 자체가 죽으면(취소·만료·
+      # 폐기) 사람이 OAuth Playground 로 다시 인증해야 한다. 실제 게시 스텝에서
+      # 처음 발견하면 그날 게시부터 바로 실패하니, 여기서 미리 확인해 알린다.
+      # 세 값이 모두 설정된 경우에만 확인(유튜브 미설정 채널은 건너뜀).
+      - name: YouTube 토큰 확인
+        id: yt
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: |
+          if [ -z "$YT_CLIENT_ID" ] || [ -z "$YT_CLIENT_SECRET" ] || [ -z "$YT_REFRESH_TOKEN" ]; then
+            echo "유튜브 미설정 — 확인 생략"
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          RESP="$(curl -sS -X POST https://oauth2.googleapis.com/token \
+            -d "client_id=$YT_CLIENT_ID" \
+            -d "client_secret=$YT_CLIENT_SECRET" \
+            -d "refresh_token=$YT_REFRESH_TOKEN" \
+            -d "grant_type=refresh_token")"
+          if echo "$RESP" | grep -q '"access_token"'; then
+            echo "✅ YT_REFRESH_TOKEN 유효"
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::YT_REFRESH_TOKEN 이 더 이상 유효하지 않습니다: $RESP"
+            echo "  → 흔한 원인: Google Cloud Console 의 OAuth 동의 화면이 '테스트' 상태면"
+            echo "     토큰이 7일 만에 만료됩니다 — '프로덕션'으로 전환하세요."
+            echo "     그 외: 6개월 이상 미사용 / 접근 취소 / 리프레시 토큰 50개 초과로 폐기."
+            echo "  → 해결: OAuth Playground 에서 다시 인증해 새 토큰을 받고"
+            echo "     YT_REFRESH_TOKEN 시크릿을 교체하세요."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # ── 하트비트 ────────────────────────────────────────────────
       # 게시가 멈춰 커밋이 끊기더라도 저장소 활동을 남겨, GitHub 의
       # '60일 무활동 → 예약 워크플로 자동 정지' 를 구조적으로 차단한다.
@@ -130,8 +168,8 @@ jobs:
       # 하나라도 문제면 실패시켜 GitHub 이 알림 메일을 보내게 한다.
       - name: 결과 판정
         run: |
-          echo "GH_PAT: ${{ steps.pat.outputs.ok }} / 게시: ${{ steps.posts.outputs.ok }}"
-          if [ "${{ steps.pat.outputs.ok }}" != "true" ] || [ "${{ steps.posts.outputs.ok }}" != "true" ]; then
+          echo "GH_PAT: ${{ steps.pat.outputs.ok }} / 게시: ${{ steps.posts.outputs.ok }} / 유튜브 토큰: ${{ steps.yt.outputs.ok }}"
+          if [ "${{ steps.pat.outputs.ok }}" != "true" ] || [ "${{ steps.posts.outputs.ok }}" != "true" ] || [ "${{ steps.yt.outputs.ok }}" != "true" ]; then
             echo "위 error 항목을 확인하세요. 조치 방법은 OPERATIONS.md 4·5장에 있습니다."
             exit 1
           fi

@@ -188,8 +188,22 @@ async function getAccessToken(): Promise<string> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: params,
   });
-  const json = (await res.json()) as { access_token?: string; error?: unknown };
+  const json = (await res.json()) as { access_token?: string; error?: string; error_description?: string };
   if (!res.ok || !json.access_token) {
+    // refresh_token 은 access_token 과 달리 자동 재발급이 불가능하다(사람이
+    // OAuth 동의를 다시 거쳐야 함). invalid_grant 는 원인이 여러 갈래라
+    // (동의 화면이 '테스트' 상태 → 7일 만료 / 6개월 미사용 / 사용자가 접근 취소 /
+    //  같은 클라이언트의 리프레시 토큰 50개 초과로 오래된 것부터 폐기) 그냥
+    // 에러만 던지면 5년 뒤 디버깅하는 사람이 원인을 못 찾는다. 명확히 짚어준다.
+    if (json.error === "invalid_grant") {
+      throw new Error(
+        `YouTube 리프레시 토큰이 더 이상 유효하지 않습니다(invalid_grant: ${json.error_description ?? "?"}). ` +
+          "가능한 원인: (1) Google Cloud Console 의 OAuth 동의 화면이 '테스트' 상태면 토큰이 7일 만에 만료됩니다 " +
+          "— '프로덕션'으로 전환하세요. (2) 6개월 이상 미사용. (3) 사용자가 앱 접근을 취소함. " +
+          "(4) 같은 클라이언트의 리프레시 토큰이 50개를 넘어 오래된 것부터 자동 폐기됨. " +
+          "해결: OAuth Playground 에서 다시 인증해 새 리프레시 토큰을 받고 YT_REFRESH_TOKEN 시크릿을 교체하세요.",
+      );
+    }
     throw new Error(`YouTube 액세스 토큰 발급 실패: ${JSON.stringify(json)}`);
   }
   return json.access_token;
