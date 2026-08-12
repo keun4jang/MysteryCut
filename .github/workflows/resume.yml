@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   resume:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: post-reel 워크플로 활성화
