@@ -58,7 +58,7 @@ export async function narrate(
     if (spoken !== seg.text) console.log(`     🗣️  발음 변환: ${spoken.slice(0, 60)}`);
 
     if (provider === "google") await synthesizeGoogle(spoken, rawPath);
-    else await synthesizeEdge(spoken, rawPath, voiceOverride);
+    else await synthesizeEdgeResilient(spoken, rawPath, voiceOverride);
 
     // 문장 앞뒤 무음(edge-tts 패딩) 제거 → 문장 사이 로봇 같은 공백 없앰.
     // 사이 '숨'은 Remotion 타임라인에서 일정 간격으로 다시 넣는다(timing.ts).
@@ -178,6 +178,118 @@ async function synthesizeEdge(
     absPath,
   ]);
 }
+
+/**
+ * edge-tts 는 Microsoft 공식 API 가 아니라 Edge 브라우저 읽어주기 기능을
+ * 역공학한 비공식 라이브러리다. Microsoft 가 엔드포인트/인증을 바꾸면 그날로
+ * 깨질 수 있고, 나레이션이 죽으면 게시 전체가 실패한다. 5년 무인 운영을 버티기
+ * 위해 (1) 일시적 오류는 재시도하고 (2) 계속 실패하면 완전히 다른 벤더(구글
+ * 번역 무료 TTS)로 전환한다. 두 서비스가 같은 날 동시에 깨질 확률은 낮다.
+ */
+async function synthesizeEdgeResilient(
+  text: string,
+  absPath: string,
+  ov?: VoiceOverride,
+): Promise<void> {
+  const MAX_RETRIES = 3;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      await synthesizeEdge(text, absPath, ov);
+      return;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < MAX_RETRIES - 1) {
+        const wait = 2000 * (attempt + 1);
+        console.warn(
+          `  ⚠️ edge-tts 실패(${attempt + 1}/${MAX_RETRIES}) — ${wait / 1000}s 후 재시도: ${e instanceof Error ? e.message : e}`,
+        );
+        await sleep(wait);
+      }
+    }
+  }
+  console.warn(
+    `  ⚠️ edge-tts ${MAX_RETRIES}회 연속 실패 — 대체 TTS(Google 번역 무료 음성)로 전환합니다.`,
+  );
+  try {
+    await synthesizeGoogleTranslateTts(text, absPath);
+    console.log("  🔁 대체 TTS 로 합성 완료");
+  } catch (e2) {
+    throw new Error(
+      `edge-tts 와 대체 TTS 모두 실패했습니다. edge-tts: ${lastErr instanceof Error ? lastErr.message : lastErr} / 대체 TTS: ${e2 instanceof Error ? e2.message : e2}`,
+    );
+  }
+}
+
+/**
+ * 최후 폴백: Google 번역의 비공식 무료 TTS 엔드포인트(API 키·과금 없음).
+ * 요청당 글자수 제한이 있어 문장 단위로 쪼개 각각 합성한 뒤 이어붙인다.
+ * (품질은 edge-tts 보다 떨어지지만, '게시가 아예 안 되는 것'보다는 낫다)
+ */
+async function synthesizeGoogleTranslateTts(text: string, absPath: string): Promise<void> {
+  const chunks = splitForGtts(text);
+  const tmpFiles = chunks.map((_, i) => `${absPath}.gtts-${i}.mp3`);
+  try {
+    for (let i = 0; i < chunks.length; i++) {
+      await fetchGttsChunk(chunks[i], tmpFiles[i]);
+    }
+    if (tmpFiles.length === 1) {
+      await fs.copyFile(tmpFiles[0], absPath);
+    } else {
+      await concatMp3(tmpFiles, absPath);
+    }
+  } finally {
+    await Promise.all(tmpFiles.map((f) => fs.rm(f, { force: true }).catch(() => {})));
+  }
+}
+
+/** 문장 단위로 쪼개되, 각 조각을 대략 60자(한글 기준) 이내로 유지 */
+function splitForGtts(text: string, maxChars = 60): string[] {
+  // 쉼표도 분할 지점에 포함 — 종결부호 없는 긴 문장이 어색한 위치에서 잘리는 것을 방지
+  const sentences = text.split(/(?<=[.?!,、。！？，])\s*/).filter(Boolean);
+  const chunks: string[] = [];
+  let cur = "";
+  for (const s of sentences) {
+    if ((cur + s).length > maxChars) {
+      if (cur) chunks.push(cur.trim());
+      if (s.length > maxChars) {
+        for (let i = 0; i < s.length; i += maxChars) chunks.push(s.slice(i, i + maxChars));
+        cur = "";
+      } else {
+        cur = s;
+      }
+    } else {
+      cur += s;
+    }
+  }
+  if (cur) chunks.push(cur.trim());
+  return chunks.length ? chunks : [text];
+}
+
+async function fetchGttsChunk(text: string, dst: string): Promise<void> {
+  const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=ko&client=tw-ob`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+    },
+  });
+  if (!res.ok) throw new Error(`대체 TTS 요청 실패: HTTP ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length < 256) throw new Error("대체 TTS 응답이 비정상적으로 작습니다");
+  await fs.writeFile(dst, buf);
+}
+
+/** 여러 mp3 조각을 하나로 이어붙임(재인코딩 방식이라 조각 간 포맷 차이에도 안전) */
+async function concatMp3(files: string[], dst: string): Promise<void> {
+  const args: string[] = ["-y"];
+  for (const f of files) args.push("-i", f);
+  const filter = files.map((_, i) => `[${i}:a]`).join("") + `concat=n=${files.length}:v=0:a=1[out]`;
+  args.push("-filter_complex", filter, "-map", "[out]", dst);
+  await execFileAsync("ffmpeg", args);
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function ensureEdgeTts(): Promise<void> {
   try {

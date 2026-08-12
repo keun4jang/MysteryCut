@@ -135,17 +135,23 @@ jobs:
             npm run pipeline -- --seed="${{ github.event.inputs.seed }}"
           fi
 
-      # 게시 이력(data/history.json)과 썸네일 보관본(thumbnails/)이 갱신됐으면
-      # 저장소에 커밋 (이력=중복 회피용, 썸네일=쇼츠 수동 지정용 원본)
-      # dry_run 은 게시 안 하므로 둘 다 안 바뀜 → always() 지만 변경 없으면 스킵됨
+      # 게시 이력(data/history.json)·썸네일 보관본(thumbnails/)·인스타 API 버전
+      # (data/igGraphVersion.txt, 메타가 기존 버전을 지원 종료해 자동으로 다음
+      # 버전을 찾았을 때만 생성됨)이 갱신됐으면 저장소에 커밋.
+      # dry_run 은 게시 안 하므로 안 바뀜 → always() 지만 변경 없으면 스킵됨
       - name: Save post history
         if: ${{ always() && github.event.inputs.dry_run != 'true' }}
         run: |
-          if [[ -n "$(git status --porcelain data/history.json thumbnails/)" ]]; then
+          CHANGED="$(git status --porcelain data/history.json thumbnails/)"
+          if [ -f data/igGraphVersion.txt ]; then
+            CHANGED="${CHANGED}$(git status --porcelain data/igGraphVersion.txt)"
+          fi
+          if [ -n "$CHANGED" ]; then
             git config user.name "mystery-cut-bot"
             git config user.email "actions@users.noreply.github.com"
             git add data/history.json thumbnails/
-            git commit -m "chore: 게시 이력·썸네일 보관 업데이트 [skip ci]"
+            [ -f data/igGraphVersion.txt ] && git add data/igGraphVersion.txt
+            git commit -m "chore: 게시 이력·썸네일·인스타 API 버전 업데이트 [skip ci]"
             git pull --rebase origin "${{ github.ref_name }}" || true
             git push origin "HEAD:${{ github.ref_name }}"
             echo "게시 이력·썸네일 커밋 완료"

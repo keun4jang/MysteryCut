@@ -1,10 +1,62 @@
 import fs from "node:fs/promises";
 import { config } from "../config.js";
+import { loadGraphVersion, nextGraphVersion, persistGraphVersion } from "../lib/igGraphVersion.js";
 import type { ReelMetadata } from "../types.js";
 
-const V = config.instagram.graphVersion;
 // 컨테이너 생성/게시는 모드에 따라 graph.instagram.com 또는 graph.facebook.com
-const GRAPH = `${config.instagram.apiBase}/${V}`;
+const BASE = config.instagram.apiBase;
+// 메타가 config.instagram.graphVersion(v21.0 등)을 지원 종료해도 자동으로 다음
+// 버전을 찾아 재시도한다(아래 graphFetch). 5년 방치를 버티기 위한 장치 —
+// 자세한 설계 이유는 lib/igGraphVersion.ts 참고.
+const MAX_VERSION_BUMPS = 20;
+let versionPromise: Promise<string> | null = null;
+function currentVersion(): Promise<string> {
+  versionPromise ??= loadGraphVersion(config.instagram.graphVersion);
+  return versionPromise;
+}
+
+/** 메타의 "버전 지원 종료" 오류 메시지를 휴리스틱으로 감지 */
+function isVersionDeprecatedError(json: unknown): boolean {
+  const msg = String(
+    (json as { error?: { message?: string } })?.error?.message ?? "",
+  ).toLowerCase();
+  if (!msg.includes("version")) return false;
+  return /(no longer supported|not supported|deprecated|unsupported)/.test(msg);
+}
+
+/**
+ * Graph API 호출 + 버전 만료 자동 대응. urlFor(version) 은 그 버전을 넣은 전체 URL.
+ * 지원 종료 오류가 감지되면 버전을 올려 재시도하고, 성공한 버전은 파일에 기록해
+ * 다음 실행부터 바로 그 버전으로 시작하게 한다.
+ */
+async function graphFetch(
+  urlFor: (version: string) => string,
+  init?: RequestInit,
+): Promise<Record<string, unknown>> {
+  let version = await currentVersion();
+  const startedAt = version;
+  for (let attempt = 0; attempt <= MAX_VERSION_BUMPS; attempt++) {
+    const res = await fetch(urlFor(version), init);
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (res.ok) {
+      if (version !== startedAt) {
+        console.warn(
+          `  ✅ 인스타 Graph API ${version} 로 갱신 확인 — 다음 실행부터 이 버전으로 시작합니다.`,
+        );
+        await persistGraphVersion(version).catch(() => {});
+      }
+      return json;
+    }
+    if (isVersionDeprecatedError(json) && attempt < MAX_VERSION_BUMPS) {
+      const next = nextGraphVersion(version);
+      console.warn(`  ⚠️ 인스타 Graph API ${version} 지원 종료 감지 → ${next} 로 재시도`);
+      version = next;
+      continue;
+    }
+    throw new Error(`인스타 API 요청 실패(${version}): ${JSON.stringify(json).slice(0, 300)}`);
+  }
+  throw new Error("인스타 Graph API 버전 자동 탐색이 모두 실패했습니다.");
+}
 
 /**
  * 업로드 어시스트 — 렌더된 mp4 를 Instagram 릴스로 게시.
@@ -131,24 +183,21 @@ async function createContainer(caption: string, videoUrl: string): Promise<strin
     caption,
     access_token: config.instagram.accessToken,
   });
-  const res = await fetch(`${GRAPH}/${config.instagram.userId}/media`, {
+  const json = await graphFetch((v) => `${BASE}/${v}/${config.instagram.userId}/media`, {
     method: "POST",
     body: params,
   });
-  const json = (await res.json()) as { id?: string; error?: unknown };
-  if (!res.ok || !json.id) {
-    throw new Error(`컨테이너 생성 실패: ${JSON.stringify(json)}`);
-  }
-  return json.id;
+  const id = json.id as string | undefined;
+  if (!id) throw new Error(`컨테이너 생성 실패: ${JSON.stringify(json)}`);
+  return id;
 }
 
 async function waitUntilFinished(containerId: string): Promise<void> {
   for (let attempt = 0; attempt < 45; attempt++) {
     await sleep(4000);
-    const res = await fetch(
-      `${GRAPH}/${containerId}?fields=status_code,status&access_token=${config.instagram.accessToken}`,
+    const json = await graphFetch(
+      (v) => `${BASE}/${v}/${containerId}?fields=status_code,status&access_token=${config.instagram.accessToken}`,
     );
-    const json = (await res.json()) as { status_code?: string; status?: string };
     if (json.status_code === "FINISHED") return;
     if (json.status_code === "ERROR") {
       throw new Error(`영상 처리 실패: ${JSON.stringify(json)}`);
@@ -163,15 +212,13 @@ async function publish(containerId: string): Promise<string> {
     creation_id: containerId,
     access_token: config.instagram.accessToken,
   });
-  const res = await fetch(`${GRAPH}/${config.instagram.userId}/media_publish`, {
+  const json = await graphFetch((v) => `${BASE}/${v}/${config.instagram.userId}/media_publish`, {
     method: "POST",
     body: params,
   });
-  const json = (await res.json()) as { id?: string; error?: unknown };
-  if (!res.ok || !json.id) {
-    throw new Error(`게시 실패: ${JSON.stringify(json)}`);
-  }
-  return json.id;
+  const id = json.id as string | undefined;
+  if (!id) throw new Error(`게시 실패: ${JSON.stringify(json)}`);
+  return id;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
