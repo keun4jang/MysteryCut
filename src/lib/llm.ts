@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import type { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { config } from "../config.js";
+import { loadGeminiModel, persistGeminiModel } from "./geminiModel.js";
 
 let ai: GoogleGenAI | null = null;
 function getAI(): GoogleGenAI {
@@ -66,7 +67,19 @@ async function generateText(
     // 상한만 넉넉히 열어둔다(실제 사용량만큼만 소비됨).
     maxOutputTokens: 16384,
   };
-  const candidates = workingModel ? [workingModel, ...MODEL_CANDIDATES] : [...MODEL_CANDIDATES];
+  let candidates: string[];
+  if (workingModel) {
+    candidates = [workingModel, ...MODEL_CANDIDATES];
+  } else {
+    // 콜드 스타트(매 실행이 새 프로세스). 정적 후보 목록의 앞쪽(gemini-2.0-flash 등)이
+    // 이미 죽어 있으면 매번 실제 생성 호출을 낭비하며 무료 일일 한도를 갉아먹는다.
+    // 지난 실행에서 성공을 확인한 모델을 먼저 시도하고, 기록이 없으면 라이브
+    // 탐색(models.list — 생성 호출이 아니라 별도 한도라 이 확인 자체는 무해함)으로
+    // 지금 실제 쓸 수 있는 모델을 찾아 맨 앞에 둔다.
+    const preferred = (await loadGeminiModel()) ?? (await discoverFlashModel());
+    candidates = preferred ? [preferred, ...MODEL_CANDIDATES] : [...MODEL_CANDIDATES];
+  }
+  candidates = candidates.filter((v, i, a) => !!v && a.indexOf(v) === i);
   const dead = new Set<string>(); // 404(존재하지 않음) 모델은 이후 라운드에서 건너뜀
 
   let lastErr: unknown;
@@ -84,6 +97,7 @@ async function generateText(
           workingModel = model;
           console.log(`  🤖 Gemini 모델: ${model}`);
         }
+        await persistGeminiModel(model).catch(() => {});
         return res.text ?? "";
       } catch (e) {
         lastErr = e;
@@ -110,6 +124,7 @@ async function generateText(
       const res = await getAI().models.generateContent({ model: discovered, contents: user, config: cfg });
       workingModel = discovered;
       console.log(`  🤖 Gemini 모델(자동탐색): ${discovered}`);
+      await persistGeminiModel(discovered).catch(() => {});
       return res.text ?? "";
     } catch (e) {
       lastErr = e;
@@ -128,12 +143,14 @@ async function discoverFlashModel(): Promise<string | null> {
       const supportsGenerate = actions.length === 0 || actions.includes("generateContent");
       if (name.includes("flash") && supportsGenerate) names.push(name);
     }
-    return (
+    const pick =
+      names.find((n) => !/lite|preview|exp|thinking|image|live|tts|audio|latest/.test(n)) ??
       names.find((n) => !/lite|preview|exp|thinking|image|live|tts|audio/.test(n)) ??
       names.find((n) => !/image|live|tts|audio/.test(n)) ??
       names[0] ??
-      null
-    );
+      null;
+    if (names.length) console.log(`  🔎 사용 가능한 flash 계열: ${names.join(", ")} → 선택: ${pick}`);
+    return pick;
   } catch {
     return null;
   }
