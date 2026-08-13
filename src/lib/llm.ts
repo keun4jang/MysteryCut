@@ -101,6 +101,19 @@ async function generateText(
         return res.text ?? "";
       } catch (e) {
         lastErr = e;
+        // 왜 이 후보가 실패했는지(없음/한도/일시적/기타) 남겨야 어느 모델이
+        // 실제로 얼마나 여유가 있는지 판단할 수 있다 — 안 남기면 항상 마지막
+        // 후보에 정착하는 이유를 알 길이 없다.
+        const reason = isModelMissing(e)
+          ? "모델 없음"
+          : isRateLimited(e)
+            ? "한도 초과"
+            : isTransient(e)
+              ? "일시적 오류"
+              : "기타";
+        console.log(
+          `  ⏭️  ${model} 실패(${reason}): ${String((e as { message?: unknown })?.message ?? e).slice(0, 150)}`,
+        );
         if (isModelMissing(e)) {
           dead.add(model); // 존재하지 않는 모델 — 재시도 안 함
           if (workingModel === model) workingModel = null;
