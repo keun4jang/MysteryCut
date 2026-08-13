@@ -11,15 +11,17 @@ function getAI(): GoogleGenAI {
 }
 
 /**
- * 무료 모델은 시간이 지나면 폐기됩니다(예: gemini-2.5-flash 는 신규 키에 404).
- * 후보를 순서대로 시도하고, 전부 실패하면 API 목록에서 사용 가능한 flash 모델을
- * 자동 탐색해 자가 복구합니다.
+ * 무료 모델은 시간이 지나면 폐기됩니다(2026-08 실측: gemini-2.0-flash·gemini-2.5-flash·
+ * gemini-2.5-flash-lite 모두 신규 키에 404 "no longer available"). 후보를 순서대로
+ * 시도하고, 전부 실패하면 API 목록에서 사용 가능한 flash 모델을 자동 탐색해 자가 복구합니다.
+ * ★models.list() 가 이미 죽은 모델을 여전히 목록에 올려주는 경우가 있어(실측 확인:
+ * gemini-2.5-flash 가 목록엔 있지만 generateContent 는 404), discoverFlashModel() 은
+ * 하나만 고르지 않고 순위가 매겨진 후보 목록을 돌려준다 — 1순위가 죽어 있어도
+ * 2·3순위를 이어서 시도해 정적 목록까지 떨어지지 않게 한다.
  */
 const MODEL_CANDIDATES = [
-  config.llm.model, // 사용자가 GEMINI_MODEL 로 지정했으면 최우선
-  "gemini-2.0-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-flash-latest", // 실험판(제한 빡빡) — 최후 후보
+  config.llm.model, // 사용자가 GEMINI_MODEL 로 지정했으면 최우선 (기본값은 실측 확인된 gemini-flash-latest)
+  "gemini-flash-lite-latest",
 ].filter((v, i, a) => !!v && a.indexOf(v) === i);
 
 let workingModel: string | null = null;
@@ -71,13 +73,15 @@ async function generateText(
   if (workingModel) {
     candidates = [workingModel, ...MODEL_CANDIDATES];
   } else {
-    // 콜드 스타트(매 실행이 새 프로세스). 정적 후보 목록의 앞쪽(gemini-2.0-flash 등)이
-    // 이미 죽어 있으면 매번 실제 생성 호출을 낭비하며 무료 일일 한도를 갉아먹는다.
-    // 지난 실행에서 성공을 확인한 모델을 먼저 시도하고, 기록이 없으면 라이브
-    // 탐색(models.list — 생성 호출이 아니라 별도 한도라 이 확인 자체는 무해함)으로
-    // 지금 실제 쓸 수 있는 모델을 찾아 맨 앞에 둔다.
-    const preferred = (await loadGeminiModel()) ?? (await discoverFlashModel());
-    candidates = preferred ? [preferred, ...MODEL_CANDIDATES] : [...MODEL_CANDIDATES];
+    // 콜드 스타트(매 실행이 새 프로세스). 정적 후보 목록이 이미 죽어 있으면 매번
+    // 실제 생성 호출을 낭비한다. 지난 실행에서 성공을 확인한 모델을 먼저 시도하고,
+    // 기록이 없으면 라이브 탐색(models.list — 생성 호출이 아니라 별도 한도라 무해)
+    // 으로 지금 쓸 수 있는 모델들을 순위대로 앞에 둔다. 목록의 1순위조차 실제로는
+    // 죽어 있는 경우가 있어(models.list() 와 generateContent() 불일치, 실측 확인)
+    // 여러 개를 앞에 깔아 하나만 믿지 않는다.
+    const persisted = await loadGeminiModel();
+    const preferred = persisted ? [persisted] : await discoverFlashModel();
+    candidates = [...preferred, ...MODEL_CANDIDATES];
   }
   candidates = candidates.filter((v, i, a) => !!v && a.indexOf(v) === i);
   const dead = new Set<string>(); // 404(존재하지 않음) 모델은 이후 라운드에서 건너뜀
@@ -130,9 +134,10 @@ async function generateText(
     if (!isRetryable(lastErr)) break;
   }
 
-  // 후보 전부 실패 → 계정에서 쓸 수 있는 flash 모델 자동 탐색
-  const discovered = await discoverFlashModel();
-  if (discovered && !dead.has(discovered)) {
+  // 후보 전부 실패 → 계정에서 쓸 수 있는 flash 모델 자동 탐색. 순위 목록 전체를
+  // 순서대로 시도한다(1순위가 실제로는 죽어 있는 경우가 있어 하나만 믿지 않음).
+  for (const discovered of await discoverFlashModel()) {
+    if (dead.has(discovered)) continue;
     try {
       const res = await getAI().models.generateContent({ model: discovered, contents: user, config: cfg });
       workingModel = discovered;
@@ -141,12 +146,20 @@ async function generateText(
       return res.text ?? "";
     } catch (e) {
       lastErr = e;
+      if (isModelMissing(e)) dead.add(discovered);
     }
   }
   throw lastErr ?? new Error("사용 가능한 Gemini 모델을 찾지 못했습니다.");
 }
 
-async function discoverFlashModel(): Promise<string | null> {
+/**
+ * 지금 이 API 키에서 실제로 쓸 수 있는 flash 계열 모델을 찾아 우선순위대로 정렬해 돌려준다.
+ * 버전 고정 안정판 → '-latest' 실험판 → lite 계열 → 나머지 순.
+ * ★models.list() 가 이미 지원 종료된 모델도 여전히 올려주는 경우가 있어(실측 확인:
+ * gemini-2.5-flash 가 목록엔 있었지만 generateContent 는 404) 하나만 고르지 않고
+ * 전체를 순서대로 반환한다 — 호출부가 1순위부터 차례로 시도한다.
+ */
+async function discoverFlashModel(): Promise<string[]> {
   try {
     const pager = await getAI().models.list();
     const names: string[] = [];
@@ -156,16 +169,20 @@ async function discoverFlashModel(): Promise<string | null> {
       const supportsGenerate = actions.length === 0 || actions.includes("generateContent");
       if (name.includes("flash") && supportsGenerate) names.push(name);
     }
-    const pick =
-      names.find((n) => !/lite|preview|exp|thinking|image|live|tts|audio|latest/.test(n)) ??
-      names.find((n) => !/lite|preview|exp|thinking|image|live|tts|audio/.test(n)) ??
-      names.find((n) => !/image|live|tts|audio/.test(n)) ??
-      names[0] ??
-      null;
-    if (names.length) console.log(`  🔎 사용 가능한 flash 계열: ${names.join(", ")} → 선택: ${pick}`);
-    return pick;
+    if (!names.length) return [];
+    const rank = (n: string): number => {
+      if (!/lite|preview|exp|thinking|image|live|tts|audio|latest/.test(n)) return 0; // 버전 고정 안정판
+      if (!/lite|preview|exp|thinking|image|live|tts|audio/.test(n)) return 1; // "-latest" 만 걸림
+      if (!/preview|exp|thinking|image|live|tts|audio/.test(n)) return 2; // lite 계열
+      return 3; // 프리뷰/실험판 등
+    };
+    const ranked = [...names].sort((a, b) => rank(a) - rank(b));
+    console.log(
+      `  🔎 사용 가능한 flash 계열: ${names.join(", ")} → 시도 순서: ${ranked.slice(0, 6).join(", ")}${ranked.length > 6 ? " …" : ""}`,
+    );
+    return ranked;
   } catch {
-    return null;
+    return [];
   }
 }
 

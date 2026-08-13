@@ -42,7 +42,9 @@ export const config = {
     get apiKey() {
       return required("GEMINI_API_KEY");
     },
-    model: opt("GEMINI_MODEL", "gemini-2.0-flash"),
+    // gemini-2.0-flash 는 신규 키에 404(2026-08 확인) — 실측으로 확인된 안정 기본값 사용.
+    // 시간이 지나 이마저 죽어도 llm.ts 가 라이브 탐색으로 자가 복구한다.
+    model: opt("GEMINI_MODEL", "gemini-flash-latest"),
   },
   // 나레이션 TTS.
   //  - edge  : Microsoft Edge TTS (무료, 키 불필요) — 기본
