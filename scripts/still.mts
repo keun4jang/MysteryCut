@@ -33,8 +33,10 @@ const inputProps: ReelInputProps = {
   },
   segments: [
     {
-      text: "근데 그 시신들의 행색이 너무 이상했어요.",
-      textEn: "But the way the bodies were dressed was really strange.",
+      // 자막 문구를 env 로 바꿔가며 가독성 비교용 스틸을 뽑을 수 있게 함
+      text: process.env.CAPTION_TEXT ?? "근데 그 시신들의 행색이 너무 이상했어요.",
+      textEn:
+        process.env.CAPTION_EN ?? "But the way the bodies were dressed was really strange.",
       emphasis: "tension",
       audioSrc: "audio/seg-0.mp3",
       durationInSeconds: 4,
