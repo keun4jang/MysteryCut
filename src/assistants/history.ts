@@ -57,8 +57,68 @@ export function recentAvoidList(
   };
 }
 
+/**
+ * caseKey 에서 '사건을 특정하는 이름 토큰'만 추린다.
+ * LLM 이 같은 사건에 helen-brach-1977 / helen-brach-disappearance-1977 처럼
+ * 수식어만 다른 슬러그를 만드는 일이 실제로 있어(2026-08-18 실측),
+ * 완전 일치 비교만으로는 중복이 뚫린다. 장르·지역 같은 범용 단어를 걷어내고
+ * 남는 고유명 토큰으로 비교한다.
+ */
+const GENERIC_KEY_TOKENS = new Set([
+  // 장르·사건 유형
+  "mystery", "mysteries", "case", "cases", "incident", "affair", "scandal",
+  "disappearance", "disappear", "missing", "vanish", "vanished", "vanishing",
+  "murder", "murders", "death", "deaths", "killing", "unsolved", "cold",
+  "haunted", "haunting", "ghost", "curse", "cursed", "strange", "bizarre",
+  "secret", "secrets", "hidden", "double", "life", "identity",
+  "estate", "inheritance", "will", "fortune", "money", "fraud", "scam",
+  "court", "trial", "verdict", "ruling", "lawsuit", "legal",
+  "family", "wife", "husband", "widow", "heir", "heiress",
+]);
+// 지역명은 걸러내지 않는다 — seoul-fire-1971 vs daegu-fire-1971 처럼
+// 지역이 사건을 가르는 유일한 단서인 경우가 있다.
+
+function keyNameTokens(key: string): Set<string> {
+  return new Set(
+    normalizeKey(key)
+      .split("-")
+      .filter((t) => t.length >= 3 && !/^\d+$/.test(t) && !GENERIC_KEY_TOKENS.has(t)),
+  );
+}
+
+function keyYear(key: string): string | null {
+  // 조선 시대 소재는 1473 같은 연도도 나온다 — 1000~2099 전체를 연도로 인식
+  const m = normalizeKey(key).match(/\b(1\d{3}|20\d\d)\b/);
+  return m ? m[1] : null;
+}
+
+/**
+ * 두 caseKey 가 사실상 같은 사건을 가리키는지 (수식어 차이 무시).
+ * '강한 겹침' = 한쪽 고유명 집합이 다른 쪽에 온전히 포함되거나(수식어만 추가된
+ * 경우), 고유명이 2개 이상 겹치는 경우. 고유명 1개만 겹치는 건(fire 등 소재
+ * 명사 하나) 같은 사건의 증거로 약해서 오탐을 낳으므로 제외한다.
+ * 연도가 양쪽에 있으면 반드시 일치해야 한다(1473 흉가 vs 1616 흉가는 다른 사건).
+ */
+export function isSameCase(a: string, b: string): boolean {
+  const na = normalizeKey(a);
+  const nb = normalizeKey(b);
+  if (na === nb) return true;
+  const ta = keyNameTokens(a);
+  const tb = keyNameTokens(b);
+  if (!ta.size || !tb.size) return false;
+  const shared = [...ta].filter((t) => tb.has(t));
+  if (!shared.length) return false;
+  const subset = shared.length === ta.size || shared.length === tb.size;
+  const strong = subset || shared.length >= 2;
+  if (!strong) return false;
+  const ya = keyYear(a);
+  const yb = keyYear(b);
+  if (ya && yb) return ya === yb;
+  return true;
+}
+
 export function isDuplicate(hist: HistoryFile, caseKey: string): boolean {
-  return usedKeySet(hist).has(normalizeKey(caseKey));
+  return hist.posts.some((p) => isSameCase(p.caseKey, caseKey));
 }
 
 /** 이력에 1건 추가하고 파일 저장 (게시 성공 후 호출) */
