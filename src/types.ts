@@ -44,6 +44,11 @@ export const ReelScriptSchema = z.object({
       emphasis: z.enum(["normal", "tension", "reveal"]).default("normal"),
       /** 이 장면의 배경 스톡 검색어 (영어, Pexels 검색용). 예: "foggy dark forest night" */
       visualQuery: z.string(),
+      /**
+       * 비주얼 챕터(장면) 번호 — 같은 장소·같은 국면의 세그먼트는 같은 번호.
+       * 한 장면(2~3세그먼트)이 배경 사진 1장을 나눠 쓴다. 누락 시 자동 묶음 폴백.
+       */
+      scene: z.number().int().min(0).optional(),
     }),
   ),
 });
@@ -70,18 +75,47 @@ export interface NarratedSegment {
   audioSrc: string;
   durationInSeconds: number;
   visualQuery: string;
-  /** 배경 이미지 public/ 상대경로 (예: broll/seg-0.jpg). 없으면 그라디언트 폴백 */
+  /** 배경 이미지 public/ 상대경로 (예: broll/scene-0.jpg). 없으면 그라디언트 폴백 */
   bgSrc?: string;
+  /** 비주얼 챕터 번호 (0부터 연속, scenes.ts 가 정규화). 미지정 시 세그먼트 = 장면 */
+  sceneIndex?: number;
+  /** 장면 안에서 몇 번째 컷인지 (0부터) — 같은 사진의 크롭·줌 변주에 사용 */
+  shot?: number;
+}
+
+/** 장르 구분 — 색보정·강조색·썸네일 마커를 소재 성격에 맞춰 고정한다 */
+export type ReelGenre = "coldCase" | "court" | "history" | "folklore";
+
+/**
+ * 장르 고정 색보정(그레이드) — Node 쪽(grade.ts)에서 결정해 props 로 내려보낸다.
+ * 렌더 코드는 여기 담긴 값을 그대로 쓰기만 하므로 결정성이 유지된다.
+ */
+export interface ReelGrade {
+  genre: ReelGenre;
+  /** 배경 사진에 거는 CSS filter (장르 고정값 + 사건별 ±지터) */
+  bgFilter: string;
+  /** 화면 전체에 얹는 장르 틴트 (CSS gradient 문자열) */
+  tintCss: string;
+  /** 장르 강조색 — 자막 패널 강조바·라벨·썸네일 마커 */
+  accent: string;
+  /** 필름 그레인 불투명도 (0.025~0.045, 0이면 끔) */
+  grainOpacity: number;
+  /** 그레인 노이즈 시드 (정적 패턴 — 프레임마다 동일해야 렌더가 결정적) */
+  grainSeed: number;
+  /** 썸네일 텍스트 마커: 코너 브래킷 / 좌측 세로바 (caseKey 시드로 로테이션) */
+  thumbMarker: "brackets" | "bar";
 }
 
 /** 영상 비주얼 테마 (버라이어티 팩이 실행마다 랜덤 선택) */
 export interface ReelTheme {
   /** 강조색: normal/tension/reveal 자막 색 */
   colors: { normal: string; tension: string; reveal: string };
-  /** 자막 배경 스타일: 반투명 박스 / 배경 없음(그림자만) / 가로 바 */
+  /** 자막 배경 스타일: 방송형 매트 패널 / 배경 없음(그림자만) / 가로 바 */
   boxStyle: "box" | "minimal" | "bar";
   /** 켄번즈 줌 방향: 확대 / 축소 / 세그먼트마다 교차 */
   kenburns: "in" | "out" | "mixed";
+  /** 장르 고정 색보정 — index.ts 가 소재 확정 후 채운다 (미지정 시 무보정) */
+  grade?: ReelGrade;
 }
 
 /** Remotion 컴포지션 입력 props */

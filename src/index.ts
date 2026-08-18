@@ -16,6 +16,7 @@ import {
   appendPost,
 } from "./assistants/history.js";
 import { pickStylePack } from "./lib/variety.js";
+import { deriveGrade, gradeColors } from "./lib/grade.js";
 import { totalDurationInFrames } from "./remotion/timing.js";
 import type { ReelInputProps } from "./types.js";
 
@@ -75,6 +76,14 @@ async function main() {
   console.log(`   💡 ${idea.title} — ${idea.hook}`);
   console.log(`   🔑 caseKey: ${idea.caseKey}`);
   console.log(`   📝 세그먼트 ${script.segments.length}개`);
+
+  // 장르 고정 색보정 — 소재가 확정된 지금 시점에 장르를 판별해 테마에 채운다.
+  // 자막 강조색도 랜덤 팔레트 대신 장르 색으로 교체(채널 룩 고정).
+  const grade = deriveGrade(idea.caseKey, idea.thumbBadge, pack.topicAngle);
+  pack.theme.grade = grade;
+  pack.theme.colors = gradeColors(grade.genre);
+  console.log(`   🎨 장르 그레이드: ${grade.genre} (마커=${grade.thumbMarker})`);
+
   if (args.only === "ideate") {
     console.log(JSON.stringify(idea, null, 2));
     return;

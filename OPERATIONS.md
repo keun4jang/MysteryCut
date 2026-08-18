@@ -190,8 +190,20 @@ GitHub 는 60일간 커밋이 없는 저장소의 cron 을 자동으로 끕니�
 | 오프닝 훅 종류 | 같은 파일 | `HOOK_STYLES` |
 | 마무리 멘트 종류 | 같은 파일 | `SIGNOFF_STYLES` |
 | 목소리·말 속도 | 같은 파일 | `VOICES` 의 `rate` / `pitch` |
-| 자막 디자인 | `src/remotion/MysteryReel.tsx` | — |
+| 자막 디자인 (매트 패널·라벨) | `src/remotion/MysteryReel.tsx` | `Caption` / `PANEL_LABELS` |
+| 전환·자막 모션 타이밍 | 같은 파일 | 맨 위 `DISSOLVE_FRAMES` / `CAPTION_*` 상수 |
+| BGM 볼륨·반전 딥 깊이 | 같은 파일 | `BGM_VOLUME` / `BGM_DIP_VOLUME` |
+| 장르별 색보정·강조색 | `src/lib/grade.ts` | `LOOKS` (장르 4종) / `detectGenre` |
+| 장면당 컷 수 상한 | `src/lib/scenes.ts` | `MAX_SHOTS_PER_SCENE` |
+| 자막 스타일 비중 (매트 패널 70%) | `src/lib/variety.ts` | `BOX_STYLES` 의 `weight` |
 | 대본 규칙 전반 | `src/assistants/producer.ts` | `system` 배열 (프롬프트) |
+
+**연출 구조(2026-08 디자인 개편):** 사진은 컷이 아니라 **장면(2~3컷)** 단위로
+1장을 받아 크롭·줌 변주로 나눠 씁니다(LLM 이 `scene` 번호 부여 →
+`scenes.ts` 정규화 → `broll.ts` 장면당 1장). 같은 장면 안은 6프레임
+디졸브, 장면 경계는 하드컷, 반전(reveal)은 하드컷 + 펀치 줌 + BGM 딥
+(영상당 최대 2회). 색보정은 랜덤이 아니라 소재 장르(coldCase/court/
+history/folklore)가 정하고, 사건별로 ±4% 지터만 섞입니다.
 
 **영상 길이 환산 기준(실측 7건):** 순수 발화 속도는 보이스마다 다릅니다 —
 Hyunsu 저음 **8.66자/초**(가장 느림), Hyunsu 기본 9.13, InJoon 9.68.

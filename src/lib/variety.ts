@@ -29,15 +29,22 @@ const VOICES: Array<{ weight: number; pick: VoicePick }> = [
   },
 ];
 
-// 강조색 팔레트 (normal/tension/reveal)
-const PALETTES: Array<ReelTheme["colors"]> = [
-  { normal: "#ffffff", tension: "#ffd76b", reveal: "#ff5a5a" }, // 클래식(노랑/빨강)
-  { normal: "#ffffff", tension: "#ffb257", reveal: "#ff6b4d" }, // 엠버(주황 계열)
-  { normal: "#ffffff", tension: "#8ed4ff", reveal: "#ff5a5a" }, // 아이스(차가운 파랑 긴장)
-  { normal: "#ffffff", tension: "#cdb6ff", reveal: "#ff5f87" }, // 바이올렛(보라 긴장/핑크 반전)
-];
+// 강조색은 더 이상 랜덤 팔레트가 아니다 — 소재(장르)가 정한다(lib/grade.ts).
+// 여기서는 클래식 기본값만 두고, index.ts 가 대본 확정 후 장르 색으로 덮어쓴다.
+// (매 영상 무작위 색은 '자동 생성' 신호였고, 장르 고정 색은 채널 정체성이 된다)
+const DEFAULT_COLORS: ReelTheme["colors"] = {
+  normal: "#ffffff",
+  tension: "#ffd76b",
+  reveal: "#ff5a5a",
+};
 
-const BOX_STYLES: Array<ReelTheme["boxStyle"]> = ["box", "minimal", "bar"];
+// 자막 스타일: 방송형 매트 패널(box)을 채널 기본 룩으로 70% 고정,
+// 나머지 30%만 변주 — '고정 70 / 랜덤 30'이 정체성과 다양성의 균형점
+const BOX_STYLES: Array<{ weight: number; pick: ReelTheme["boxStyle"] }> = [
+  { weight: 7, pick: "box" },
+  { weight: 1.5, pick: "minimal" },
+  { weight: 1.5, pick: "bar" },
+];
 const KENBURNS: Array<ReelTheme["kenburns"]> = ["in", "out", "mixed"];
 
 /**
@@ -227,8 +234,8 @@ export function pickStylePack(): StylePack {
   return {
     voice: weightedPick(VOICES),
     theme: {
-      colors: pick(PALETTES),
-      boxStyle: pick(BOX_STYLES),
+      colors: DEFAULT_COLORS, // index.ts 가 소재 확정 후 장르 색으로 교체
+      boxStyle: weightedPick(BOX_STYLES),
       kenburns: pick(KENBURNS),
     },
     hookStyle: weightedPick(HOOK_STYLES),

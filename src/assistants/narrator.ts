@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { parseBuffer } from "music-metadata";
 import { config } from "../config.js";
 import { toSpeechText } from "../lib/speech.js";
+import { assignScenes, sceneStats } from "../lib/scenes.js";
 import type { NarratedSegment, ReelScript } from "../types.js";
 
 const execFileAsync = promisify(execFile);
@@ -46,6 +47,13 @@ export async function narrate(
     }
   }
 
+  // 비주얼 챕터 정규화 — LLM 의 scene 번호를 0부터 연속으로 보정 (broll 이 장면당 사진 1장)
+  const scenes = assignScenes(script.segments);
+  {
+    const { scenes: n, avgShots } = sceneStats(scenes);
+    console.log(`  🎬 비주얼 챕터 ${n}개 (장면당 평균 ${avgShots.toFixed(1)}컷)`);
+  }
+
   const result: NarratedSegment[] = [];
   for (let i = 0; i < script.segments.length; i++) {
     const seg = script.segments[i];
@@ -75,6 +83,8 @@ export async function narrate(
       audioSrc: `audio/${fileName}`,
       durationInSeconds,
       visualQuery: seg.visualQuery,
+      sceneIndex: scenes[i].sceneIndex,
+      shot: scenes[i].shot,
     });
     console.log(
       `  🎙️  세그먼트 ${i + 1}/${script.segments.length} (${durationInSeconds.toFixed(1)}s)`,
