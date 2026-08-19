@@ -39,9 +39,23 @@ export function totalDurationInFrames(
 }
 
 /**
- * 롱폼 챕터 하나의 프레임 수 — 세그먼트 오디오 길이 + 문장 사이 호흡.
- * (롱폼은 귀로만 따라가는 시간이 길어서 쇼츠보다 호흡을 넉넉히 준다)
+ * 롱폼 문장 사이 '숨' (초).
+ *
+ * 쇼츠보다 확실히 길게 준다. 45세 이상이 87%인 시청자층은 자막을 눈으로 읽고
+ * 뜻을 붙잡을 시간이 필요한데, 쇼츠 간격(일반 0.26초)으로 8분을 이어 붙이면
+ * 따라오지 못한다. 영상이 조금 길어지더라도 읽는 호흡을 확보하는 쪽이 낫다.
  */
+export function longformBreathSeconds(
+  emphasis: "normal" | "tension" | "reveal",
+  isLastInChapter: boolean,
+): number {
+  if (isLastInChapter) return 0.75; // 챕터 사이는 한 박자 쉬어 간다
+  if (emphasis === "reveal") return 0.62;
+  if (emphasis === "tension") return 0.42;
+  return 0.28;
+}
+
+/** 롱폼 챕터 하나의 프레임 수 — 세그먼트 오디오 길이 + 문장 사이 호흡 */
 export function longformChapterFrames(
   chapter: { segments: Array<{ durationInSeconds: number; emphasis: "normal" | "tension" | "reveal" }> },
   fps: number,
@@ -49,9 +63,9 @@ export function longformChapterFrames(
   let frames = 0;
   chapter.segments.forEach((seg, i) => {
     frames += Math.max(1, Math.round(seg.durationInSeconds * fps));
-    // 마지막 문장 뒤에도 호흡을 준다 — 챕터 사이가 딱 붙으면 숨 쉴 틈이 없다
-    const breath = breathSecondsAfter(seg.emphasis) + (i === chapter.segments.length - 1 ? 0.35 : 0.12);
-    frames += Math.round(breath * fps);
+    frames += Math.round(
+      longformBreathSeconds(seg.emphasis, i === chapter.segments.length - 1) * fps,
+    );
   });
   return Math.max(1, frames);
 }

@@ -54,6 +54,15 @@ const chapters: NarratedChapter[] = [
     ],
     segments: [seg("결정적 증거는 면봉 한 개였습니다."), seg("그 면봉은 이미 오염돼 있었습니다.", "reveal")],
   },
+  {
+    heading: "가설 비교", visualQuery: "", cardKind: "theories", bgSrc: "broll/lf-ch-1.jpg",
+    cardItems: [
+      { label: "제조 공정 오염", main: "모든 현장의 공통점을 설명한다", sub: "왜 특정 지역에 몰렸는지" },
+      { label: "실제 연쇄 범죄", main: "현장 간 수법 유사성과 맞는다", sub: "목격자가 한 명도 없던 점" },
+      { label: "수사 기록 오류", main: "묶는 근거가 하나뿐이었다", sub: "16년간 걸러지지 않은 이유" },
+    ],
+    segments: [seg("설명은 크게 세 갈래로 갈렸습니다."), seg("어느 쪽도 전부를 설명하지는 못했습니다.", "tension")],
+  },
 ];
 
 const grade = deriveGrade("phantom-heilbronn-2007", "실화 미제사건");
@@ -66,10 +75,13 @@ const inputProps: LongformInputProps = {
 };
 
 const jobs: Array<[string, string, number]> = [
-  ["LongformDoc", "lf-cold-open.png", 40],
-  ["LongformDoc", "lf-question.png", 240],
-  ["LongformDoc", "lf-timeline.png", 640],
+  ["LongformDoc", "lf-bumper.png", 14],
+  ["LongformDoc", "lf-cold-open.png", 70],
+  ["LongformDoc", "lf-question.png", 250],
+  ["LongformDoc", "lf-timeline.png", 560],
+  ["LongformDoc", "lf-timeline-p2.png", 700],
   ["LongformDoc", "lf-evidence.png", 900],
+  ["LongformDoc", "lf-theories.png", 1120],
   ["LongformThumb", "lf-thumb.png", 0],
 ];
 for (const [id, out, frame] of jobs) {

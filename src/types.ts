@@ -220,6 +220,13 @@ export interface NarratedChapter {
   }>;
   /** 배경 이미지 public/ 상대경로 */
   bgSrc?: string;
+  /**
+   * 이 챕터 배경에 걸 밝기 배수 (0.68~0.86).
+   * Pexels 가 사진마다 주는 avg_color 로 Node 쪽에서 계산한다 — 밝은 사진은
+   * 더 누르고 어두운 사진은 덜 눌러야 흰 자막이 항상 읽히면서도 사진이
+   * 형태를 잃지 않는다. 미지정 시 기본값 사용.
+   */
+  bgBrightness?: number;
 }
 
 /** 롱폼 Remotion 컴포지션 입력 props */

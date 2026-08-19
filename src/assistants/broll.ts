@@ -37,7 +37,7 @@ export async function attachBroll(segments: NarratedSegment[]): Promise<Narrated
       let bgSrc = byQuery.get(query);
       if (bgSrc === undefined && !byQuery.has(query)) {
         const fileName = `scene-${scene}.jpg`;
-        bgSrc = (await downloadOne(query, path.join(BROLL_DIR, fileName)))
+        bgSrc = (await downloadOne(query, path.join(BROLL_DIR, fileName))).ok
           ? `broll/${fileName}`
           : undefined;
         byQuery.set(query, bgSrc);
@@ -50,32 +50,62 @@ export async function attachBroll(segments: NarratedSegment[]): Promise<Narrated
   return segments;
 }
 
-/** Pexels 에서 세로 사진 1장을 받아 저장. 성공 여부 반환 */
+/**
+ * Pexels 에서 사진 1장을 받아 저장.
+ * 성공하면 avg_color(있으면)를 함께 돌려준다 — 배경 밝기 자동 조절에 쓴다.
+ */
 async function downloadOne(
   query: string,
   absPath: string,
   orientation: "portrait" | "landscape" = "portrait",
-): Promise<boolean> {
+): Promise<{ ok: boolean; avgColor?: string }> {
   try {
     const url =
       `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}` +
       `&orientation=${orientation}&per_page=1&size=large`;
     const res = await fetch(url, { headers: { Authorization: config.pexels.apiKey } });
-    if (!res.ok) return false;
+    if (!res.ok) return { ok: false };
     const json = (await res.json()) as {
-      photos?: Array<{ src?: { large2x?: string; large?: string; portrait?: string } }>;
+      photos?: Array<{
+        avg_color?: string;
+        src?: { large2x?: string; large?: string; portrait?: string };
+      }>;
     };
-    const src = json.photos?.[0]?.src;
+    const photo = json.photos?.[0];
+    const src = photo?.src;
     const imgUrl = src?.large2x ?? src?.large ?? src?.portrait;
-    if (!imgUrl) return false;
+    if (!imgUrl) return { ok: false };
 
     const img = await fetch(imgUrl);
-    if (!img.ok) return false;
+    if (!img.ok) return { ok: false };
     await fs.writeFile(absPath, Buffer.from(await img.arrayBuffer()));
-    return true;
+    return { ok: true, avgColor: photo?.avg_color };
   } catch {
-    return false;
+    return { ok: false };
   }
+}
+
+/**
+ * 사진 평균색 → 배경에 걸 밝기 배수.
+ *
+ * 스톡 사진은 밝기가 제각각이라 한 값으로 누르면 한쪽이 무너진다. 흰 배경
+ * 사진에 흰 자막을 얹으면 안 읽히고(실측으로 겪음), 반대로 원래 어두운 사진을
+ * 똑같이 누르면 형태가 사라져 화면이 죽는다. Pexels 가 사진마다 주는
+ * avg_color 를 쓰면 이미지를 디코딩하지 않고도(=추가 의존성·비용 0) 밝기를
+ * 알 수 있다.
+ */
+export function brightnessForAvgColor(avgColor?: string): number {
+  const m = /^#?([0-9a-f]{6})$/i.exec(avgColor?.trim() ?? "");
+  if (!m) return 0.78; // 정보 없음 → 중간값
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  // 상대 휘도(간이) — 사람 눈 가중치
+  const L = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  if (L > 0.7) return 0.68; // 아주 밝은 사진은 확실히 누른다
+  if (L > 0.4) return 0.78;
+  return 0.86; // 이미 어두운 사진은 덜 눌러야 형태가 남는다
 }
 
 /**
@@ -89,20 +119,25 @@ export async function attachChapterBroll(chapters: NarratedChapter[]): Promise<N
     return chapters;
   }
   await fs.mkdir(BROLL_DIR, { recursive: true });
-  const cache = new Map<string, string | undefined>();
+  const cache = new Map<string, { bgSrc?: string; brightness: number }>();
 
   for (let i = 0; i < chapters.length; i++) {
     const query = chapters[i].visualQuery?.trim() || "dark archive documents";
-    let bgSrc = cache.get(query);
-    if (bgSrc === undefined && !cache.has(query)) {
+    let hit = cache.get(query);
+    if (!hit) {
       const fileName = `lf-ch-${i}.jpg`;
-      bgSrc = (await downloadOne(query, path.join(BROLL_DIR, fileName), "landscape"))
-        ? `broll/${fileName}`
-        : undefined;
-      cache.set(query, bgSrc);
+      const r = await downloadOne(query, path.join(BROLL_DIR, fileName), "landscape");
+      hit = {
+        bgSrc: r.ok ? `broll/${fileName}` : undefined,
+        brightness: brightnessForAvgColor(r.avgColor),
+      };
+      cache.set(query, hit);
     }
-    chapters[i].bgSrc = bgSrc;
-    console.log(`  🖼️  챕터 ${i + 1} "${query}" → ${bgSrc ?? "폴백"}`);
+    chapters[i].bgSrc = hit.bgSrc;
+    chapters[i].bgBrightness = hit.brightness;
+    console.log(
+      `  🖼️  챕터 ${i + 1} "${query}" → ${hit.bgSrc ?? "폴백"} (밝기 ${hit.brightness})`,
+    );
   }
   return chapters;
 }
