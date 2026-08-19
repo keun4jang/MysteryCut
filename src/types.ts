@@ -150,15 +150,33 @@ export interface ReelInputProps {
 // 4~7초마다 화면이 바뀌는 효과도 같이 얻는다.
 // ─────────────────────────────────────────────────────────────
 
-/** 챕터 화면에 띄울 자료 카드 종류 */
-export const LONGFORM_CARD_KINDS = [
-  "none", // 사진만
-  "timeline", // 시간순 재구성 (label=시점, main=무슨 일)
-  "persons", // 인물 관계 (label=호칭, main=역할)
-  "evidence", // 증거 검토 (label=증거명, main=확인된 사실, sub=나중에 드러난 문제)
-  "theories", // 가설 비교 (label=가설명, main=설명되는 점, sub=설명 못하는 점)
+/**
+ * 자료 프레임 종류 — 화면 전체를 쓰는 '한 장짜리 사건 기록판'의 성격.
+ *
+ * 예전에는 챕터마다 여러 항목을 나열하는 카드를 띄웠다. 그런데 가로 16:9 를
+ * 휴대폰 세로로 보면 영상 높이가 221pt 로 줄어, 카드 본문이 8.6pt(iOS 기본
+ * 본문의 절반)로 표시돼 사실상 못 읽었다. 글자만 키우면 한 화면에 항목이
+ * 하나도 안 들어가므로, 형식 자체를 '화면당 한 항목'으로 바꿨다.
+ */
+export const LONGFORM_FRAME_KINDS = [
+  "question", // label = '오늘 확인할 것' — 도입부의 핵심 질문
+  "timeline", // label = 시점
+  "person", // label = 역할(핵심 인물 등)
+  "evidence", // label = 증거 번호·이름
+  "theory", // label = 가설 이름
+  "problem", // label = 남은 문제 / 기록 불일치 (증거·가설의 반박을 별도 화면으로)
+  "verdict", // label = 공식 결론
 ] as const;
-export type LongformCardKind = (typeof LONGFORM_CARD_KINDS)[number];
+export type LongformFrameKind = (typeof LONGFORM_FRAME_KINDS)[number];
+
+/** 한 문장에 붙는 자료 프레임 (없으면 그냥 내레이션 화면) */
+export const LongformFrameSchema = z.object({
+  kind: z.enum(LONGFORM_FRAME_KINDS),
+  /** 화면 상단 분류 표시. 예: '1948. 01. 26.' / '핵심 인물' / '증거 03' / '남은 문제' */
+  label: z.string(),
+  /** 아래에 한 줄 더 붙일 보조 문장 (선택, 30자 이내) */
+  support: z.string().optional(),
+});
 
 export const LongformScriptSchema = z.object({
   /** 유튜브 영상 제목 */
@@ -175,32 +193,23 @@ export const LongformScriptSchema = z.object({
   tags: z.array(z.string()),
   chapters: z.array(
     z.object({
-      /** 챕터 제목 — 화면 좌상단 라벨에 표시. 6~16자 */
+      /** 챕터 제목 — 챕터 시작 0.8초 동안만 크게 표시하고 사라진다 */
       heading: z.string(),
-      /** 이 챕터 배경 스톡 검색어 (영어 2~4단어) */
+      /** 이 챕터 배경 스톡 검색어 (영어). 시대 재현이 아니라 상징·분위기 */
       visualQuery: z.string(),
-      /** 나레이션 문장들 (한 문장 = 한 자막 카드) */
       segments: z.array(
         z.object({
+          /**
+           * 나레이션이자 **화면의 중심 텍스트**.
+           * 자료 프레임에서는 이 문장이 그대로 96px 로 크게 뜬다 — 그래서
+           * 자막과 카드를 따로 띄울 필요가 없고 시선이 한 곳에 모인다.
+           */
           text: z.string(),
           emphasis: z.enum(["normal", "tension", "reveal"]).default("normal"),
+          /** 있으면 자료 프레임, 없으면 하단 자막만 있는 내레이션 화면 */
+          frame: LongformFrameSchema.optional(),
         }),
       ),
-      /** 이 챕터에 띄울 자료 카드 종류 */
-      cardKind: z.enum(LONGFORM_CARD_KINDS).default("none"),
-      /** 자료 카드 항목 — 챕터가 진행되면서 하나씩 나타난다 */
-      cardItems: z
-        .array(
-          z.object({
-            /** 시점 / 호칭 / 증거명 / 가설명 */
-            label: z.string(),
-            /** 무슨 일 / 역할 / 확인된 사실 / 설명되는 점 */
-            main: z.string(),
-            /** (증거) 나중에 드러난 문제 / (가설) 설명 못하는 점 */
-            sub: z.string().optional(),
-          }),
-        )
-        .default([]),
     }),
   ),
 });
@@ -210,13 +219,12 @@ export type LongformScript = z.infer<typeof LongformScriptSchema>;
 export interface NarratedChapter {
   heading: string;
   visualQuery: string;
-  cardKind: LongformCardKind;
-  cardItems: Array<{ label: string; main: string; sub?: string }>;
   segments: Array<{
     text: string;
     emphasis: "normal" | "tension" | "reveal";
     audioSrc: string;
     durationInSeconds: number;
+    frame?: { kind: LongformFrameKind; label: string; support?: string };
   }>;
   /** 배경 이미지 public/ 상대경로 */
   bgSrc?: string;

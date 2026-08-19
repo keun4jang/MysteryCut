@@ -5,3 +5,4 @@ public/audio/
 public/broll/
 *.log
 .DS_Store
+scratchpad/

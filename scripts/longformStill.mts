@@ -1,6 +1,7 @@
 /**
- * 롱폼 화면 검증용 스틸 렌더 — 자료 카드(타임라인·증거) 레이아웃과
- * 밝은 배경 사진에서의 자막 가독성을 눈으로 확인하는 용도.
+ * 롱폼 화면 검증용 스틸 렌더.
+ * 두 모드(내레이션 자막 / 단일 자료 프레임)와 자료 종류별 화면을 눈으로 확인한다.
+ * public/audio/lf-test.mp3 와 public/broll/lf-ch-0..3.jpg 가 있어야 한다.
  */
 import path from "node:path";
 import { bundle } from "@remotion/bundler";
@@ -8,6 +9,8 @@ import { selectComposition, renderStill } from "@remotion/renderer";
 import { config } from "../src/config.js";
 import { deriveGrade } from "../src/lib/grade.js";
 import type { LongformInputProps, NarratedChapter } from "../src/types.js";
+
+const outDir = process.argv[2] ?? "scratchpad";
 
 const serveUrl = await bundle({
   entryPoint: config.paths.remotionEntry,
@@ -18,75 +21,81 @@ const serveUrl = await bundle({
   }),
 });
 
-// 사용법: tsx scripts/longformStill.mts [출력폴더=scratchpad]
-// public/audio/lf-test.mp3 와 public/broll/lf-ch-0..3.jpg 가 있어야 한다.
-const outDir = process.argv[2] ?? "scratchpad";
-
-const seg = (text: string, emphasis: NarratedChapter["segments"][0]["emphasis"] = "normal") => ({
-  text, emphasis, audioSrc: "audio/lf-test.mp3", durationInSeconds: 3.2,
-});
+type Seg = NarratedChapter["segments"][0];
+const seg = (
+  text: string,
+  emphasis: Seg["emphasis"] = "normal",
+  frame?: Seg["frame"],
+): Seg => ({ text, emphasis, audioSrc: "audio/lf-test.mp3", durationInSeconds: 3.6, frame });
 
 const chapters: NarratedChapter[] = [
   {
-    heading: "사건의 시작", visualQuery: "", cardKind: "none", cardItems: [], bgSrc: "broll/lf-ch-0.jpg",
-    segments: [seg("2007년, 독일 경찰은 40개 사건에서 같은 DNA 를 찾아냈습니다."), seg("그런데 그 사람은 존재하지 않았습니다.", "reveal")],
-  },
-  {
-    heading: "오늘 확인할 것", visualQuery: "", cardKind: "none", cardItems: [], bgSrc: "broll/lf-ch-1.jpg",
-    segments: [seg("이 영상에서 확인할 것은 세 가지입니다."), seg("DNA 는 어디에서 나왔는가.")],
-  },
-  {
-    heading: "사건 일지", visualQuery: "", cardKind: "timeline", bgSrc: "broll/lf-ch-2.jpg",
-    cardItems: [
-      { label: "1993년", main: "첫 번째 현장에서 미확인 DNA 검출" },
-      { label: "2001년", main: "다른 주 절도 현장에서 같은 DNA" },
-      { label: "2007년 4월", main: "경찰관 피살 현장에서 재검출" },
-      { label: "2009년 3월", main: "면봉 자체의 오염이 확인됨" },
+    heading: "독약의 속임수", visualQuery: "", bgSrc: "broll/lf-ch-0.jpg", bgBrightness: 0.78,
+    segments: [
+      seg("한 남자가 은행 문을 열고 들어왔습니다."),
+      seg("그리고 열두 명이 그 자리에서 쓰러졌습니다.", "reveal"),
     ],
-    segments: [seg("수사는 16년에 걸쳐 이어졌습니다."), seg("사건은 여섯 개 나라로 번졌습니다.", "tension"), seg("그리고 마지막에 밝혀진 것은 전혀 달랐습니다.", "reveal")],
   },
   {
-    heading: "증거 검토", visualQuery: "", cardKind: "evidence", bgSrc: "broll/lf-ch-3.jpg",
-    cardItems: [
-      { label: "면봉", main: "여러 현장에서 동일 DNA 검출", sub: "제조 공장에서 이미 오염돼 있었음" },
-      { label: "목격자 진술", main: "여성 용의자를 봤다는 증언", sub: "다른 사건과 뒤섞인 기억으로 판명" },
-      { label: "수사 기록", main: "40건이 하나로 묶임", sub: "묶은 근거가 오염된 DNA 하나뿐" },
+    heading: "오늘의 질문", visualQuery: "", bgSrc: "broll/lf-ch-1.jpg", bgBrightness: 0.68,
+    segments: [
+      seg("이 영상에서 확인할 것은 세 가지입니다."),
+      seg("그는 어떻게 모두를 속였을까요.", "normal", { kind: "question", label: "오늘 확인할 것" }),
     ],
-    segments: [seg("결정적 증거는 면봉 한 개였습니다."), seg("그 면봉은 이미 오염돼 있었습니다.", "reveal")],
   },
   {
-    heading: "가설 비교", visualQuery: "", cardKind: "theories", bgSrc: "broll/lf-ch-1.jpg",
-    cardItems: [
-      { label: "제조 공정 오염", main: "모든 현장의 공통점을 설명한다", sub: "왜 특정 지역에 몰렸는지" },
-      { label: "실제 연쇄 범죄", main: "현장 간 수법 유사성과 맞는다", sub: "목격자가 한 명도 없던 점" },
-      { label: "수사 기록 오류", main: "묶는 근거가 하나뿐이었다", sub: "16년간 걸러지지 않은 이유" },
+    heading: "죽음의 일 분", visualQuery: "", bgSrc: "broll/lf-ch-2.jpg", bgBrightness: 0.86,
+    segments: [
+      seg("남자는 보건 당국 직원이라고 말했습니다.", "normal",
+          { kind: "timeline", label: "1948년 1월 26일", support: "폐점 직전, 은행 안에는 열여섯 명이 있었습니다" }),
+      seg("그는 예방약이라며 액체를 나눠 주었습니다.", "normal",
+          { kind: "timeline", label: "오후 3시 30분" }),
+      seg("직원 열두 명이 끝내 돌아오지 못했습니다.", "reveal",
+          { kind: "timeline", label: "1948년 1월 26일 저녁" }),
     ],
-    segments: [seg("설명은 크게 세 갈래로 갈렸습니다."), seg("어느 쪽도 전부를 설명하지는 못했습니다.", "tension")],
+  },
+  {
+    heading: "드러난 모순들", visualQuery: "", bgSrc: "broll/lf-ch-3.jpg", bgBrightness: 0.78,
+    segments: [
+      seg("찻잔에서 독성 물질이 검출됐습니다.", "normal",
+          { kind: "evidence", label: "증거 02" }),
+      seg("하지만 지문은 하나도 나오지 않았습니다.", "tension",
+          { kind: "problem", label: "남은 문제" }),
+      seg("경찰이 지목한 사람은 화가였습니다.", "normal",
+          { kind: "person", label: "핵심 인물", support: "체포 당시 예순 살, 사건과의 접점은 명함 한 장" }),
+      seg("그는 끝까지 억울함을 주장했습니다.", "normal",
+          { kind: "theory", label: "가설 1" }),
+      seg("법원은 사형을 확정했습니다.", "reveal",
+          { kind: "verdict", label: "공식 결론" }),
+    ],
   },
 ];
 
-const grade = deriveGrade("phantom-heilbronn-2007", "실화 미제사건");
+const grade = deriveGrade("teigin-1948", "역사 속 미스터리");
 const inputProps: LongformInputProps = {
-  title: "DNA가 가리킨 범인은 존재하지 않았다",
-  thumbTitle: "존재하지 않은\n범인",
+  title: "가짜 명함 한 장이 부른 대량 살인",
+  thumbTitle: "존재하지 않은\n예방약",
   thumbBadge: "실화 미제사건",
-  centralQuestion: "DNA 는 왜 없는 사람을 가리켰나",
+  centralQuestion: "그는 어떻게 모두를 속였을까",
   chapters, grade, bgmSrc: undefined,
 };
 
 const jobs: Array<[string, string, number]> = [
-  ["LongformDoc", "lf-bumper.png", 14],
-  ["LongformDoc", "lf-cold-open.png", 70],
-  ["LongformDoc", "lf-question.png", 250],
-  ["LongformDoc", "lf-timeline.png", 560],
-  ["LongformDoc", "lf-timeline-p2.png", 700],
-  ["LongformDoc", "lf-evidence.png", 900],
-  ["LongformDoc", "lf-theories.png", 1120],
+  ["LongformDoc", "lf-opener.png", 16],
+  ["LongformDoc", "lf-narration.png", 70],
+  ["LongformDoc", "lf-question.png", 370],
+  ["LongformDoc", "lf-timeline.png", 550],
+  ["LongformDoc", "lf-timeline2.png", 670],
+  ["LongformDoc", "lf-evidence.png", 920],
+  ["LongformDoc", "lf-problem.png", 1020],
+  ["LongformDoc", "lf-person.png", 1140],
+  ["LongformDoc", "lf-theory.png", 1270],
+  ["LongformDoc", "lf-verdict.png", 1390],
   ["LongformThumb", "lf-thumb.png", 0],
 ];
 for (const [id, out, frame] of jobs) {
   const composition = await selectComposition({ serveUrl, id, inputProps });
-  const output = path.resolve(outDir, out);
-  await renderStill({ composition, serveUrl, output, inputProps, frame });
-  console.log("STILL:", out, "frame", frame, "/", composition.durationInFrames);
+  const f = Math.min(frame, composition.durationInFrames - 1);
+  await renderStill({ composition, serveUrl, output: path.resolve(outDir, out), inputProps, frame: f });
+  console.log("STILL:", out, "frame", f, "/", composition.durationInFrames);
 }

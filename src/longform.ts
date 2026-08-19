@@ -82,8 +82,18 @@ async function main() {
   });
   console.log(`   💡 ${script.title}`);
   console.log(`   ❓ ${script.centralQuestion}`);
-  for (const c of script.chapters) {
-    console.log(`      · ${c.heading} (${c.segments.length}컷, ${c.cardKind} ${c.cardItems.length}항목)`);
+  {
+    const framed = script.chapters.reduce(
+      (n, c) => n + c.segments.filter((g) => g.frame).length,
+      0,
+    );
+    const total = script.chapters.reduce((n, c) => n + c.segments.length, 0);
+    for (const c of script.chapters) {
+      const f = c.segments.filter((g) => g.frame);
+      const kinds = [...new Set(f.map((g) => g.frame!.kind))].join("/") || "내레이션만";
+      console.log(`      · ${c.heading} — ${c.segments.length}문장 (자료 ${f.length}: ${kinds})`);
+    }
+    console.log(`   🧩 자료 화면 비율 ${framed}/${total} (${Math.round((framed / total) * 100)}%)`);
   }
 
   // ③ 나레이션 (쇼츠보다 느린 고정 보이스)

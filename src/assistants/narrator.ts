@@ -154,6 +154,7 @@ export async function narrateLongform(
         emphasis: seg.emphasis,
         audioSrc: `audio/${fileName}`,
         durationInSeconds: meta.format.duration ?? estimateDuration(seg.text),
+        frame: seg.frame,
       });
       done += 1;
     }
@@ -161,8 +162,6 @@ export async function narrateLongform(
     out.push({
       heading: ch.heading,
       visualQuery: ch.visualQuery,
-      cardKind: ch.cardKind,
-      cardItems: ch.cardItems,
       segments,
     });
     const secs = segments.reduce((a, g) => a + g.durationInSeconds, 0);

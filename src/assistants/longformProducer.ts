@@ -55,44 +55,73 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "- 사건 관계를 중간중간 다시 정리해줘라. 한 번 놓치면 끝까지 못 따라온다.",
     "- 자극적인 묘사보다 '왜 설명이 안 되는가'의 논리로 끌고 가라.",
     "",
-    "[★구성 — 챕터 8개. 아래 순서를 지켜라]",
-    "1) 콜드 오픈: 사건의 가장 큰 모순을 먼저 던진다. 배경 설명 없이 바로. cardKind='none'.",
-    "   예: 'DNA는 한 여성을 범인으로 지목했습니다. 그런데 그 여성은 존재하지 않았습니다.'",
-    "2) 오늘의 질문: 이 영상에서 확인할 것 2~3가지를 예고한다. cardKind='none'.",
-    "3) 배경: 연도·장소·등장인물·사건이 알려진 계기. cardKind='persons', cardItems **4~5개**(label=호칭, main=이 사건에서의 역할).",
-    "4) 시간순 재구성: 사건의 전개를 순서대로. cardKind='timeline', cardItems **7~9개**(label=시점(연도·날짜·시각), main=그때 무슨 일이 있었는지 한 줄).",
-    "5) 핵심 증거와 모순: cardKind='evidence', cardItems **4~5개**.",
-    "   label=증거 이름, main=확인된 사실, sub=나중에 드러난 문제점. 이 챕터가 쇼츠와 롱폼을 가르는 핵심이다.",
-    "6) 가설 비교: cardKind='theories', cardItems **3~4개**.",
-    "   label=가설 이름(사고 / 계획된 범죄 / 기록 오류 등), main=이 가설로 설명되는 점, sub=이 가설로 설명 안 되는 점.",
-    "7) 결론 또는 현재 상태: 공식 결론과 아직 남은 의문. cardKind='timeline', cardItems **3~4개**로",
-    "   '판결 이후 / 수사 종결 이후에 밝혀지거나 바뀐 것'을 시점 순으로 정리하라(label=시점, main=무슨 일).",
-    "8) 마무리: 시청자에게 번호로 답하는 선택형 질문. cardKind='none'.",
+    "[★화면 구조 — 이게 이 대본의 핵심이다]",
+    "이 영상은 화면이 두 종류뿐이다. 각 문장(segment)이 어느 쪽인지 네가 정한다.",
+    "  · **내레이션 화면** — frame 없음. 배경 사진 위에 그 문장이 하단 자막으로만 뜬다.",
+    "  · **자료 화면** — frame 있음. 그 문장이 화면 한가운데 아주 크게 뜨고, 위에 분류(label)가 붙는다.",
+    "    ★자료 화면에는 하단 자막이 따로 없다. 그 문장 자체가 화면이다.",
     "",
-    "★★cardKind='none' 인 챕터는 위 1·2·8번 **딱 3개만** 허용한다. 나머지 챕터는 반드시 자료 카드를 가져야 한다.",
-    "  실측(첫 시도)에서 9챕터 중 5개가 카드 없이 나왔고, 그 구간 3분이 통째로 '사진 + 자막' 슬라이드쇼가 됐다.",
-    "  유튜브가 수익창출 부적합으로 드는 바로 그 형태이므로 반드시 지켜라.",
-    "   예: '여러분은 몇 번이라고 보십니까. 1번 사고, 2번 계획된 범죄, 3번 기록의 오류.'",
-    "   ★'구독·팔로우·채널' 같은 말은 절대 쓰지 마라. '좋아요'와 '댓글'만 쓴다.",
+    "그래서 frame 을 붙인 문장은 **화면에 크게 띄워도 말이 되는 완결된 한 문장**이어야 한다.",
+    "  좋은 예: '찻잔에서 독성 물질이 검출됐습니다.' / '그 여성은 존재하지 않았습니다.'",
+    "  나쁜 예: '그리고 그 다음이 문제였는데요.' (화면에 크게 띄울 내용이 아니다)",
+    "",
+    "[★frame 종류와 label]",
+    "  question — 2번 챕터에서 이 영상의 핵심 질문 한 문장에만. label 은 '오늘 확인할 것'",
+    "  timeline — label 은 시점만. '1948년 1월 26일' / '1948년'. 시각·설명은 label 에 넣지 마라.",
+    "  person   — label 은 역할. '핵심 인물' / '첫 목격자' / '담당 검사'",
+    "  evidence — label 은 '증거 01' 처럼 번호. 그 챕터 안에서 1부터 순서대로.",
+    "  theory   — label 은 '가설 1' / '가설 2'",
+    "  problem  — label 은 '남은 문제' / '설명 안 되는 점' / '기록 불일치'",
+    "  verdict  — label 은 '공식 결론' / '법원의 판단'",
+    "  support(선택) — 본문 아래 한 줄 더. 30자 이내. 없어도 되면 넣지 마라.",
+    "",
+    "[★★반박은 같은 화면에 넣지 말고 다음 문장으로 분리하라]",
+    "예전에는 한 항목에 '확인된 사실'과 '그러나 …'를 같이 넣었다. 화면이 경고문처럼 보이고",
+    "글자도 작아진다. 이제는 두 문장으로 나눠라:",
+    "  문장 A (frame evidence, label '증거 02') '찻잔에서 독성 물질이 검출됐습니다.'",
+    "  문장 B (frame problem,  label '남은 문제') '하지만 지문은 하나도 나오지 않았습니다.'",
+    "",
+    "[★구성 — 챕터 8개. 아래 순서를 지켜라]",
+    "1) 콜드 오픈: 사건의 가장 큰 모순을 먼저 던진다. 전부 내레이션 화면(frame 없음).",
+    "2) 오늘의 질문: 확인할 것 2~3가지를 예고한다. 그중 **핵심 질문 한 문장에만** question frame 을 붙이고 나머지는 내레이션 화면.",
+    "3) 배경: 연도·장소·인물. person frame 3~4개 + 내레이션 문장들.",
+    "4) 시간순 재구성: timeline frame 5~7개(각각 다른 시점). 사이사이 내레이션 문장.",
+    "5) 핵심 증거: evidence frame 3~4개 + 각각의 반박을 problem frame 으로.",
+    "6) 가설 비교: theory frame 2~3개 + 각 가설의 problem frame.",
+    "7) 결론: verdict frame 1~2개 + 아직 남은 의문 problem frame 1개.",
+    "8) 마무리: 번호로 답하는 선택형 질문. 전부 내레이션 화면.",
+    "   ★'구독·팔로우·채널' 금지. '좋아요'와 '댓글'만 쓴다.",
+    "",
+    "[★frame 비율] 전체 문장의 45~60%에 frame 을 붙여라. 너무 적으면 배경 사진만 흐르는",
+    "슬라이드쇼가 되고(유튜브가 수익창출 부적합으로 드는 형태다), 너무 많으면 쉴 틈 없이",
+    "정보만 쏟아진다. 1·2·8번 챕터는 frame 이 아예 없어도 된다.",
     "",
     "[★분량]",
-    `- 모든 챕터 segments 의 text 글자수 합계가 공백 포함 ${MIN_CHARS}~${MAX_CHARS}자(목표 ${IDEAL_CHARS}자).`,
-    "- ★한 컷(자막 한 장)은 48자를 절대 넘기지 마라. 화면에 두 줄로 들어가는 상한이다.",
-    "- ★총합을 어림하지 말고 이렇게 맞춰라: **챕터 8개 × 컷 9~10개 × 한 컷 38~44자**",
-    `  (8 × 9.5 × 41 ≈ ${IDEAL_CHARS}자). 다 쓴 뒤 컷을 하나씩 세어 38자 미만인 것을 채워라.`,
-    "  실측에서 컷당 33자로 짧게 나와 러닝타임이 목표보다 40초 모자랐다. 한 컷이 한 문장이되,",
-    "  주어와 근거가 함께 들어간 온전한 문장이어야 한다('그리고 사라졌습니다.' 같은 토막 금지).",
-    "- 문장에 쉼표를 3개 이상 넣지 마라. 귀로 들으면 따라오지 못한다.",
+    `- 모든 segments 의 text 글자수 합계가 공백 포함 ${MIN_CHARS}~${MAX_CHARS}자(목표 ${IDEAL_CHARS}자).`,
+    "- ★총합을 어림하지 말고 이렇게 맞춰라: **챕터 8개 × 문장 10~12개 × 한 문장 30~38자**",
+    `  (8 × 11 × 34 ≈ ${IDEAL_CHARS}자).`,
+    "- ★한 문장은 40자를 넘기지 마라. 화면에 크게 띄우면 40자가 두 줄 상한이다.",
+    "  40자가 넘을 것 같으면 두 문장으로 쪼개라.",
+    "- 쉼표를 3개 이상 넣지 마라. 귀로 들으면 따라오지 못한다.",
     "",
-    "[★자료 카드 작성 규칙 — 화면에 그대로 뜨는 글자다]",
-    "- 시청자의 87%가 45세 이상이라 카드 글자를 크게 키웠다. 그만큼 짧아야 들어간다.",
-    "- label: 10자 이내 / main: 28자 이내 / sub: 28자 이내. 넘으면 화면에서 잘린다.",
-    "- ★타임라인 label 에는 '시점'만 넣어라(예: '1977년', '1977년 2월', '1977. 02. 17.').",
-    "  '오후 8시', '마지막 목격' 같은 내용은 label 이 아니라 main 으로 넘겨라.",
-    "- 나레이션이 그 항목을 말하는 순서와 cardItems 순서를 반드시 일치시켜라.",
-    "  화면은 '지금 나레이션이 말하는 항목'을 선명하게 띄우고 나머지는 흐리게 처리한다.",
-    "  순서가 어긋나면 말하는 내용과 화면이 따로 논다.",
-    "- 카드에 넣는 내용은 나레이션과 똑같은 문장이면 안 된다. 나레이션은 풀어서 말하고, 카드는 요약이다.",
+    "[★label·support 작성 규칙 — 화면에 그대로 뜨는 글자다]",
+    "- label 12자 이내 / support 30자 이내. 넘으면 화면에서 잘린다.",
+    "- support 는 본문을 되풀이하지 마라. 본문이 충분하면 아예 생략하라.",
+    "- 화면에 크게 뜨는 것은 본문(text)이다. label 은 그게 무슨 자료인지 알려주는 꼬리표다.",
+    "",
+    "[★배경 검색어(visualQuery) — 시대 재현을 시도하지 마라]",
+    "무료 스톡에는 1948년 도쿄도, 1970년대 서울도 없다. 'vintage Tokyo street 1948' 로 검색하면",
+    "현대 사진에 빈티지 필터만 씌운 결과가 나온다. 실측으로 1948년 은행 사건 영상에 현대식",
+    "자동차와 우산 쓴 행인 사진이 배경으로 깔렸다. 시청자에게 잘못된 역사적 인상을 준다.",
+    "",
+    "그래서 visualQuery 는 **사건 재현이 아니라 상징물·분위기**로 써라. 영어 2~5단어.",
+    "  좋은 예: 'rainy window dark' / 'typewriter paper close up' / 'empty office vintage desk'",
+    "           'glass cup dark table' / 'bank vault detail' / 'old document texture'",
+    "           'ink handwriting macro' / 'anonymous silhouette umbrella' / 'iron bars shadow'",
+    "  나쁜 예: 'vintage Tokyo street 1948' / 'Japanese bank poisoning 1948' / 'old Seoul court 1930'",
+    "- 연도·국가·실제 사건명·인물명을 검색어에 넣지 마라.",
+    "- 사람 얼굴이 정면으로 크게 나오는 사진은 피해라(실존 인물로 오해된다).",
+    "  필요하면 'silhouette', 'back view', 'hands only' 처럼 익명성을 넣어라.",
     "",
     "[★사실 정확성 — 이 채널의 생명줄]",
     "- 원문에 없는 연도·인명·지명·수치를 지어내지 마라. 확인 안 되면 아예 빼라.",
@@ -190,8 +219,7 @@ function collectTexts(s: LongformScript): string[] {
     s.description,
     ...s.chapters.flatMap((c) => [
       c.heading,
-      ...c.segments.map((g) => g.text),
-      ...c.cardItems.flatMap((i) => [i.label, i.main, i.sub ?? ""]),
+      ...c.segments.flatMap((g) => [g.text, g.frame?.label ?? "", g.frame?.support ?? ""]),
     ]),
   ];
 }
@@ -203,11 +231,12 @@ function soften(s: LongformScript): void {
   s.description = softenText(s.description);
   for (const c of s.chapters) {
     c.heading = softenText(c.heading);
-    for (const g of c.segments) g.text = softenText(g.text);
-    for (const i of c.cardItems) {
-      i.label = softenText(i.label);
-      i.main = softenText(i.main);
-      if (i.sub) i.sub = softenText(i.sub);
+    for (const g of c.segments) {
+      g.text = softenText(g.text);
+      if (g.frame) {
+        g.frame.label = softenText(g.frame.label);
+        if (g.frame.support) g.frame.support = softenText(g.frame.support);
+      }
     }
   }
 }
@@ -232,11 +261,12 @@ function sanitize(s: LongformScript): void {
   for (const c of s.chapters) {
     c.heading = toSpace(c.heading);
     c.visualQuery = toSpace(c.visualQuery);
-    for (const g of c.segments) g.text = toSpace(g.text);
-    for (const i of c.cardItems) {
-      i.label = toSpace(i.label);
-      i.main = toSpace(i.main);
-      if (i.sub) i.sub = toSpace(i.sub);
+    for (const g of c.segments) {
+      g.text = toSpace(g.text);
+      if (g.frame) {
+        g.frame.label = toSpace(g.frame.label);
+        if (g.frame.support) g.frame.support = toSpace(g.frame.support);
+      }
     }
   }
 }

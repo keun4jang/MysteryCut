@@ -45,10 +45,13 @@ const longformDefaults: LongformInputProps = {
     {
       heading: "사건의 시작",
       visualQuery: "dark archive room",
-      cardKind: "none",
-      cardItems: [],
       segments: [
-        { text: "수사팀은 40개 사건에서 같은 DNA 를 찾아냈습니다.", emphasis: "normal", audioSrc: "audio/seg-0.mp3", durationInSeconds: 3.4 },
+        {
+          text: "수사팀은 40개 사건에서 같은 DNA 를 찾아냈습니다.",
+          emphasis: "normal",
+          audioSrc: "audio/seg-0.mp3",
+          durationInSeconds: 3.4,
+        },
       ],
     },
   ],

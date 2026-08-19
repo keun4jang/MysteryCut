@@ -10,61 +10,58 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import type { LongformInputProps, NarratedChapter, ReelGrade } from "../types.js";
+import type {
+  LongformFrameKind,
+  LongformInputProps,
+  NarratedChapter,
+  ReelGrade,
+} from "../types.js";
 import { longformBreathSeconds, longformChapterFrames } from "./timing.js";
 import { ensureFonts, FONT_FAMILY } from "./fonts.js";
 
 /**
  * 롱폼 사건 분석 다큐 (1920x1080).
  *
- * 설계 원칙: **한 화면에 적게, 크게, 지금 말하는 정보만 선명하게.**
+ * ── 설계의 출발점 ──
+ * 가로 16:9 영상을 휴대폰 **세로로 들고 인라인 재생**하면 영상 높이가 221pt 로
+ * 줄어든다. 배율이 393/1920 = 0.205 이므로 42px 글자는 8.6pt 로 보인다.
+ * iOS 기본 본문이 17pt 인데 그 절반이다. 시청자의 87%가 45세 이상인 채널에서
+ * 이건 '작다'가 아니라 '못 읽는다'에 가깝다.
  *
- * 시청자의 87%가 45세 이상이고, 롱폼은 상당수가 휴대폰으로 소비된다. 가로
- * 16:9 를 세로로 든 폰에서 보면 화면이 작게 표시되므로, 자료 카드에 항목을
- * 6~9개씩 쌓아두면 아무도 못 읽는다. 그래서
- *  - 자료는 한 페이지 2~4개로 끊어 페이지를 교체하고(스크롤 금지)
- *  - 지금 나레이션이 말하는 항목만 선명하게, 지난 항목은 흐리게, 아직 안 나온
- *    항목은 아주 흐리게 둬서 레이아웃이 흔들리지 않게 하고
- *  - 자막은 카드 유무와 무관하게 화면 하단 같은 자리에 고정한다(자막 시작점이
- *    챕터마다 좌우로 움직이면 매번 눈으로 다시 찾아야 한다).
+ * 그런데 글자만 키우면 한 화면에 항목이 하나도 안 들어간다. 그래서 크기가
+ * 아니라 **정보 구조**를 바꿨다.
  *
- * 자료 종류에 따라 화면 구조 자체를 바꾼다(좌우 분할 / 전체 폭 보드 / 2열 비교).
- * 모든 챕터를 같은 카드 하나로 처리하면 결국 템플릿 반복으로 보이기 때문이다.
+ *  · 한 화면에 자료 항목은 **하나만**.
+ *  · 자막과 자료 본문을 따로 띄우지 않는다 — 자료 화면에서는 지금 말하는
+ *    문장 자체가 96px 로 크게 뜨고, 하단 자막은 없다. 시선 중심이 하나다.
+ *  · 반박·모순은 같은 화면의 작은 글씨가 아니라 **다음 화면**으로 분리한다.
+ *  · 상시 챕터 라벨과 워터마크는 없앴다. 읽을 정보가 아닌데 시선만 끈다.
+ *
+ * 화면은 두 가지 모드뿐이다.
+ *   모드 A(내레이션): 배경 + 하단 자막 84px
+ *   모드 B(자료): 분류 56px + 본문 96px + (선택) 보조 72px, 하단 자막 없음
  */
 
 const BGM_VOLUME = 0.2;
 const BGM_DIP = 0.1;
 const easeOut = Easing.bezier(0.22, 1, 0.36, 1);
 
-const DEFAULT_ACCENT = "#7fa8c9";
-const TEXT = "#F4F5F6"; // 본문은 항상 이 색 — 문장 전체를 색칠하지 않는다
-const SUB_TEXT = "rgba(255,255,255,0.82)";
+const TEXT = "#F4F5F6";
+const SUB_TEXT = "rgba(255,255,255,0.84)";
 const WARN = "#FF8A7A";
+const DEFAULT_ACCENT = "#7fa8c9";
 
-/** 챕터 시작 범퍼 길이(프레임). 0.7초 — 전체 화면 챕터 카드는 흐름을 끊는다 */
-const BUMP = 21;
+/** 챕터 오프너: 번호+제목을 잠깐 크게 띄우고 사라진다 (상시 라벨 없음) */
+const OPENER_IN = 8;
+const OPENER_HOLD = 26;
+const OPENER_OUT = 10;
 
-const CARD_TITLES: Record<string, string> = {
-  timeline: "사건 일지",
-  persons: "관련 인물",
-  evidence: "증거 검토",
-  theories: "가설 비교",
-};
+const grainUri = (seed: number) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="${seed}" stitchTiles="stitch"/></filter><rect width="240" height="240" filter="url(#n)"/></svg>`,
+  )}`;
 
-/** 한 페이지에 올릴 항목 수 — 글자를 키운 만큼 적게 */
-const PER_PAGE: Record<string, number> = {
-  timeline: 4,
-  persons: 3,
-  evidence: 3,
-  theories: 2,
-  none: 1,
-};
-
-/** 공백 무시 비교 — 챕터 라벨과 카드 제목 중복 표시 방지 */
-const sameLabel = (a: string, b: string): boolean =>
-  a.replace(/\s+/g, "") === b.replace(/\s+/g, "");
-
-/** "2007년 4월 17일" → "2007. 04. 17." (방송 자막식 표기) */
+/** "1948년 1월 26일" → "1948. 01. 26." (방송 자막식) */
 function normalizeDateLabel(s: string): string {
   const m = /^(\d{3,4})년\s*(?:(\d{1,2})월)?\s*(?:(\d{1,2})일)?\s*$/.exec(s.trim());
   if (!m) return s;
@@ -75,17 +72,11 @@ function normalizeDateLabel(s: string): string {
   return y;
 }
 
-const grainUri = (seed: number) =>
-  `data:image/svg+xml;utf8,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="${seed}" stitchTiles="stitch"/></filter><rect width="240" height="240" filter="url(#n)"/></svg>`,
-  )}`;
+/** 반박·문제 계열은 라벨을 경고색으로 (빨강을 '상태'에만 쓴다) */
+const labelColor = (kind: LongformFrameKind, accent: string) =>
+  kind === "problem" ? WARN : accent;
 
-export const LongformDoc: React.FC<LongformInputProps> = ({
-  chapters,
-  bgmSrc,
-  grade,
-  centralQuestion,
-}) => {
+export const LongformDoc: React.FC<LongformInputProps> = ({ chapters, bgmSrc, grade }) => {
   const { fps } = useVideoConfig();
   ensureFonts();
 
@@ -99,7 +90,6 @@ export const LongformDoc: React.FC<LongformInputProps> = ({
     }
   }
 
-  // 반전 구간 BGM 딥
   const dips: Array<[number, number]> = [];
   chapters.forEach((c, ci) => {
     let f = starts[ci];
@@ -125,12 +115,11 @@ export const LongformDoc: React.FC<LongformInputProps> = ({
             chapterNumber={i + 1}
             frames={lens[i]}
             grade={grade}
-            centralQuestion={i === 1 ? centralQuestion : undefined}
+            showWatermark={i === 0}
           />
         </Sequence>
       ))}
       {bgmSrc ? <Audio src={staticFile(bgmSrc)} volume={bgmVolume} loop /> : null}
-      <Watermark />
     </AbsoluteFill>
   );
 };
@@ -140,14 +129,11 @@ const ChapterView: React.FC<{
   chapterNumber: number;
   frames: number;
   grade?: ReelGrade;
-  centralQuestion?: string;
-}> = ({ chapter, chapterNumber, frames, grade, centralQuestion }) => {
+  showWatermark: boolean;
+}> = ({ chapter, chapterNumber, frames, grade, showWatermark }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const accent = grade?.accent ?? DEFAULT_ACCENT;
-  const kind = chapter.cardKind;
-  const items = chapter.cardItems ?? [];
-  const hasCard = kind !== "none" && items.length > 0;
 
   // ── 세그먼트 타임라인 ──
   const segStarts: number[] = [];
@@ -164,52 +150,25 @@ const ChapterView: React.FC<{
     });
   }
 
-  // ── 항목을 나레이션에 동기화 ──
-  // 챕터 길이에 균등 배분하면 "지금 말하는 내용"과 화면이 어긋난다.
-  // 항목 i 는 (i × 세그먼트수 / 항목수) 번째 문장이 시작될 때 켜진다.
-  const segCount = Math.max(1, chapter.segments.length);
-  const itemStartFrame = items.map((_, i) =>
-    segStarts[Math.min(segCount - 1, Math.floor((i * segCount) / Math.max(1, items.length)))] ?? 0,
-  );
-  let activeIndex = 0;
-  for (let i = 0; i < itemStartFrame.length; i++) if (frame >= itemStartFrame[i]) activeIndex = i;
-
-  const perPage = PER_PAGE[kind] ?? 3;
-  const page = Math.floor(activeIndex / perPage);
-  const pageStart = itemStartFrame[page * perPage] ?? 0;
-  // 페이지 교체: 새 페이지가 8프레임에 걸쳐 자리를 잡는다 (스크롤 금지)
-  const pageEnter = interpolate(frame, [pageStart, pageStart + 8], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: easeOut,
+  // 타임라인 진행 점 — 이 챕터의 timeline 프레임이 몇 번째인지
+  const timelineIdx = new Map<number, number>();
+  let tCount = 0;
+  chapter.segments.forEach((s, i) => {
+    if (s.frame?.kind === "timeline") timelineIdx.set(i, tCount++);
   });
-  const pageCount = Math.ceil(items.length / perPage) || 1;
 
-  // ── 배경 ──
-  // 밝기는 사진마다 다르게(Pexels avg_color 기반). 전체를 똑같이 눌러버리면
-  // 원래 어두운 사진은 형태까지 사라져 화면이 죽는다.
   const bright = chapter.bgBrightness ?? 0.78;
-  const kenburns = interpolate(frame, [0, frames], chapterNumber % 2 === 0 ? [1.12, 1.05] : [1.05, 1.12], {
-    extrapolateRight: "clamp",
-  });
-  // 범퍼: 검은 화면 없이 새 배경 위에서 아주 살짝 정착시킨다
-  const settle = interpolate(frame, [0, 11], [1.018, 1], {
+  const kenburns = interpolate(
+    frame,
+    [0, frames],
+    chapterNumber % 2 === 0 ? [1.11, 1.04] : [1.04, 1.11],
+    { extrapolateRight: "clamp" },
+  );
+  const settle = interpolate(frame, [0, 12], [1.016, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: easeOut,
   });
-
-  const view: LayoutProps = {
-    kind,
-    items,
-    activeIndex,
-    page,
-    perPage,
-    pageCount,
-    pageEnter,
-    accent,
-    heading: chapter.heading,
-  };
 
   return (
     <AbsoluteFill>
@@ -227,14 +186,11 @@ const ChapterView: React.FC<{
       ) : (
         <AbsoluteFill
           style={{
-            background: "radial-gradient(circle at 40% 40%, #1a1f2e 0%, #0b0d14 60%, #06070a 100%)",
+            background: "radial-gradient(circle at 42% 42%, #1a1f2e 0%, #0b0d14 62%, #06070a 100%)",
           }}
         />
       )}
       {grade ? <AbsoluteFill style={{ background: grade.tintCss }} /> : null}
-
-      {/* 로컬 스크림 — 사진 전체를 죽이지 않고 '글자가 놓인 자리'만 어둡게 */}
-      <AbsoluteFill style={{ background: scrimFor(kind, hasCard) }} />
 
       {grade && grade.grainOpacity > 0 ? (
         <AbsoluteFill
@@ -247,584 +203,308 @@ const ChapterView: React.FC<{
         />
       ) : null}
 
-      <ChapterBumper number={chapterNumber} heading={chapter.heading} accent={accent} />
-      <ChapterLabel heading={chapter.heading} accent={accent} />
-
-      {centralQuestion ? <CentralQuestion text={centralQuestion} accent={accent} /> : null}
-
-      {hasCard && kind === "timeline" ? <TimelineBoard {...view} /> : null}
-      {hasCard && kind === "theories" ? <TheoryCompare {...view} /> : null}
-      {hasCard && (kind === "persons" || kind === "evidence") ? (
-        <>
-          <LeftAnchor {...view} />
-          <SideCard {...view} />
-        </>
-      ) : null}
+      <ChapterOpener number={chapterNumber} heading={chapter.heading} accent={accent} />
+      {showWatermark ? <Watermark /> : null}
 
       {chapter.segments.map((s, i) => (
         <Sequence key={i} from={segStarts[i]} durationInFrames={segLens[i]}>
           <Audio src={staticFile(s.audioSrc)} />
-          <Subtitle text={s.text} emphasis={s.emphasis} accent={accent} />
+          {s.frame ? (
+            <DataFrame
+              kind={s.frame.kind}
+              label={s.frame.label}
+              main={s.text}
+              support={s.frame.support}
+              accent={accent}
+              emphasis={s.emphasis}
+              timelinePos={timelineIdx.get(i)}
+              timelineTotal={tCount}
+            />
+          ) : (
+            <NarrationSubtitle text={s.text} emphasis={s.emphasis} accent={accent} />
+          )}
         </Sequence>
       ))}
     </AbsoluteFill>
   );
 };
 
-/** 자료 배치에 맞춘 국소 스크림 (사진 전체를 어둡게 하지 않는다) */
-function scrimFor(kind: string, hasCard: boolean): string {
-  if (!hasCard) {
-    return "linear-gradient(180deg, rgba(5,7,10,0.42) 0%, rgba(5,7,10,0.16) 30%, rgba(5,7,10,0.34) 62%, rgba(5,7,10,0.88) 100%)";
-  }
-  if (kind === "timeline" || kind === "theories") {
-    // 전체 폭 자료 — 가운데 띠를 눌러준다
-    return "linear-gradient(180deg, rgba(5,7,10,0.46) 0%, rgba(5,7,10,0.60) 14%, rgba(5,7,10,0.60) 70%, rgba(5,7,10,0.90) 100%)";
-  }
-  // 좌우 분할 — 우측(카드)만 진하게, 좌측 사진은 살려둔다
-  return "linear-gradient(90deg, rgba(5,7,10,0.30) 0%, rgba(5,7,10,0.34) 38%, rgba(5,7,10,0.74) 60%, rgba(5,7,10,0.84) 100%)";
-}
-
 /**
- * 챕터 시작 범퍼 (0.7초).
- * 전체 화면 챕터 카드를 매 챕터마다 넣으면 8챕터 × 1.5초 = 12초가 순수
- * 전환 화면이 된다. 대신 새 배경 위에 번호와 제목을 잠깐 크게 얹고 뺀다.
+ * 챕터 오프너 — 번호와 제목을 0.8초쯤 크게 띄우고 사라진다.
+ * 상시 라벨로 계속 띄우면 시청자가 "핵심 증거와 모순"이라는 말을 8분 내내
+ * 봐야 하고, 시선 중심만 하나 더 늘어난다.
  */
-const ChapterBumper: React.FC<{ number: number; heading: string; accent: string }> = ({
+const ChapterOpener: React.FC<{ number: number; heading: string; accent: string }> = ({
   number,
   heading,
   accent,
 }) => {
   const frame = useCurrentFrame();
-  const inAmt = interpolate(frame, [7, 19], [0, 1], {
+  const inAmt = interpolate(frame, [2, 2 + OPENER_IN], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: easeOut,
   });
-  const outAmt = interpolate(frame, [30, 40], [1, 0], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const lineW = interpolate(frame, [5, 16], [0, 320], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: easeOut,
-  });
+  const outAmt = interpolate(
+    frame,
+    [2 + OPENER_IN + OPENER_HOLD, 2 + OPENER_IN + OPENER_HOLD + OPENER_OUT],
+    [1, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+  );
   const vis = inAmt * outAmt;
-  if (vis <= 0.001) return null;
-
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: 96,
-        top: 300,
-        opacity: vis,
-        transform: `translateX(${(1 - inAmt) * -12}px)`,
-      }}
-    >
-      <div style={{ height: 5, width: lineW, background: accent, borderRadius: 3, marginBottom: 26 }} />
-      <div
-        style={{
-          color: accent,
-          fontFamily: FONT_FAMILY,
-          fontSize: 92,
-          fontWeight: 800,
-          lineHeight: 1,
-          letterSpacing: "2px",
-        }}
-      >
-        {String(number).padStart(2, "0")}
-      </div>
-      <div
-        style={{
-          marginTop: 14,
-          color: TEXT,
-          fontFamily: FONT_FAMILY,
-          fontSize: 48,
-          fontWeight: 700,
-          textShadow: "0 3px 16px rgba(0,0,0,0.9)",
-        }}
-      >
-        {heading}
-      </div>
-    </div>
-  );
-};
-
-/** 좌상단 상시 라벨 — 범퍼가 끝난 뒤 자리를 잡는다 */
-const ChapterLabel: React.FC<{ heading: string; accent: string }> = ({ heading, accent }) => {
-  const frame = useCurrentFrame();
-  const enter = interpolate(frame, [BUMP + 13, BUMP + 25], [0, 1], {
+  if (vis <= 0.002) return null;
+  const lineW = interpolate(frame, [4, 18], [0, 300], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: easeOut,
   });
+
   return (
-    <div
-      style={{
-        position: "absolute",
-        left: 96,
-        top: 62,
-        display: "flex",
-        alignItems: "center",
-        gap: 18,
-        opacity: enter,
-        transform: `translateX(${(1 - enter) * -12}px)`,
-      }}
-    >
-      <div style={{ width: 5, height: 46, background: accent, borderRadius: 3 }} />
+    <>
+      <AbsoluteFill style={{ background: "rgba(5,7,10,0.52)", opacity: vis }} />
       <div
         style={{
-          color: TEXT,
-          fontFamily: FONT_FAMILY,
-          fontSize: 38,
-          fontWeight: 700,
-          letterSpacing: "0.5px",
-          textShadow: "0 2px 12px rgba(0,0,0,0.9)",
+          position: "absolute",
+          left: 120,
+          top: 360,
+          opacity: vis,
+          transform: `translateX(${(1 - inAmt) * -14}px)`,
         }}
       >
-        {heading}
-      </div>
-    </div>
-  );
-};
-
-const CentralQuestion: React.FC<{ text: string; accent: string }> = ({ text, accent }) => {
-  const frame = useCurrentFrame();
-  const enter = interpolate(frame, [BUMP + 16, BUMP + 34], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: easeOut,
-  });
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: 120,
-        right: 200,
-        top: 250,
-        opacity: enter,
-        transform: `translateY(${(1 - enter) * 16}px)`,
-        display: "flex",
-        gap: 26,
-      }}
-    >
-      <div style={{ width: 6, background: accent, borderRadius: 3, flexShrink: 0 }} />
-      <div
-        style={{
-          color: TEXT,
-          fontFamily: FONT_FAMILY,
-          fontSize: 80,
-          fontWeight: 800,
-          lineHeight: 1.24,
-          wordBreak: "keep-all",
-          textWrap: "balance",
-          textShadow: "0 4px 24px rgba(0,0,0,0.98), 0 2px 8px rgba(0,0,0,0.95)",
-        }}
-      >
-        {text}
-      </div>
-    </div>
-  );
-};
-
-// ── 자료 카드 공통 ──
-
-interface LayoutProps {
-  kind: string;
-  items: NarratedChapter["cardItems"];
-  activeIndex: number;
-  page: number;
-  perPage: number;
-  pageCount: number;
-  pageEnter: number;
-  accent: string;
-  heading: string;
-}
-
-/** 지금 말하는 항목만 선명하게, 지난 항목은 흐리게, 안 나온 항목은 아주 흐리게 */
-function itemState(idx: number, activeIndex: number): { opacity: number; current: boolean } {
-  if (idx === activeIndex) return { opacity: 1, current: true };
-  if (idx < activeIndex) return { opacity: 0.46, current: false };
-  return { opacity: 0.18, current: false }; // 자리는 잡아둬서 레이아웃이 흔들리지 않게
-}
-
-const CardHead: React.FC<{
-  kind: string;
-  heading: string;
-  accent: string;
-  page: number;
-  pageCount: number;
-  /** "spread" = 제목 좌·페이지 우 / "left" = 둘 다 좌측에 붙임 */
-  align?: "spread" | "left";
-}> = ({ kind, heading, accent, page, pageCount, align = "spread" }) => {
-  const title = CARD_TITLES[kind] ?? "";
-  const showTitle = title && !sameLabel(title, heading);
-  if (!showTitle && pageCount <= 1) return null;
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "baseline",
-        gap: align === "left" ? 22 : 0,
-        justifyContent: align === "left" ? "flex-start" : "space-between",
-      }}
-    >
-      <div
-        style={{
-          color: accent,
-          fontFamily: FONT_FAMILY,
-          fontSize: 30,
-          fontWeight: 700,
-          letterSpacing: "2px",
-        }}
-      >
-        {showTitle ? title : ""}
-      </div>
-      {pageCount > 1 ? (
+        <div style={{ height: 6, width: lineW, background: accent, borderRadius: 3, marginBottom: 30 }} />
         <div
           style={{
-            color: "rgba(255,255,255,0.55)",
+            color: accent,
             fontFamily: FONT_FAMILY,
-            fontSize: 27,
-            fontWeight: 600,
+            fontSize: 112,
+            fontWeight: 800,
+            lineHeight: 1,
           }}
         >
-          {page + 1} / {pageCount}
+          {String(number).padStart(2, "0")}
         </div>
-      ) : null}
-    </div>
-  );
-};
-
-const panelStyle = (accent: string): React.CSSProperties => ({
-  // 0.80 → 0.86: 본문 대비를 7:1 이상으로 올린다. 45세 이상이 87%라
-  // WCAG 최소선(4.5:1)이 아니라 넉넉한 쪽을 기준으로 잡는다.
-  background: "rgba(9,11,16,0.86)",
-  border: "1px solid rgba(255,255,255,0.13)",
-  borderLeft: `5px solid ${accent}`,
-  borderRadius: 8,
-  boxShadow: "0 18px 50px rgba(0,0,0,0.5)",
-});
-
-/** 좌측 시각 앵커 — 지금 말하는 항목 하나를 큰 글자로 (인물·증거 챕터) */
-const LeftAnchor: React.FC<LayoutProps> = ({ kind, items, activeIndex, accent }) => {
-  const item = items[activeIndex];
-  if (!item) return null;
-  const isEvidence = kind === "evidence";
-  return (
-    <div style={{ position: "absolute", left: 96, top: 200, width: 690 }}>
-      <div
-        style={{
-          color: accent,
-          fontFamily: FONT_FAMILY,
-          fontSize: 28,
-          fontWeight: 700,
-          letterSpacing: "4px",
-          marginBottom: 16,
-        }}
-      >
-        {isEvidence ? "EVIDENCE" : "인물"}
-      </div>
-      <div
-        style={{
-          color: "rgba(255,255,255,0.94)",
-          fontFamily: FONT_FAMILY,
-          fontSize: isEvidence ? 112 : 64,
-          fontWeight: 800,
-          lineHeight: 1.05,
-          wordBreak: "keep-all",
-          textShadow: "0 4px 22px rgba(0,0,0,0.9)",
-        }}
-      >
-        {isEvidence ? String(activeIndex + 1).padStart(2, "0") : item.label}
-      </div>
-      {isEvidence ? (
         <div
           style={{
             marginTop: 18,
             color: TEXT,
             fontFamily: FONT_FAMILY,
-            fontSize: 38,
-            fontWeight: 700,
+            fontSize: 88,
+            fontWeight: 800,
+            lineHeight: 1.18,
             wordBreak: "keep-all",
-            textShadow: "0 3px 16px rgba(0,0,0,0.9)",
+            textShadow: "0 4px 20px rgba(0,0,0,0.92)",
           }}
         >
-          {item.label}
+          {heading}
         </div>
-      ) : null}
-    </div>
-  );
-};
-
-/** 우측 카드 (인물·증거) */
-const SideCard: React.FC<LayoutProps> = (p) => {
-  const { items, activeIndex, page, perPage, pageEnter, accent } = p;
-  const slice = items.slice(page * perPage, page * perPage + perPage);
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: 830,
-        top: 132,
-        width: 994,
-        maxHeight: 628,
-        padding: "34px 40px 38px 42px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 22,
-        opacity: pageEnter,
-        transform: `translateX(${(1 - pageEnter) * 12}px)`,
-        ...panelStyle(accent),
-      }}
-    >
-      <CardHead {...p} />
-      {slice.map((item, k) => {
-        const idx = page * perPage + k;
-        const st = itemState(idx, activeIndex);
-        return (
-          <div
-            key={idx}
-            style={{
-              opacity: st.opacity,
-              padding: "10px 14px 12px 16px",
-              borderRadius: 6,
-              background: st.current ? "rgba(255,255,255,0.065)" : "transparent",
-              borderLeft: st.current ? `4px solid ${accent}` : "4px solid transparent",
-            }}
-          >
-            <div
-              style={{
-                color: accent,
-                fontFamily: FONT_FAMILY,
-                fontSize: 36,
-                fontWeight: 700,
-                marginBottom: 6,
-              }}
-            >
-              {item.label}
-            </div>
-            <div
-              style={{
-                color: TEXT,
-                fontFamily: FONT_FAMILY,
-                fontSize: 42,
-                fontWeight: 700,
-                lineHeight: 1.27,
-                wordBreak: "keep-all",
-              }}
-            >
-              {item.main}
-            </div>
-            {item.sub ? (
-              <div
-                style={{
-                  marginTop: 8,
-                  color: SUB_TEXT,
-                  fontFamily: FONT_FAMILY,
-                  fontSize: 35,
-                  fontWeight: 600,
-                  lineHeight: 1.3,
-                  wordBreak: "keep-all",
-                }}
-              >
-                <span style={{ color: WARN, fontWeight: 700 }}>그러나 · </span>
-                {item.sub}
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-/** 타임라인 — 전체 폭 보드 (좁은 우측 카드에 날짜+사건을 넣으면 둘 다 줄어든다) */
-const TimelineBoard: React.FC<LayoutProps> = (p) => {
-  const { items, activeIndex, page, perPage, pageEnter, accent } = p;
-  const slice = items.slice(page * perPage, page * perPage + perPage);
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: 120,
-        top: 145,
-        width: 1680,
-        maxHeight: 610,
-        padding: "32px 40px 36px 44px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-        opacity: pageEnter,
-        transform: `translateX(${(1 - pageEnter) * 12}px)`,
-        ...panelStyle(accent),
-      }}
-    >
-      <CardHead {...p} />
-      {slice.map((item, k) => {
-        const idx = page * perPage + k;
-        const st = itemState(idx, activeIndex);
-        return (
-          <div
-            key={idx}
-            style={{
-              opacity: st.opacity,
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 26,
-              padding: "12px 16px",
-              borderRadius: 6,
-              background: st.current ? "rgba(255,255,255,0.065)" : "transparent",
-              borderLeft: st.current ? `4px solid ${accent}` : "4px solid transparent",
-            }}
-          >
-            <div style={{ width: 270, flexShrink: 0, display: "flex", gap: 14 }}>
-              <div
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: 6,
-                  background: accent,
-                  marginTop: 14,
-                  flexShrink: 0,
-                }}
-              />
-              <div
-                style={{
-                  color: accent,
-                  fontFamily: FONT_FAMILY,
-                  fontSize: 36,
-                  fontWeight: 700,
-                  lineHeight: 1.16,
-                  wordBreak: "keep-all",
-                }}
-              >
-                {normalizeDateLabel(item.label)}
-              </div>
-            </div>
-            <div
-              style={{
-                flex: 1,
-                color: TEXT,
-                fontFamily: FONT_FAMILY,
-                fontSize: 42,
-                fontWeight: 700,
-                lineHeight: 1.27,
-                wordBreak: "keep-all",
-              }}
-            >
-              {item.main}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-/** 가설 비교 — 2열 (한 카드에 세로로 쌓으면 '비교'로 안 읽힌다) */
-const TheoryCompare: React.FC<LayoutProps> = (p) => {
-  const { items, activeIndex, page, perPage, pageEnter, accent } = p;
-  const slice = items.slice(page * perPage, page * perPage + perPage);
-  // 가설이 홀수개면 마지막 페이지에 하나만 남는다. 2열 자리에 그대로 두면
-  // 오른쪽 절반이 비어 '비교'가 아니라 고장난 화면처럼 보인다 → 가운데 넓게.
-  const solo = slice.length === 1;
-  return (
-    <>
-      <div
-        style={{
-          position: "absolute",
-          left: 120,
-          top: 112,
-          right: 120,
-          opacity: pageEnter,
-        }}
-      >
-        <CardHead {...p} align="left" />
       </div>
-      {slice.map((item, k) => {
-        const idx = page * perPage + k;
-        // 비교 화면에서는 대조군도 읽혀야 한다 — 다른 레이아웃보다 덜 흐리게
-        const raw = itemState(idx, activeIndex);
-        const st = { ...raw, opacity: raw.current ? 1 : Math.max(raw.opacity, 0.5) };
-        return (
-          <div
-            key={idx}
-            style={{
-              position: "absolute",
-              left: solo ? 400 : k === 0 ? 120 : 990,
-              top: 168,
-              width: solo ? 1120 : 810,
-              maxHeight: 570,
-              padding: "30px 34px 34px 36px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-              opacity: st.opacity * pageEnter,
-              transform: `translateY(${(1 - pageEnter) * 10}px)`,
-              ...panelStyle(st.current ? accent : "rgba(255,255,255,0.22)"),
-              background: st.current ? "rgba(12,15,21,0.86)" : "rgba(9,11,16,0.74)",
-            }}
-          >
-            <div
-              style={{
-                color: st.current ? accent : "rgba(255,255,255,0.6)",
-                fontFamily: FONT_FAMILY,
-                fontSize: 42,
-                fontWeight: 800,
-                wordBreak: "keep-all",
-              }}
-            >
-              {item.label}
-            </div>
-            <div
-              style={{
-                color: TEXT,
-                fontFamily: FONT_FAMILY,
-                fontSize: 37,
-                fontWeight: 700,
-                lineHeight: 1.28,
-                wordBreak: "keep-all",
-              }}
-            >
-              {item.main}
-            </div>
-            {item.sub ? (
-              <div
-                style={{
-                  color: SUB_TEXT,
-                  fontFamily: FONT_FAMILY,
-                  fontSize: 35,
-                  fontWeight: 600,
-                  lineHeight: 1.3,
-                  wordBreak: "keep-all",
-                }}
-              >
-                <span style={{ color: WARN, fontWeight: 700 }}>설명 안 됨 · </span>
-                {item.sub}
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
     </>
   );
 };
 
 /**
- * 하단 자막 — 카드 유무와 무관하게 항상 같은 자리.
- * 자막 시작점이 챕터마다 좌우로 움직이면 시청자가 매번 눈으로 다시 찾아야 한다.
- * 본문은 항상 흰색이고, 감정은 좌측 강조바 색으로만 표시한다 — 문장 전체를
- * 빨갛게 칠하면 고연령층에게는 가독성이 떨어지고 경고문처럼 보인다.
+ * 자료 프레임 — 화면 전체를 쓰는 한 장짜리 기록판.
+ * 여기서는 **하단 자막을 띄우지 않는다.** main 이 곧 지금 말하는 문장이다.
  */
-const Subtitle: React.FC<{
+const DataFrame: React.FC<{
+  kind: LongformFrameKind;
+  label: string;
+  main: string;
+  support?: string;
+  accent: string;
+  emphasis: "normal" | "tension" | "reveal";
+  timelinePos?: number;
+  timelineTotal: number;
+}> = ({ kind, label, main, support, accent, emphasis, timelinePos, timelineTotal }) => {
+  const frame = useCurrentFrame();
+  const enter = interpolate(frame, [2, 12], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: easeOut,
+  });
+  const supportEnter = interpolate(frame, [14, 26], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: easeOut,
+  });
+  const isTimeline = kind === "timeline";
+  const isQuestion = kind === "question";
+  const lc = labelColor(kind, accent);
+  const shown = isTimeline ? normalizeDateLabel(label) : label;
+  const textLeft = isTimeline ? 232 : 120;
+
+  return (
+    <>
+      {/* 글자가 놓인 자리만 눌러 배경 사진은 형태를 남긴다 */}
+      <AbsoluteFill
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(5,7,10,0.52) 0%, rgba(5,7,10,0.74) 22%, rgba(5,7,10,0.74) 74%, rgba(5,7,10,0.58) 100%)",
+        }}
+      />
+
+      {/* 증거는 큰 번호를 배경 장식으로 (읽지 못해도 되는 요소).
+          본문(top 262~)과 겹치면 96px 문장이 읽히지 않으므로 아래쪽 빈 영역에 둔다. */}
+      {kind === "evidence" ? (
+        <div
+          style={{
+            position: "absolute",
+            right: 110,
+            bottom: 20,
+            color: "#ffffff",
+            opacity: 0.11 * enter,
+            fontFamily: FONT_FAMILY,
+            fontSize: 300,
+            fontWeight: 800,
+            lineHeight: 1,
+          }}
+        >
+          {(label.match(/\d+/)?.[0] ?? "").padStart(2, "0")}
+        </div>
+      ) : null}
+
+      {/* 타임라인은 날짜를 크게 세우고 세로선으로 흐름을 만든다 */}
+      {isTimeline ? (
+        <>
+          <div
+            style={{
+              position: "absolute",
+              left: 120,
+              top: 168,
+              color: lc,
+              fontFamily: FONT_FAMILY,
+              fontSize: 84,
+              fontWeight: 800,
+              lineHeight: 1.1,
+              opacity: enter,
+              transform: `translateY(${(1 - enter) * 10}px)`,
+              textShadow: "0 3px 16px rgba(0,0,0,0.9)",
+            }}
+          >
+            {shown}
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              left: 128,
+              top: 300,
+              width: 5,
+              height: interpolate(frame, [6, 20], [0, 440], {
+                extrapolateLeft: "clamp",
+                extrapolateRight: "clamp",
+                easing: easeOut,
+              }),
+              background: `linear-gradient(180deg, ${lc} 0%, rgba(255,255,255,0.12) 100%)`,
+              borderRadius: 3,
+            }}
+          />
+        </>
+      ) : (
+        <div
+          style={{
+            position: "absolute",
+            left: 120,
+            top: 158,
+            color: lc,
+            fontFamily: FONT_FAMILY,
+            fontSize: 56,
+            fontWeight: 700,
+            letterSpacing: "2px",
+            opacity: enter,
+            transform: `translateY(${(1 - enter) * 10}px)`,
+            textShadow: "0 3px 14px rgba(0,0,0,0.9)",
+          }}
+        >
+          {shown}
+        </div>
+      )}
+
+      {/* 본문 = 지금 말하는 문장 */}
+      <div
+        style={{
+          position: "absolute",
+          left: textLeft,
+          right: 120,
+          top: isTimeline ? 300 : 262,
+          opacity: enter,
+          transform: `translateY(${(1 - enter) * 12}px)`,
+        }}
+      >
+        <div
+          style={{
+            color: emphasis === "reveal" ? "#FFD9D2" : TEXT,
+            fontFamily: FONT_FAMILY,
+            fontSize: isQuestion ? 104 : 96,
+            fontWeight: 800,
+            lineHeight: 1.16,
+            wordBreak: "keep-all",
+            textWrap: "balance",
+            textShadow: "0 4px 20px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.9)",
+          }}
+        >
+          {main}
+        </div>
+      </div>
+
+      {support ? (
+        <div
+          style={{
+            position: "absolute",
+            left: textLeft,
+            right: 160,
+            top: isTimeline ? 592 : 566,
+            opacity: supportEnter,
+            transform: `translateY(${(1 - supportEnter) * 10}px)`,
+            color: SUB_TEXT,
+            fontFamily: FONT_FAMILY,
+            fontSize: 72,
+            fontWeight: 600,
+            lineHeight: 1.22,
+            wordBreak: "keep-all",
+            textWrap: "balance",
+            textShadow: "0 3px 16px rgba(0,0,0,0.92)",
+          }}
+        >
+          {support}
+        </div>
+      ) : null}
+
+      {/* 타임라인 진행 점 — 읽는 정보가 아니라 위치 감각만 준다 */}
+      {isTimeline && timelineTotal > 1 ? (
+        <div style={{ position: "absolute", left: 120, bottom: 96, display: "flex", gap: 22 }}>
+          {Array.from({ length: timelineTotal }).map((_, i) => (
+            <div
+              key={i}
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: 7,
+                background:
+                  i === timelinePos
+                    ? accent
+                    : i < (timelinePos ?? 0)
+                      ? "rgba(255,255,255,0.35)"
+                      : "rgba(255,255,255,0.12)",
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
+};
+
+/**
+ * 내레이션 화면 — 배경 위에 하단 자막만.
+ * 화면에서 의미를 갖는 텍스트 블록은 이것 하나뿐이다.
+ */
+const NarrationSubtitle: React.FC<{
   text: string;
   emphasis: "normal" | "tension" | "reveal";
   accent: string;
 }> = ({ text, emphasis, accent }) => {
   const frame = useCurrentFrame();
-  const enter = interpolate(frame, [1, 9], [0, 1], {
+  const enter = interpolate(frame, [1, 10], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: easeOut,
@@ -835,25 +515,25 @@ const Subtitle: React.FC<{
     <div
       style={{
         position: "absolute",
-        left: 110,
-        right: 110,
-        bottom: 92,
+        left: 120,
+        right: 120,
+        bottom: 76,
         opacity: enter,
         transform: `translateY(${(1 - enter) * 8}px)`,
-        padding: "22px 34px 24px 40px",
-        borderLeft: `5px solid ${bar}`,
+        padding: "22px 36px 26px 40px",
+        borderLeft: `10px solid ${bar}`, // 폰 인라인(852px)에서도 강조바가 보이도록
         borderRadius: 6,
         background:
-          "linear-gradient(90deg, rgba(5,7,10,0.91) 0%, rgba(5,7,10,0.84) 62%, rgba(5,7,10,0.76) 100%)",
+          "linear-gradient(90deg, rgba(5,7,10,0.92) 0%, rgba(5,7,10,0.86) 62%, rgba(5,7,10,0.78) 100%)",
       }}
     >
       <div
         style={{
           color: TEXT,
           fontFamily: FONT_FAMILY,
-          fontSize: 68,
-          fontWeight: 700,
-          lineHeight: 1.28,
+          fontSize: 84,
+          fontWeight: 800,
+          lineHeight: 1.22,
           textAlign: "left",
           wordBreak: "keep-all",
           textWrap: "balance",
@@ -866,23 +546,33 @@ const Subtitle: React.FC<{
   );
 };
 
-const Watermark: React.FC = () => (
-  <div
-    style={{
-      position: "absolute",
-      right: 60,
-      top: 66,
-      color: "rgba(255,255,255,0.38)",
-      fontFamily: FONT_FAMILY,
-      fontSize: 24,
-      fontWeight: 700,
-      letterSpacing: "1px",
-      textShadow: "0 2px 10px rgba(0,0,0,0.85)",
-    }}
-  >
-    @mystery.cut
-  </div>
-);
+/** 워터마크는 첫 챕터에서 잠깐만 — 상시 표시는 시선만 뺏는다 */
+const Watermark: React.FC = () => {
+  const frame = useCurrentFrame();
+  const vis = interpolate(frame, [60, 75, 165, 180], [0, 1, 1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  if (vis <= 0.002) return null;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        right: 120,
+        top: 96,
+        opacity: 0.34 * vis,
+        color: "#ffffff",
+        fontFamily: FONT_FAMILY,
+        fontSize: 28,
+        fontWeight: 700,
+        letterSpacing: "1px",
+        textShadow: "0 2px 10px rgba(0,0,0,0.85)",
+      }}
+    >
+      @mystery.cut
+    </div>
+  );
+};
 
 /** 유튜브 커스텀 썸네일용 카드 (1280x720 컴포지션에서 렌더) */
 export const LongformThumb: React.FC<LongformInputProps> = ({
