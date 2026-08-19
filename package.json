@@ -11,7 +11,8 @@
     "render": "tsx src/render.ts",
     "setup-instagram": "tsx src/tools/setupInstagram.ts",
     "refresh-token": "tsx src/tools/refreshInstagramToken.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "longform": "tsx src/longform.ts"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",

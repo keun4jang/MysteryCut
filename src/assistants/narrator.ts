@@ -6,7 +6,7 @@ import { parseBuffer } from "music-metadata";
 import { config } from "../config.js";
 import { toSpeechText } from "../lib/speech.js";
 import { assignScenes, sceneStats } from "../lib/scenes.js";
-import type { NarratedSegment, ReelScript } from "../types.js";
+import type { NarratedSegment, ReelScript, LongformScript, NarratedChapter } from "../types.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -91,6 +91,86 @@ export async function narrate(
     );
   }
   return result;
+}
+
+/**
+ * 롱폼 나레이션 — 챕터 단위로 합성한다.
+ *
+ * 쇼츠와 속도가 다르다. 쇼츠는 +24~28% 로 몰아치지만, 8분을 그 속도로 들으면
+ * 피로해서 중간에 나간다. 롱폼은 +8% 로 읽고 문장 사이 호흡을 길게 준다.
+ * 보이스도 매번 랜덤이 아니라 하나로 고정한다 — 진행자가 매번 바뀌면
+ * 다큐로서 신뢰가 생기지 않는다.
+ */
+export async function narrateLongform(
+  script: LongformScript,
+  voiceOverride?: VoiceOverride,
+): Promise<NarratedChapter[]> {
+  await fs.mkdir(config.paths.audio, { recursive: true });
+  const provider = config.tts.provider;
+  if (provider === "edge") await ensureEdgeTts();
+  console.log(`  🔊 TTS 제공자: ${provider}`);
+  if (voiceOverride) {
+    console.log(
+      `  🎭 롱폼 보이스: ${voiceOverride.voice} (rate ${voiceOverride.rate}, pitch ${voiceOverride.pitch})`,
+    );
+  }
+
+  if (provider === "google") {
+    const totalChars = script.chapters.reduce(
+      (a, c) => a + c.segments.reduce((b, g) => b + g.text.length, 0),
+      0,
+    );
+    const cap = config.tts.google.maxCharsPerRun;
+    if (totalChars > cap) {
+      throw new Error(
+        `Google TTS 안전 한도 초과: 이번 영상 ${totalChars}자 > 상한 ${cap}자. 무료 한도 보호를 위해 중단합니다.`,
+      );
+    }
+  }
+
+  const out: NarratedChapter[] = [];
+  let done = 0;
+  const total = script.chapters.reduce((n, c) => n + c.segments.length, 0);
+
+  for (let ci = 0; ci < script.chapters.length; ci++) {
+    const ch = script.chapters[ci];
+    const segments: NarratedChapter["segments"] = [];
+
+    for (let si = 0; si < ch.segments.length; si++) {
+      const seg = ch.segments[si];
+      const fileName = `lf-${ci}-${si}.mp3`;
+      const rawPath = path.join(config.paths.audio, `lf-${ci}-${si}.raw.mp3`);
+      const absPath = path.join(config.paths.audio, fileName);
+
+      const spoken = toSpeechText(seg.text);
+      if (provider === "google") await synthesizeGoogle(spoken, rawPath);
+      else await synthesizeEdgeResilient(spoken, rawPath, voiceOverride);
+      await trimSilence(rawPath, absPath);
+
+      const bytes = await fs.readFile(absPath);
+      const meta = await parseBuffer(new Uint8Array(bytes), { mimeType: "audio/mpeg" });
+      segments.push({
+        text: seg.text,
+        emphasis: seg.emphasis,
+        audioSrc: `audio/${fileName}`,
+        durationInSeconds: meta.format.duration ?? estimateDuration(seg.text),
+      });
+      done += 1;
+    }
+
+    out.push({
+      heading: ch.heading,
+      visualQuery: ch.visualQuery,
+      cardKind: ch.cardKind,
+      cardItems: ch.cardItems,
+      segments,
+    });
+    const secs = segments.reduce((a, g) => a + g.durationInSeconds, 0);
+    console.log(
+      `  🎙️  챕터 ${ci + 1}/${script.chapters.length} "${ch.heading}" — ${segments.length}컷 ${secs.toFixed(1)}초 (${done}/${total})`,
+    );
+  }
+  return out;
 }
 
 /**

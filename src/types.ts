@@ -139,3 +139,97 @@ export interface ReelInputProps {
   // Remotion Composition props 는 인덱스 시그니처(Record<string, unknown>)를 요구
   [key: string]: unknown;
 }
+
+// ─────────────────────────────────────────────────────────────
+// 롱폼(가로형 사건 분석 다큐) — 쇼츠와 완전히 다른 구조
+//
+// 쇼츠 대본을 6배로 늘리면 중간이 전부 배경 설명이 되어 시청 지속률이 무너진다.
+// 그래서 별도 스키마를 쓴다: 사건을 '챕터'로 나누고, 챕터마다 화면에 띄울
+// 자료(타임라인·인물·증거·가설)를 데이터로 받는다. 이 자료 카드가 스톡 사진
+// 슬라이드쇼와 진짜 다큐를 가르는 지점이고, 항목이 하나씩 등장하면서
+// 4~7초마다 화면이 바뀌는 효과도 같이 얻는다.
+// ─────────────────────────────────────────────────────────────
+
+/** 챕터 화면에 띄울 자료 카드 종류 */
+export const LONGFORM_CARD_KINDS = [
+  "none", // 사진만
+  "timeline", // 시간순 재구성 (label=시점, main=무슨 일)
+  "persons", // 인물 관계 (label=호칭, main=역할)
+  "evidence", // 증거 검토 (label=증거명, main=확인된 사실, sub=나중에 드러난 문제)
+  "theories", // 가설 비교 (label=가설명, main=설명되는 점, sub=설명 못하는 점)
+] as const;
+export type LongformCardKind = (typeof LONGFORM_CARD_KINDS)[number];
+
+export const LongformScriptSchema = z.object({
+  /** 유튜브 영상 제목 */
+  title: z.string(),
+  /** 썸네일 대형 문구 — 4~8자씩 최대 2줄('\n') */
+  thumbTitle: z.string(),
+  /** 썸네일 배지 (쇼츠와 동일 규칙) */
+  thumbBadge: z.string(),
+  /** 이 영상이 답할 핵심 질문 한 문장 (도입부에 화면 표시) */
+  centralQuestion: z.string(),
+  /** 게시글 설명 본문 */
+  description: z.string(),
+  /** 유튜브 내부 검색 태그 (# 없이) */
+  tags: z.array(z.string()),
+  chapters: z.array(
+    z.object({
+      /** 챕터 제목 — 화면 좌상단 라벨에 표시. 6~16자 */
+      heading: z.string(),
+      /** 이 챕터 배경 스톡 검색어 (영어 2~4단어) */
+      visualQuery: z.string(),
+      /** 나레이션 문장들 (한 문장 = 한 자막 카드) */
+      segments: z.array(
+        z.object({
+          text: z.string(),
+          emphasis: z.enum(["normal", "tension", "reveal"]).default("normal"),
+        }),
+      ),
+      /** 이 챕터에 띄울 자료 카드 종류 */
+      cardKind: z.enum(LONGFORM_CARD_KINDS).default("none"),
+      /** 자료 카드 항목 — 챕터가 진행되면서 하나씩 나타난다 */
+      cardItems: z
+        .array(
+          z.object({
+            /** 시점 / 호칭 / 증거명 / 가설명 */
+            label: z.string(),
+            /** 무슨 일 / 역할 / 확인된 사실 / 설명되는 점 */
+            main: z.string(),
+            /** (증거) 나중에 드러난 문제 / (가설) 설명 못하는 점 */
+            sub: z.string().optional(),
+          }),
+        )
+        .default([]),
+    }),
+  ),
+});
+export type LongformScript = z.infer<typeof LongformScriptSchema>;
+
+/** 나레이션이 끝난 롱폼 챕터 */
+export interface NarratedChapter {
+  heading: string;
+  visualQuery: string;
+  cardKind: LongformCardKind;
+  cardItems: Array<{ label: string; main: string; sub?: string }>;
+  segments: Array<{
+    text: string;
+    emphasis: "normal" | "tension" | "reveal";
+    audioSrc: string;
+    durationInSeconds: number;
+  }>;
+  /** 배경 이미지 public/ 상대경로 */
+  bgSrc?: string;
+}
+
+/** 롱폼 Remotion 컴포지션 입력 props */
+export interface LongformInputProps {
+  title: string;
+  thumbTitle: string;
+  thumbBadge: string;
+  centralQuestion: string;
+  chapters: NarratedChapter[];
+  bgmSrc?: string;
+  grade?: ReelGrade;
+  [key: string]: unknown;
+}

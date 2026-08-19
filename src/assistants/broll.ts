@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "../config.js";
-import type { NarratedSegment } from "../types.js";
+import type { NarratedSegment, NarratedChapter } from "../types.js";
 
 const BROLL_DIR = path.join(config.paths.public, "broll");
 
@@ -51,11 +51,15 @@ export async function attachBroll(segments: NarratedSegment[]): Promise<Narrated
 }
 
 /** Pexels 에서 세로 사진 1장을 받아 저장. 성공 여부 반환 */
-async function downloadOne(query: string, absPath: string): Promise<boolean> {
+async function downloadOne(
+  query: string,
+  absPath: string,
+  orientation: "portrait" | "landscape" = "portrait",
+): Promise<boolean> {
   try {
     const url =
       `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}` +
-      `&orientation=portrait&per_page=1&size=large`;
+      `&orientation=${orientation}&per_page=1&size=large`;
     const res = await fetch(url, { headers: { Authorization: config.pexels.apiKey } });
     if (!res.ok) return false;
     const json = (await res.json()) as {
@@ -72,4 +76,33 @@ async function downloadOne(query: string, absPath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * 롱폼용 — 챕터마다 배경 사진 1장.
+ * 롱폼은 화면의 주인공이 사진이 아니라 자료 카드라서 사진 수가 적어도 된다.
+ * (챕터 7~9개 → 사진 7~9장)
+ */
+export async function attachChapterBroll(chapters: NarratedChapter[]): Promise<NarratedChapter[]> {
+  if (!config.pexels.apiKey) {
+    console.log("  🖼️  PEXELS_API_KEY 없음 → 배경 없이 그라디언트로 렌더");
+    return chapters;
+  }
+  await fs.mkdir(BROLL_DIR, { recursive: true });
+  const cache = new Map<string, string | undefined>();
+
+  for (let i = 0; i < chapters.length; i++) {
+    const query = chapters[i].visualQuery?.trim() || "dark archive documents";
+    let bgSrc = cache.get(query);
+    if (bgSrc === undefined && !cache.has(query)) {
+      const fileName = `lf-ch-${i}.jpg`;
+      bgSrc = (await downloadOne(query, path.join(BROLL_DIR, fileName), "landscape"))
+        ? `broll/${fileName}`
+        : undefined;
+      cache.set(query, bgSrc);
+    }
+    chapters[i].bgSrc = bgSrc;
+    console.log(`  🖼️  챕터 ${i + 1} "${query}" → ${bgSrc ?? "폴백"}`);
+  }
+  return chapters;
 }

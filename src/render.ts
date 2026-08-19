@@ -1,9 +1,9 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition } from "@remotion/renderer";
+import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
 import { config } from "./config.js";
-import type { ReelInputProps } from "./types.js";
+import type { ReelInputProps, LongformInputProps } from "./types.js";
 
 let cachedServeUrl: string | null = null;
 
@@ -59,4 +59,40 @@ export async function renderReel(
   });
 
   return outputLocation;
+}
+
+/** 롱폼(가로 1920x1080) 렌더 */
+export async function renderLongform(
+  inputProps: LongformInputProps,
+  outFile = "longform.mp4",
+): Promise<string> {
+  await fs.mkdir(config.paths.out, { recursive: true });
+  const serveUrl = await getServeUrl();
+  const composition = await selectComposition({ serveUrl, id: "LongformDoc", inputProps });
+  const outputLocation = path.join(config.paths.out, outFile);
+  await renderMedia({
+    composition,
+    serveUrl,
+    codec: "h264",
+    outputLocation,
+    inputProps,
+    crf: 23,
+    x264Preset: "veryfast",
+    jpegQuality: 80,
+    concurrency: null,
+  });
+  return outputLocation;
+}
+
+/** 롱폼 유튜브 커스텀 썸네일(1280x720) — 첫 프레임 추출이 아니라 전용 컴포지션 */
+export async function renderLongformThumb(
+  inputProps: LongformInputProps,
+  outFile = "longform-thumb.jpg",
+): Promise<string> {
+  await fs.mkdir(config.paths.out, { recursive: true });
+  const serveUrl = await getServeUrl();
+  const composition = await selectComposition({ serveUrl, id: "LongformThumb", inputProps });
+  const output = path.join(config.paths.out, outFile);
+  await renderStill({ composition, serveUrl, output, inputProps, frame: 0, jpegQuality: 90 });
+  return output;
 }

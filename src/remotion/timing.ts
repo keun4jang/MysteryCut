@@ -37,3 +37,29 @@ export function totalDurationInFrames(
   });
   return Math.max(1, frames);
 }
+
+/**
+ * 롱폼 챕터 하나의 프레임 수 — 세그먼트 오디오 길이 + 문장 사이 호흡.
+ * (롱폼은 귀로만 따라가는 시간이 길어서 쇼츠보다 호흡을 넉넉히 준다)
+ */
+export function longformChapterFrames(
+  chapter: { segments: Array<{ durationInSeconds: number; emphasis: "normal" | "tension" | "reveal" }> },
+  fps: number,
+): number {
+  let frames = 0;
+  chapter.segments.forEach((seg, i) => {
+    frames += Math.max(1, Math.round(seg.durationInSeconds * fps));
+    // 마지막 문장 뒤에도 호흡을 준다 — 챕터 사이가 딱 붙으면 숨 쉴 틈이 없다
+    const breath = breathSecondsAfter(seg.emphasis) + (i === chapter.segments.length - 1 ? 0.35 : 0.12);
+    frames += Math.round(breath * fps);
+  });
+  return Math.max(1, frames);
+}
+
+/** 롱폼 전체 길이 */
+export function longformDurationInFrames(
+  chapters: Array<{ segments: Array<{ durationInSeconds: number; emphasis: "normal" | "tension" | "reveal" }> }>,
+  fps: number,
+): number {
+  return Math.max(1, chapters.reduce((n, c) => n + longformChapterFrames(c, fps), 0));
+}

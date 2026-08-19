@@ -29,6 +29,19 @@ const VOICES: Array<{ weight: number; pick: VoicePick }> = [
   },
 ];
 
+/**
+ * 롱폼 전용 고정 보이스.
+ *
+ * 쇼츠는 +24~28% 로 몰아치지만 8분을 그 속도로 들으면 피로해서 중간에 나간다.
+ * 그리고 롱폼은 진행자가 매번 바뀌면 다큐로서 신뢰가 안 생기므로 하나로 고정한다.
+ */
+export const LONGFORM_VOICE: VoicePick = {
+  voice: "ko-KR-HyunsuMultilingualNeural",
+  rate: "+8%",
+  pitch: "-6Hz",
+  label: "Hyunsu 롱폼",
+};
+
 // 강조색은 더 이상 랜덤 팔레트가 아니다 — 소재(장르)가 정한다(lib/grade.ts).
 // 여기서는 클래식 기본값만 두고, index.ts 가 대본 확정 후 장르 색으로 덮어쓴다.
 // (매 영상 무작위 색은 '자동 생성' 신호였고, 장르 고정 색은 채널 정체성이 된다)

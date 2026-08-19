@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { config } from "../config.js";
-import type { StoryIdea, ReelMetadata } from "../types.js";
+import type { StoryIdea, ReelMetadata, LongformScript } from "../types.js";
 
 /**
  * YouTube 업로드 어시스트 (YouTube Data API v3, 무료).
@@ -69,6 +69,72 @@ export async function publishYouTube(
   // 4) 자동자막 억제: 빈 한국어 자막 트랙 등록 (있으면 유튜브가 자동자막 대신 사용)
   await suppressAutoCaptions(json.id, accessToken);
 
+  return { videoId: json.id };
+}
+
+/**
+ * 롱폼(가로 16:9) 업로드.
+ *
+ * 쇼츠와 다른 점: 3분을 넘고 가로라서 Shorts 로 분류되지 않는다(= 시청 시간이
+ * YPP 4,000시간에 산입된다). 썸네일도 첫 프레임이 아니라 전용 1280x720 이미지를
+ * 올린다. 자동자막 억제는 하지 않는다 — 롱폼은 화면 자막이 하단 한 줄뿐이라
+ * 자동자막이 겹치지 않고, CC 가 있으면 접근성·검색에 오히려 유리하다.
+ */
+export async function publishLongform(
+  videoPath: string,
+  script: LongformScript,
+  /** 위키백과 참고자료 (설명란 하단) */
+  citation: string | undefined,
+  thumbPath?: string,
+): Promise<{ videoId: string }> {
+  const accessToken = await getAccessToken();
+  const bytes = await fs.readFile(videoPath);
+
+  const description = [script.description.trim(), citation?.trim()]
+    .filter(Boolean)
+    .join("\n\n———\n\n");
+
+  const snippet = {
+    title: script.title.slice(0, 100),
+    description: description.slice(0, 4900),
+    categoryId: config.youtube.categoryId,
+    tags: (script.tags ?? []).map((t) => t.replace(/^#/, "")).slice(0, 15),
+    defaultLanguage: "ko",
+    defaultAudioLanguage: "ko",
+  };
+  const status = {
+    privacyStatus: config.youtube.privacyStatus,
+    selfDeclaredMadeForKids: false,
+  };
+
+  const initRes = await fetch(
+    "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": "video/mp4",
+        "X-Upload-Content-Length": String(bytes.byteLength),
+      },
+      body: JSON.stringify({ snippet, status }),
+    },
+  );
+  if (!initRes.ok) throw new Error(`YouTube 롱폼 업로드 세션 생성 실패: ${await initRes.text()}`);
+  const uploadUrl = initRes.headers.get("location");
+  if (!uploadUrl) throw new Error("YouTube 업로드 URL(Location 헤더)을 못 받았습니다.");
+
+  const upRes = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "video/mp4", "Content-Length": String(bytes.byteLength) },
+    body: new Uint8Array(bytes),
+  });
+  const json = (await upRes.json()) as { id?: string };
+  if (!upRes.ok || !json.id) {
+    throw new Error(`YouTube 롱폼 업로드 실패: ${JSON.stringify(json).slice(0, 400)}`);
+  }
+
+  if (thumbPath) await setThumbnail(json.id, thumbPath, accessToken);
   return { videoId: json.id };
 }
 
