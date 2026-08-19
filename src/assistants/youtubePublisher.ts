@@ -221,7 +221,10 @@ function buildTitle(idea: StoryIdea): string {
  * 세로 1080x1920·3분 미만이라 #Shorts 없이도 쇼츠로 자동 분류됨.
  */
 function buildDescription(m: ReelMetadata): string {
-  return m.captionEn?.trim()
+  const body = m.captionEn?.trim()
     ? `${m.caption}\n\n———\n\n${m.captionEn}`
     : m.caption;
+  // 참고자료는 유튜브 설명란에만 붙인다(인스타는 링크가 클릭되지 않아 노이즈만 된다).
+  // 시청자 신뢰뿐 아니라, 수익창출 심사에서 '조사에 근거한 콘텐츠'임을 보이는 근거가 된다.
+  return m.sourcesCitation?.trim() ? `${body}\n\n———\n\n${m.sourcesCitation}` : body;
 }

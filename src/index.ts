@@ -3,7 +3,8 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "./config.js";
-import { writeReelPlan } from "./assistants/producer.js";
+import { writeReelPlan, proposeCase } from "./assistants/producer.js";
+import { gatherSources, sourcesCitation, type SourceDoc } from "./lib/sources.js";
 import { narrate } from "./assistants/narrator.js";
 import { attachBroll } from "./assistants/broll.js";
 import { renderReel } from "./render.js";
@@ -48,30 +49,51 @@ async function main() {
     `   🎬 ${pack.hookStyle.split(" — ")[0]} | ${pack.signoffStyle.split(" — ")[0]}`,
   );
 
-  // 스토리·대본·캡션을 한 번의 LLM 호출로 (Gemini 무료 할당량 절약: 3콜→1콜)
-  console.log("①~③ 스토리·대본·캡션 통합 생성...");
-  let { idea, script, metadata } = await writeReelPlan(args.seed, avoid, {
+  const planOpts = {
     hookStyle: pack.hookStyle,
+    titleStyle: pack.titleStyle,
     signoffStyle: pack.signoffStyle,
     topicAngle: pack.topicAngle,
     regionAngle: pack.regionAngle,
+  };
+
+  // ① 사건 선정 — 중복이거나 원문을 못 찾으면 다른 사건으로 다시 고른다.
+  //    중복 검사를 '대본 생성 전'으로 당겨서, 겹친 소재에 대본 생성 비용을
+  //    쓰지 않게 했다(예전엔 풀 대본을 만든 뒤에야 중복을 알았다).
+  console.log("① 사건 선정 + 원문 수집...");
+  let probe = await proposeCase(args.seed, avoid, planOpts);
+  let sources: SourceDoc[] = [];
+  for (let tries = 0; tries < 4; tries++) {
+    if (isDuplicate(history, probe.caseKey)) {
+      console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
+    } else {
+      console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);
+      sources = await gatherSources(probe.searchTerms);
+      if (sources.length) {
+        console.log(`   📚 원문 ${sources.length}건 확보: ${sources.map((d) => d.title).join(", ")}`);
+        break;
+      }
+      console.log(`   ↩︎ 원문을 못 찾음(${probe.searchTerms.join(", ")}) — 다른 사건으로`);
+    }
+    avoid.caseKeys.push(probe.caseKey);
+    avoid.titles.push(probe.title);
+    if (tries === 3) break;
+    probe = await proposeCase(args.seed, avoid, planOpts);
+  }
+  if (!sources.length) {
+    console.warn("   ⚠️ 원문 없이 진행 — 안전 모드(구체적 수치·인용 자제)로 대본을 만듭니다.");
+  }
+
+  // ② 확정된 사건 + 원문에 근거해 대본·캡션 생성
+  console.log("②~③ 대본·캡션 생성...");
+  const { idea, script, metadata } = await writeReelPlan(args.seed, avoid, {
+    ...planOpts,
+    forcedCase: probe,
+    sources,
   });
 
-  // 그래도 겹치면 재생성 (최대 3회). 겹친 caseKey 는 회피 목록에 누적.
-  for (let tries = 0; tries < 3 && isDuplicate(history, idea.caseKey); tries++) {
-    console.log(`   ♻️  중복 소재(${idea.caseKey}) — 다른 소재로 재생성`);
-    avoid.caseKeys.push(idea.caseKey);
-    avoid.titles.push(idea.title);
-    ({ idea, script, metadata } = await writeReelPlan(args.seed, avoid, {
-      hookStyle: pack.hookStyle,
-      signoffStyle: pack.signoffStyle,
-      topicAngle: pack.topicAngle,
-      regionAngle: pack.regionAngle,
-    }));
-  }
-  if (isDuplicate(history, idea.caseKey)) {
-    console.warn(`   ⚠️ 재생성에도 중복(${idea.caseKey}) — 그대로 진행(다음엔 회피됨)`);
-  }
+  // 수집한 원문을 설명란 참고자료로 (유튜브에만 노출)
+  if (sources.length) metadata.sourcesCitation = sourcesCitation(sources);
 
   console.log(`   💡 ${idea.title} — ${idea.hook}`);
   console.log(`   🔑 caseKey: ${idea.caseKey}`);

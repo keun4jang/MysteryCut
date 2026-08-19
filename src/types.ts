@@ -62,6 +62,11 @@ export const ReelMetadataSchema = z.object({
   captionEn: z.string(),
   /** 검색 키워드 (# 없음) — 유튜브 내부 태그(snippet.tags) 전용, 화면/본문 미표시 */
   hashtags: z.array(z.string()),
+  /**
+   * 참고자료 목록 — LLM 이 만드는 값이 아니라 파이프라인이 위키백과 수집 결과로
+   * 채워 넣는다. 유튜브 설명란 하단에만 붙는다(인스타는 링크가 안 걸려 제외).
+   */
+  sourcesCitation: z.string().optional(),
 });
 export type ReelMetadata = z.infer<typeof ReelMetadataSchema>;
 
