@@ -338,8 +338,18 @@ export async function writeReelPlan(
     if (chars < MIN_CHARS || chars > MAX_CHARS) {
       const dir = chars < MIN_CHARS ? "부족" : "초과";
       console.warn(`   ⚠️ 대본 분량 ${dir}(${chars}자, 목표 850~900자) — 재생성 (${attempt + 1}/3)`);
-      const delta = chars > MAX_CHARS ? chars - IDEAL_CHARS : IDEAL_CHARS - chars;
-      feedback += `\n★직전 시도의 대본 총 글자수가 ${chars}자로 ${dir}했다(목표 ${IDEAL_CHARS}자). ${chars > MAX_CHARS ? `정확히 ${delta}자를 덜어내라` : `정확히 ${delta}자를 더 채워라`}. 반드시 공백 포함 850~900자로 다시 써라. ${chars > MAX_CHARS ? "곁가지 설명을 쳐내고 핵심 줄기만 남겨라." : "물을 타지 말고 '새로운 사실'로만 채워라 — 사건 디테일을 한 겹 더 파거나 중간 반전을 하나 더 넣어라. 같은 말 반복·빈 문장으로 늘리면 실패다."}`;
+      // 총 글자수만 말해주면 모델이 잘 못 맞춘다(실측: 618 → 1032 → 679 로 발산).
+      // '세그먼트 몇 개 × 몇 자'로 쪼개서 지시하면 훨씬 안정적으로 수렴한다.
+      const segs = plan.script.segments.length;
+      const targetSegs = Math.min(29, Math.max(25, segs));
+      const perSeg = Math.round(IDEAL_CHARS / targetSegs);
+      feedback += `\n★직전 시도의 대본이 ${segs}개 세그먼트 / 총 ${chars}자로 ${dir}했다(목표 ${IDEAL_CHARS}자).
+다시 쓸 때는 총합을 어림하지 말고 이렇게 맞춰라: **세그먼트 ${targetSegs}개, 각 세그먼트 ${perSeg - 3}~${perSeg + 3}자** (${targetSegs} × ${perSeg} ≈ ${targetSegs * perSeg}자).
+다 쓴 뒤 세그먼트를 하나씩 세어 ${perSeg - 3}자 미만이거나 ${perSeg + 3}자를 넘는 것만 고쳐라. ${
+        chars > MAX_CHARS
+          ? "지금은 문장이 너무 길다 — 곁가지 설명을 쳐내고 핵심 줄기만 남겨라."
+          : "지금은 문장이 너무 짧다 — 물을 타지 말고 '새로운 사실'로 채워라. 사건 디테일을 한 겹 더 파거나 중간 반전을 하나 더 넣어라."
+      }`;
     }
   }
   // 3회 재생성에도 남으면 기계적으로 중립화 (게시 자체를 막기보다 표현만 순화)

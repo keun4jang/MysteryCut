@@ -61,12 +61,9 @@ function queryTokens(s: string): string[] {
  * 둔다. 이러면 제목이 많이 다른 좋은 사건을 놓칠 수 있지만, 그때는 호출부가
  * 다른 사건을 고르면 그만이다. 틀린 원문을 '검증된 사실'로 넣는 쪽이 훨씬 나쁘다.
  */
-function isRelevant(query: string, title: string, extract: string): { ok: boolean; score: number } {
+function scoreOne(query: string, titleN: string, leadN: string): { ok: boolean; score: number } {
   const qt = queryTokens(query);
   if (!qt.length) return { ok: false, score: 0 };
-  const titleN = norm(title);
-  const leadN = norm(extract.slice(0, 1500));
-
   let titleHits = 0;
   let score = 0;
   for (const t of qt) {
@@ -77,10 +74,34 @@ function isRelevant(query: string, title: string, extract: string): { ok: boolea
       score += 1;
     }
   }
-  // 제목 적중이 없으면 무조건 탈락. 검색어가 길면(3토큰 이상) 한 토큰만
-  // 우연히 걸린 경우를 배제하기 위해 근거를 더 요구한다.
+  // 제목 적중이 없으면 탈락. 검색어가 길면(3토큰 이상) 한 토큰만 우연히
+  // 걸린 경우를 배제하기 위해 근거를 더 요구한다.
   const ok = titleHits >= 1 && (qt.length <= 2 || titleHits >= 2 || score >= 3);
   return { ok, score };
+}
+
+/**
+ * 관련성은 '이 문서를 찾아낸 검색어' 하나가 아니라 **전체 검색어**로 판정한다.
+ *
+ * 실측 버그(2026-08-19): 영어 검색어 "Bobby Dunbar" 로 한국어 위키를 검색해
+ * 정답 문서인 '바비 던바 실종 사건'을 찾았는데, 한글 제목에 ASCII 토큰이
+ * 없다는 이유로 탈락시켰다. 검색어 목록에는 한국어 표기도 함께 들어오므로
+ * 그중 하나라도 제목에 걸리면 관련 문서로 본다.
+ */
+function isRelevant(
+  terms: string[],
+  title: string,
+  extract: string,
+): { ok: boolean; score: number } {
+  const titleN = norm(title);
+  const leadN = norm(extract.slice(0, 1500));
+  let best = { ok: false, score: 0 };
+  for (const t of terms) {
+    const r = scoreOne(t, titleN, leadN);
+    if (r.ok && !best.ok) best = r;
+    else if (r.ok === best.ok && r.score > best.score) best = r;
+  }
+  return best;
 }
 
 async function api(lang: string, params: Record<string, string>): Promise<unknown> {
@@ -162,7 +183,7 @@ export async function gatherSources(terms: string[]): Promise<SourceDoc[]> {
           seen.add(key);
           const doc = await fetchDoc(lang, t);
           if (!doc) continue;
-          const { ok, score } = isRelevant(q, doc.title, doc.extract);
+          const { ok, score } = isRelevant(terms, doc.title, doc.extract);
           if (!ok) {
             console.log(`  ↩︎ 무관한 문서 제외: "${doc.title}" (검색어 "${q}", 점수 ${score})`);
             continue;
