@@ -17,9 +17,16 @@ import type { CaseProbe } from "./producer.js";
  * '해설이나 교육적 가치가 부족한 이미지 슬라이드쇼'를 부적합 사례로 든다.
  */
 
-/** 러닝타임 기준 — 롱폼은 나레이션을 느리게 읽어서(+8%) 초당 약 7.7자 */
-const MIN_CHARS = 2400;
-const IDEAL_CHARS = 2900;
+/**
+ * 러닝타임 기준.
+ *
+ * 실측(2026-08-19 첫 드라이런): 2,295자 / 69컷 → 324초. 즉 호흡까지 포함해
+ * **초당 7.08자**다. 처음에 7.7자/초로 잡았더니 5분 24초가 나와 목표(6~8분)에
+ * 미달했다. 실측값으로 다시 계산한다:
+ *   6분(360초) ≈ 2,550자 / 7분(420초) ≈ 2,975자 / 8분(480초) ≈ 3,400자
+ */
+const MIN_CHARS = 2600;
+const IDEAL_CHARS = 3000;
 const MAX_CHARS = 3400;
 
 export interface LongformOptions {
@@ -48,24 +55,32 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "- 사건 관계를 중간중간 다시 정리해줘라. 한 번 놓치면 끝까지 못 따라온다.",
     "- 자극적인 묘사보다 '왜 설명이 안 되는가'의 논리로 끌고 가라.",
     "",
-    "[★구성 — 챕터 7~9개. 아래 순서를 지켜라]",
+    "[★구성 — 챕터 8개. 아래 순서를 지켜라]",
     "1) 콜드 오픈: 사건의 가장 큰 모순을 먼저 던진다. 배경 설명 없이 바로. cardKind='none'.",
     "   예: 'DNA는 한 여성을 범인으로 지목했습니다. 그런데 그 여성은 존재하지 않았습니다.'",
     "2) 오늘의 질문: 이 영상에서 확인할 것 2~3가지를 예고한다. cardKind='none'.",
-    "3) 배경: 연도·장소·등장인물·사건이 알려진 계기. cardKind='persons', cardItems 에 인물 3~5명(label=호칭, main=이 사건에서의 역할).",
-    "4) 시간순 재구성: 사건의 전개를 순서대로. cardKind='timeline', cardItems 에 6~9개(label=시점(연도·날짜·시각), main=그때 무슨 일이 있었는지 한 줄).",
-    "5) 핵심 증거와 모순: cardKind='evidence', cardItems 에 3~5개.",
+    "3) 배경: 연도·장소·등장인물·사건이 알려진 계기. cardKind='persons', cardItems **4~5개**(label=호칭, main=이 사건에서의 역할).",
+    "4) 시간순 재구성: 사건의 전개를 순서대로. cardKind='timeline', cardItems **7~9개**(label=시점(연도·날짜·시각), main=그때 무슨 일이 있었는지 한 줄).",
+    "5) 핵심 증거와 모순: cardKind='evidence', cardItems **4~5개**.",
     "   label=증거 이름, main=확인된 사실, sub=나중에 드러난 문제점. 이 챕터가 쇼츠와 롱폼을 가르는 핵심이다.",
-    "6) 가설 비교: cardKind='theories', cardItems 에 2~4개.",
+    "6) 가설 비교: cardKind='theories', cardItems **3~4개**.",
     "   label=가설 이름(사고 / 계획된 범죄 / 기록 오류 등), main=이 가설로 설명되는 점, sub=이 가설로 설명 안 되는 점.",
-    "7) 결론 또는 현재 상태: 공식 결론과 아직 남은 의문. cardKind='none'.",
+    "7) 결론 또는 현재 상태: 공식 결론과 아직 남은 의문. cardKind='timeline', cardItems **3~4개**로",
+    "   '판결 이후 / 수사 종결 이후에 밝혀지거나 바뀐 것'을 시점 순으로 정리하라(label=시점, main=무슨 일).",
     "8) 마무리: 시청자에게 번호로 답하는 선택형 질문. cardKind='none'.",
+    "",
+    "★★cardKind='none' 인 챕터는 위 1·2·8번 **딱 3개만** 허용한다. 나머지 챕터는 반드시 자료 카드를 가져야 한다.",
+    "  실측(첫 시도)에서 9챕터 중 5개가 카드 없이 나왔고, 그 구간 3분이 통째로 '사진 + 자막' 슬라이드쇼가 됐다.",
+    "  유튜브가 수익창출 부적합으로 드는 바로 그 형태이므로 반드시 지켜라.",
     "   예: '여러분은 몇 번이라고 보십니까. 1번 사고, 2번 계획된 범죄, 3번 기록의 오류.'",
     "   ★'구독·팔로우·채널' 같은 말은 절대 쓰지 마라. '좋아요'와 '댓글'만 쓴다.",
     "",
     "[★분량]",
     `- 모든 챕터 segments 의 text 글자수 합계가 공백 포함 ${MIN_CHARS}~${MAX_CHARS}자(목표 ${IDEAL_CHARS}자).`,
-    "- 챕터당 segments 5~10개. 한 segment 는 한 문장(대략 25~45자). 화면 자막 한 장이 된다.",
+    "- ★총합을 어림하지 말고 이렇게 맞춰라: **챕터 8개 × 컷 9~10개 × 한 컷 38~44자**",
+    `  (8 × 9.5 × 41 ≈ ${IDEAL_CHARS}자). 다 쓴 뒤 컷을 하나씩 세어 38자 미만인 것을 채워라.`,
+    "  실측에서 컷당 33자로 짧게 나와 러닝타임이 목표보다 40초 모자랐다. 한 컷이 한 문장이되,",
+    "  주어와 근거가 함께 들어간 온전한 문장이어야 한다('그리고 사라졌습니다.' 같은 토막 금지).",
     "- 문장에 쉼표를 3개 이상 넣지 마라. 귀로 들으면 따라오지 못한다.",
     "",
     "[★자료 카드 작성 규칙 — 화면에 그대로 뜨는 글자다]",
@@ -102,7 +117,7 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
   let bestGap = Number.POSITIVE_INFINITY;
   let feedback = "";
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     const script = (await generateStructured({
       schema: LongformScriptSchema,
       system,
@@ -132,10 +147,15 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     if (chars < MIN_CHARS || chars > MAX_CHARS) {
       const dir = chars < MIN_CHARS ? "부족" : "초과";
       console.warn(`   ⚠️ 분량 ${dir}(${chars}자) — 재생성`);
-      feedback += `\n★직전 대본이 ${chars}자로 ${dir}했다(목표 ${IDEAL_CHARS}자). ${
+      const cuts = countSegments(script);
+      const perCut = cuts ? Math.round(chars / cuts) : 0;
+      const needCuts = Math.max(72, Math.ceil(IDEAL_CHARS / 41));
+      feedback += `\n★직전 대본이 ${cuts}컷 / ${chars}자(컷당 평균 ${perCut}자)로 ${dir}했다. 목표는 ${IDEAL_CHARS}자다.
+다시 쓸 때는 총합을 어림하지 말고 **컷 ${needCuts}개, 한 컷 38~44자**로 맞춰라(${needCuts} × 41 ≈ ${needCuts * 41}자).
+다 쓴 뒤 컷을 하나씩 세어 범위 밖인 것만 고쳐라. ${
         chars > MAX_CHARS
-          ? "곁가지를 쳐내고 핵심 줄기만 남겨라."
-          : "증거 검토와 가설 비교를 한 겹 더 파서 채워라. 같은 말 반복으로 늘리면 실패다."
+          ? "지금은 곁가지가 많다 — 핵심 줄기만 남겨라."
+          : "지금은 문장이 토막나 있다 — 각 컷을 주어와 근거가 있는 온전한 문장으로 채우고, 증거 검토와 가설 비교를 한 겹 더 파라. 같은 말 반복으로 늘리면 실패다."
       }`;
     }
   }

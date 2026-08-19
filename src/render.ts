@@ -93,6 +93,15 @@ export async function renderLongformThumb(
   const serveUrl = await getServeUrl();
   const composition = await selectComposition({ serveUrl, id: "LongformThumb", inputProps });
   const output = path.join(config.paths.out, outFile);
-  await renderStill({ composition, serveUrl, output, inputProps, frame: 0, jpegQuality: 90 });
+  // imageFormat 을 명시해야 jpegQuality 를 넘길 수 있다(안 주면 png 기본값이라 에러).
+  await renderStill({
+    composition,
+    serveUrl,
+    output,
+    inputProps,
+    frame: 0,
+    imageFormat: "jpeg",
+    jpegQuality: 90,
+  });
   return output;
 }
