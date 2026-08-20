@@ -431,7 +431,9 @@ const DataFrame: React.FC<{
               left: 128,
               top: 204,
               width: 5,
-              height: interpolate(frame, [6, 20], [0, 440], {
+              // 본문만 있으면 짧게, 보조 문구까지 있으면 길게 — 고정 길이로 두면
+              // 짧은 컷에서 선이 글자보다 한참 아래 빈 배경까지 늘어진다
+              height: interpolate(frame, [6, 20], [0, support ? 420 : 300], {
                 extrapolateLeft: "clamp",
                 extrapolateRight: "clamp",
                 easing: easeOut,
