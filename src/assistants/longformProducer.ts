@@ -142,6 +142,14 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "- thumbTitle: 4~8자씩 최대 2줄, 줄바꿈은 실제 개행(\\n)으로. 예: '존재하지 않은\\n범인'",
     "- thumbBadge: 4~8자 소재 분류. 사건 성격과 일치해야 한다(미제/법정/역사/괴담 등).",
     "- centralQuestion: 이 영상이 답할 질문 한 문장(25자 안팎). 도입부 화면에 뜬다.",
+    "- thumbQuery: 썸네일 배경 사진 검색어(영어 2~4단어). ★챕터 배경과 기준이 다르다.",
+    "  챕터 배경은 '분위기'면 되지만 썸네일은 **thumbTitle 과 직결된 상징물**이어야 한다.",
+    "  thumbTitle 이 '존재하지 않은 예방약'이면 'empty glass vial dark' 처럼 그 물건을 찍어라.",
+    "  좋은 예: 'empty glass vial dark' / 'locked iron door' / 'torn document close up'",
+    "           'single teacup shadow' / 'muddy shoe print' / 'burning letter'",
+    "  나쁜 예: 'sad family beach' / 'moody landscape' / 'dark forest'",
+    "  (실측: 독살 사건 썸네일에 해변 가족사진이 걸렸다. 분위기 사진은 썸네일에서 클릭을 못 만든다.)",
+    "  사람 얼굴·연도·실제 지명은 넣지 마라. 사물 하나를 클로즈업하는 검색어가 가장 잘 걸린다.",
     "",
     "[★안전]",
     "- 자살·자해·극단적 선택·투신·음독 같은 표현 금지(연령제한 유발). '타살 혐의점을 찾지 못했다'처럼 중립적으로.",
@@ -269,6 +277,7 @@ function sanitize(s: LongformScript): void {
   s.thumbTitle = toBreaks(s.thumbTitle);
   s.thumbBadge = toSpace(s.thumbBadge);
   s.centralQuestion = toSpace(s.centralQuestion);
+  s.thumbQuery = toSpace(s.thumbQuery ?? "");
   s.description = toBreaks(s.description);
   s.tags = (s.tags ?? []).map((t) => toSpace(t).replace(/^#/, ""));
   for (const c of s.chapters) {

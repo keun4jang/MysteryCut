@@ -103,6 +103,8 @@ export interface ReelGrade {
   tintCss: string;
   /** 장르 강조색 — 자막 패널 강조바·라벨·썸네일 마커 */
   accent: string;
+  /** 썸네일 전용 강조색 (accent 보다 밝다 — 피드 360px 에서 살아남아야 한다) */
+  thumbAccent?: string;
   /** 필름 그레인 불투명도 (0.025~0.045, 0이면 끔) */
   grainOpacity: number;
   /** 그레인 노이즈 시드 (정적 패턴 — 프레임마다 동일해야 렌더가 결정적) */
@@ -187,6 +189,12 @@ export const LongformScriptSchema = z.object({
   thumbBadge: z.string(),
   /** 이 영상이 답할 핵심 질문 한 문장 (도입부에 화면 표시) */
   centralQuestion: z.string(),
+  /**
+   * 썸네일 배경 전용 스톡 검색어 (영어).
+   * 챕터 배경은 '분위기'를 맡지만 썸네일은 **제목과 직결된 상징물**이어야 한다.
+   * 1챕터 사진을 그대로 쓰면 독살 사건에 해변 가족사진이 걸리는 일이 생긴다(실측).
+   */
+  thumbQuery: z.string(),
   /** 게시글 설명 본문 */
   description: z.string(),
   /** 유튜브 내부 검색 태그 (# 없이) */
@@ -252,6 +260,8 @@ export interface LongformInputProps {
   thumbBadge: string;
   centralQuestion: string;
   chapters: NarratedChapter[];
+  /** 썸네일 배경 이미지 (public/ 상대경로). 없으면 1챕터 배경으로 폴백 */
+  thumbBgSrc?: string;
   bgmSrc?: string;
   grade?: ReelGrade;
   [key: string]: unknown;

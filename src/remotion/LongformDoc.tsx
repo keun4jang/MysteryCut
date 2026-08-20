@@ -655,23 +655,37 @@ const Watermark: React.FC = () => {
   );
 };
 
-/** 유튜브 커스텀 썸네일용 카드 (1280x720 컴포지션에서 렌더) */
+/**
+ * 유튜브 커스텀 썸네일 (1280x720).
+ *
+ * 롱폼은 썸네일이 조회수를 좌우한다. 설계 기준은 **1280px 이 아니라 360px** 이다 —
+ * 시청자가 실제로 보는 크기가 피드의 360×202 라서, 크게 놓고 예쁜 것보다
+ * 작게 줄였을 때 한눈에 읽히는 쪽이 이긴다. 실측 비교에서 글자를 화면 절반
+ * 크기 컬럼에 가두면 360px 에서 읽히지 않았다.
+ *
+ * - 제목 2줄, 폭의 대부분을 쓴다
+ * - 마지막 줄만 강조색 — 시선이 꽂히는 지점을 하나만 만든다
+ * - 사진은 오른쪽에 흐리게 남겨 분위기만 담당한다(주인공은 글자)
+ */
 export const LongformThumb: React.FC<LongformInputProps> = ({
   thumbTitle,
   thumbBadge,
   chapters,
+  thumbBgSrc,
   grade,
 }) => {
   ensureFonts();
-  const accent = grade?.accent ?? DEFAULT_ACCENT;
-  const bgSrc = chapters[0]?.bgSrc;
+  const accent = grade?.thumbAccent ?? grade?.accent ?? DEFAULT_ACCENT;
+  // 썸네일 전용 사진이 있으면 그것, 없으면 1챕터 배경으로 폴백
+  const bgSrc = thumbBgSrc ?? chapters[0]?.bgSrc;
   const lines = (thumbTitle ?? "")
     .replace(/\\n/g, "\n")
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
   const longest = Math.max(...lines.map((l) => l.length), 1);
-  const fontSize = longest <= 6 ? 132 : longest <= 9 ? 108 : longest <= 13 ? 88 : 72;
+  // 한 줄이 길수록 줄여 잡되, 360px 에서도 읽히도록 하한을 높게 둔다
+  const fontSize = longest <= 6 ? 200 : longest <= 8 ? 172 : longest <= 10 ? 146 : 124;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#07080b" }}>
@@ -682,8 +696,8 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            transform: "scale(1.06)",
-            filter: `${grade?.bgFilter ?? ""} brightness(0.5) saturate(0.85)`.trim(),
+            transform: "scale(1.08)",
+            filter: `${grade?.bgFilter ?? ""} brightness(0.42) saturate(0.8)`.trim(),
           }}
         />
       ) : (
@@ -693,23 +707,24 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
           }}
         />
       )}
+      {/* 글자가 놓이는 왼쪽은 거의 불투명하게 눌러 흰 글자가 항상 이긴다 */}
       <AbsoluteFill
         style={{
           background:
-            "linear-gradient(90deg, rgba(4,5,8,0.90) 0%, rgba(4,5,8,0.66) 52%, rgba(4,5,8,0.30) 100%)",
+            "linear-gradient(90deg, rgba(4,5,8,0.94) 0%, rgba(4,5,8,0.88) 55%, rgba(4,5,8,0.45) 100%)",
         }}
       />
       <div
         style={{
           position: "absolute",
-          left: 68,
+          left: 72,
+          right: 72,
           top: 0,
           bottom: 0,
-          width: 760,
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          gap: 26,
+          gap: 30,
         }}
       >
         <div
@@ -718,34 +733,33 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
             background: "#c1121f",
             color: "#fff",
             fontFamily: FONT_FAMILY,
-            fontSize: 34,
+            fontSize: 44,
             fontWeight: 800,
-            letterSpacing: "2px",
-            padding: "9px 24px",
+            letterSpacing: "3px",
+            padding: "12px 30px",
             borderRadius: 8,
           }}
         >
           {thumbBadge?.trim() || "실화 사건 기록"}
         </div>
-        <div style={{ display: "flex", gap: 22 }}>
-          <div style={{ width: 8, background: accent, borderRadius: 4 }} />
-          <div
-            style={{
-              color: "#fff",
-              fontFamily: FONT_FAMILY,
-              fontSize,
-              fontWeight: 800,
-              lineHeight: 1.14,
-              letterSpacing: "-1px",
-              wordBreak: "keep-all",
-              textWrap: "balance",
-              textShadow: "0 6px 28px rgba(0,0,0,0.95)",
-            }}
-          >
-            {lines.map((l, i) => (
-              <div key={i}>{l}</div>
-            ))}
-          </div>
+        <div
+          style={{
+            color: "#fff",
+            fontFamily: FONT_FAMILY,
+            fontSize,
+            fontWeight: 800,
+            lineHeight: 1.02,
+            letterSpacing: "-4px",
+            wordBreak: "keep-all",
+            textShadow: "0 8px 34px rgba(0,0,0,0.98)",
+          }}
+        >
+          {lines.map((l, i) => (
+            // 마지막 줄만 강조색 — 시선이 꽂히는 지점을 하나만 둔다
+            <div key={i} style={i === lines.length - 1 && lines.length > 1 ? { color: accent } : undefined}>
+              {l}
+            </div>
+          ))}
         </div>
       </div>
     </AbsoluteFill>

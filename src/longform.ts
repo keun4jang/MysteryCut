@@ -4,7 +4,7 @@ import { config } from "./config.js";
 import { proposeCase } from "./assistants/producer.js";
 import { writeLongform, totalChars, countSegments } from "./assistants/longformProducer.js";
 import { narrateLongform } from "./assistants/narrator.js";
-import { attachChapterBroll } from "./assistants/broll.js";
+import { attachChapterBroll, fetchThumbBg } from "./assistants/broll.js";
 import { renderLongform, renderLongformThumb } from "./render.js";
 import { publishLongform } from "./assistants/youtubePublisher.js";
 import { loadHistory, recentAvoidList, isDuplicate, appendPost } from "./assistants/history.js";
@@ -110,6 +110,7 @@ async function main() {
   // ④ 챕터 배경
   console.log("④ 챕터 배경 자료화면(Pexels)...");
   await attachChapterBroll(chapters);
+  const thumbBgSrc = await fetchThumbBg(script.thumbQuery);
 
   const grade = deriveGrade(probe.caseKey, script.thumbBadge, pack.topicAngle);
   console.log(`   🎨 장르 그레이드: ${grade.genre}`);
@@ -120,6 +121,7 @@ async function main() {
     thumbBadge: script.thumbBadge,
     centralQuestion: script.centralQuestion,
     chapters,
+    thumbBgSrc,
     bgmSrc: await findBgm(),
     grade,
   };

@@ -141,3 +141,20 @@ export async function attachChapterBroll(chapters: NarratedChapter[]): Promise<N
   }
   return chapters;
 }
+
+/**
+ * 롱폼 썸네일 배경 1장.
+ *
+ * 챕터 배경과 따로 받는 이유 — 기준이 다르다. 챕터 배경은 8분 동안 뒤에 깔릴
+ * 분위기면 되지만, 썸네일은 피드에서 0.5초 안에 "무슨 얘기인지" 알려야 한다.
+ * 1챕터 사진을 돌려 쓰면 독살 사건에 해변 가족사진이 걸린다(실측).
+ */
+export async function fetchThumbBg(query: string): Promise<string | undefined> {
+  if (!config.pexels.apiKey) return undefined;
+  await fs.mkdir(BROLL_DIR, { recursive: true });
+  const fileName = "lf-thumb-bg.jpg";
+  const q = query.trim() || "dark object still life";
+  const r = await downloadOne(q, path.join(BROLL_DIR, fileName), "landscape");
+  console.log(`  🖼️  썸네일 배경 "${q}" → ${r.ok ? `broll/${fileName}` : "폴백(1챕터 사진)"}`);
+  return r.ok ? `broll/${fileName}` : undefined;
+}

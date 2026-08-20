@@ -21,8 +21,15 @@ interface GenreLook {
   /** 화면 틴트 (위→아래로 옅어지는 장르색) */
   tintRgb: string; // "r,g,b"
   tintAlpha: number;
-  /** 강조색: 자막 라벨·강조바·썸네일 마커 */
+  /** 강조색: 자막 라벨·강조바 */
   accent: string;
+  /**
+   * 썸네일 강조색 — accent 보다 확실히 밝고 진하다.
+   * 영상 안의 accent 는 8분 내내 떠 있으므로 눈이 피로하지 않게 눌러 놨는데,
+   * 그 색을 썸네일에 그대로 쓰면 피드 360px 에서 흐릿해 시선을 못 잡는다.
+   * 썸네일은 0.5초 승부라 기준이 다르다.
+   */
+  thumbAccent: string;
   /** 자막 강조색 (tension/reveal) */
   tension: string;
   reveal: string;
@@ -33,25 +40,25 @@ const LOOKS: Record<ReelGenre, GenreLook> = {
   coldCase: {
     saturate: 0.72, brightness: 0.94, contrast: 1.06, hueRotate: -6, sepia: 0,
     tintRgb: "44,66,96", tintAlpha: 0.16,
-    accent: "#7fa8c9", tension: "#8fc3e8", reveal: "#ff5a5a",
+    accent: "#7fa8c9", thumbAccent: "#6cc0ff", tension: "#8fc3e8", reveal: "#ff5a5a",
   },
   // 법정·판결·유산 분쟁 — 서류·백열등의 앰버 (법정 스릴러)
   court: {
     saturate: 0.82, brightness: 0.95, contrast: 1.05, hueRotate: 0, sepia: 0.14,
     tintRgb: "118,86,32", tintAlpha: 0.12,
-    accent: "#d9a441", tension: "#e8b04b", reveal: "#ff6b4d",
+    accent: "#d9a441", thumbAccent: "#ffc94a", tension: "#e8b04b", reveal: "#ff6b4d",
   },
   // 역사·기록물 — 먹색에 가까운 저채도 (사료 화면)
   history: {
     saturate: 0.55, brightness: 0.9, contrast: 1.1, hueRotate: 0, sepia: 0.08,
     tintRgb: "24,24,28", tintAlpha: 0.18,
-    accent: "#b9a88a", tension: "#d9c9a3", reveal: "#e85454",
+    accent: "#b9a88a", thumbAccent: "#f0c258", tension: "#d9c9a3", reveal: "#e85454",
   },
   // 전설·민담·괴담 — 녹청 (설화·심야 괴담)
   folklore: {
     saturate: 0.7, brightness: 0.9, contrast: 1.07, hueRotate: 10, sepia: 0,
     tintRgb: "22,66,58", tintAlpha: 0.14,
-    accent: "#58b898", tension: "#7fd0b8", reveal: "#ff5f87",
+    accent: "#58b898", thumbAccent: "#4fe0b4", tension: "#7fd0b8", reveal: "#ff5f87",
   },
 };
 
@@ -104,6 +111,7 @@ export function deriveGrade(
     bgFilter: filter,
     tintCss: `linear-gradient(180deg, rgba(${look.tintRgb},${look.tintAlpha}) 0%, rgba(${look.tintRgb},${(look.tintAlpha * 0.45).toFixed(3)}) 100%)`,
     accent: look.accent,
+    thumbAccent: look.thumbAccent,
     grainOpacity: +(0.035 + jitter * 0.008).toFixed(3), // 0.027~0.043
     grainSeed: Math.floor(r * 1000),
     thumbMarker: r < 0.5 ? "brackets" : "bar",

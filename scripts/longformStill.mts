@@ -92,6 +92,7 @@ const inputProps: LongformInputProps = {
   thumbTitle: "존재하지 않은\n예방약",
   thumbBadge: "실화 미제사건",
   centralQuestion: "그는 어떻게 모두를 속였을까",
+  thumbBgSrc: "broll/lf-ch-3.jpg",
   chapters, grade, bgmSrc: undefined,
 };
 
