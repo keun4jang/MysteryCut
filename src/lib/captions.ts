@@ -1,4 +1,9 @@
-import { breathFramesAfter, longformBreathSeconds, THUMB_FRAMES } from "../remotion/timing.js";
+import {
+  LONGFORM_OPENER_LEAD,
+  breathFramesAfter,
+  longformBreathSeconds,
+  THUMB_FRAMES,
+} from "../remotion/timing.js";
 import type { NarratedChapter, NarratedSegment } from "../types.js";
 
 /**
@@ -28,6 +33,7 @@ export function longformSrt(chapters: NarratedChapter[], fps = 30, lang: "ko" | 
   let f = 0;
 
   for (const chapter of chapters) {
+    f += LONGFORM_OPENER_LEAD; // 챕터 오프너 여백 — 컴포지션과 같은 값이어야 싱크가 맞는다
     chapter.segments.forEach((seg, i) => {
       const audioFrames = Math.max(1, Math.round(seg.durationInSeconds * fps));
       const breathFrames = Math.round(

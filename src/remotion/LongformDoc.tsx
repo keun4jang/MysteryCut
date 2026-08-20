@@ -16,7 +16,7 @@ import type {
   NarratedChapter,
   ReelGrade,
 } from "../types.js";
-import { longformBreathSeconds, longformChapterFrames } from "./timing.js";
+import { LONGFORM_OPENER_LEAD, longformBreathSeconds, longformChapterFrames } from "./timing.js";
 import { ensureFonts, FONT_FAMILY } from "./fonts.js";
 
 /**
@@ -72,9 +72,19 @@ const DEFAULT_ACCENT = "#7fa8c9";
  */
 const SAFE_BOTTOM = 268;
 
-const OPENER_IN = 8;
-const OPENER_HOLD = 26;
-const OPENER_OUT = 10;
+const OPENER_IN = 6;
+const OPENER_HOLD = 14;
+const OPENER_OUT = 6;
+/**
+ * 오프너가 사라지고 첫 컷 화면이 들어오는 프레임.
+ *
+ * 오프너를 첫 컷 위에 겹쳐 그리면 글자가 서로 밟는다(실측: 챕터 번호·제목이
+ * 자막 패널을 뚫고 나옴). 자료 프레임 모드에서는 화면 위아래가 이미 다 차 있어
+ * 오프너가 비집고 들어갈 빈 자리가 없다.
+ * 그래서 오프너가 떠 있는 0.93초 동안은 컷 화면을 아예 띄우지 않는다.
+ * 나레이션 오디오는 그대로 흐르므로 영상이 길어지지도 않는다.
+ */
+const OPENER_END = 2 + OPENER_IN + OPENER_HOLD + OPENER_OUT; // = LONGFORM_OPENER_LEAD
 
 const grainUri = (seed: number) =>
   `data:image/svg+xml;utf8,${encodeURIComponent(
@@ -112,7 +122,7 @@ export const LongformDoc: React.FC<LongformInputProps> = ({ chapters, bgmSrc, gr
 
   const dips: Array<[number, number]> = [];
   chapters.forEach((c, ci) => {
-    let f = starts[ci];
+    let f = starts[ci] + LONGFORM_OPENER_LEAD;
     c.segments.forEach((s, i) => {
       const segFrames =
         Math.max(1, Math.round(s.durationInSeconds * fps)) +
@@ -159,7 +169,8 @@ const ChapterView: React.FC<{
   const segStarts: number[] = [];
   const segLens: number[] = [];
   {
-    let f = 0;
+    // 오프너 여백만큼 뒤로 밀어 시작 — 오디오도 같이 밀려 자막과 어긋나지 않는다
+    let f = LONGFORM_OPENER_LEAD;
     chapter.segments.forEach((s, i) => {
       const len =
         Math.max(1, Math.round(s.durationInSeconds * fps)) +
@@ -175,6 +186,12 @@ const ChapterView: React.FC<{
   let tCount = 0;
   chapter.segments.forEach((s, i) => {
     if (s.frame?.kind === "timeline") timelineIdx.set(i, tCount++);
+  });
+
+  const contentIn = interpolate(frame, [OPENER_END - 6, OPENER_END + 4], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: easeOut,
   });
 
   const bright = chapter.bgBrightness ?? 0.78;
@@ -226,26 +243,29 @@ const ChapterView: React.FC<{
       <ChapterOpener number={chapterNumber} heading={chapter.heading} accent={accent} />
       {showWatermark ? <Watermark /> : null}
 
-      {chapter.segments.map((s, i) => (
-        <Sequence key={i} from={segStarts[i]} durationInFrames={segLens[i]}>
-          <Audio src={staticFile(s.audioSrc)} />
-          {s.frame ? (
-            <DataFrame
-              kind={s.frame.kind}
-              label={s.frame.label}
-              main={s.text}
-              mainEn={s.textEn}
-              support={s.frame.support}
-              accent={accent}
-              emphasis={s.emphasis}
-              timelinePos={timelineIdx.get(i)}
-              timelineTotal={tCount}
-            />
-          ) : (
-            <NarrationSubtitle text={s.text} textEn={s.textEn} emphasis={s.emphasis} accent={accent} />
-          )}
-        </Sequence>
-      ))}
+      {/* 오프너가 걷힌 뒤에 컷 화면이 들어온다 (오디오는 opacity 와 무관하게 계속 흐른다) */}
+      <AbsoluteFill style={{ opacity: contentIn }}>
+        {chapter.segments.map((s, i) => (
+          <Sequence key={i} from={segStarts[i]} durationInFrames={segLens[i]}>
+            <Audio src={staticFile(s.audioSrc)} />
+            {s.frame ? (
+              <DataFrame
+                kind={s.frame.kind}
+                label={s.frame.label}
+                main={s.text}
+                mainEn={s.textEn}
+                support={s.frame.support}
+                accent={accent}
+                emphasis={s.emphasis}
+                timelinePos={timelineIdx.get(i)}
+                timelineTotal={tCount}
+              />
+            ) : (
+              <NarrationSubtitle text={s.text} textEn={s.textEn} emphasis={s.emphasis} accent={accent} />
+            )}
+          </Sequence>
+        ))}
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };

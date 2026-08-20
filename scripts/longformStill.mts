@@ -22,6 +22,8 @@ const serveUrl = await bundle({
 
 const jobs: Array<[string, string, number]> = [
   ["LongformDoc", "lf-opener.png", 16],
+  ["LongformDoc", "lf-opener-frame.png", 875],
+  ["LongformDoc", "lf-opener-after.png", 905],
   ["LongformDoc", "lf-narration.png", 70],
   ["LongformDoc", "lf-question.png", 370],
   ["LongformDoc", "lf-timeline.png", 550],
