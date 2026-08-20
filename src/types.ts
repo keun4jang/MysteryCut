@@ -103,8 +103,6 @@ export interface ReelGrade {
   tintCss: string;
   /** 장르 강조색 — 자막 패널 강조바·라벨·썸네일 마커 */
   accent: string;
-  /** 썸네일 전용 강조색 (accent 보다 밝다 — 피드 360px 에서 살아남아야 한다) */
-  thumbAccent?: string;
   /** 필름 그레인 불투명도 (0.025~0.045, 0이면 끔) */
   grainOpacity: number;
   /** 그레인 노이즈 시드 (정적 패턴 — 프레임마다 동일해야 렌더가 결정적) */
