@@ -658,15 +658,24 @@ const Watermark: React.FC = () => {
 /**
  * 유튜브 커스텀 썸네일 (1280x720).
  *
- * 롱폼은 썸네일이 조회수를 좌우한다. 설계 기준은 **1280px 이 아니라 360px** 이다 —
- * 시청자가 실제로 보는 크기가 피드의 360×202 라서, 크게 놓고 예쁜 것보다
- * 작게 줄였을 때 한눈에 읽히는 쪽이 이긴다. 실측 비교에서 글자를 화면 절반
- * 크기 컬럼에 가두면 360px 에서 읽히지 않았다.
+ * 설계 기준은 1280px 이 아니라 **360px** 이다 — 시청자가 실제로 보는 크기가
+ * 피드의 360×202 라서, 크게 놓고 예쁜 것보다 작게 줄였을 때 한눈에 읽히는
+ * 쪽이 이긴다. 4개 안을 360px 로 놓고 비교해 정했다.
  *
- * - 제목 2줄, 폭의 대부분을 쓴다
- * - 마지막 줄만 강조색 — 시선이 꽂히는 지점을 하나만 만든다
- * - 사진은 오른쪽에 흐리게 남겨 분위기만 담당한다(주인공은 글자)
+ * 45세 이상이 87%인 시청자층에 맞춘 선택:
+ * - 노랑(#FFE14D) 본문 + 두꺼운 검정 외곽선 — 어두운 배경에서 대비가 가장 크고,
+ *   사진 밝기가 어떻든 글자가 항상 이긴다(스톡 사진은 밝기를 고를 수 없다).
+ * - 마지막 줄은 빨간 박스에 흰 글자 — 시선이 꽂히는 지점을 하나만 만든다.
+ * - 사진은 오른쪽에 흐리게 남겨 분위기만 담당한다. 주인공은 글자다.
+ *
+ * 자극적이되 낚시는 아니다 — 문구는 대본이 실제로 다루는 내용이어야 한다.
+ * 유튜브는 '오해를 부르는 메타데이터'를 수익창출 감점 사유로 든다.
  */
+const THUMB_YELLOW = "#FFE14D";
+const THUMB_RED = "#E01020";
+/** 빨간 박스로 강조할 수 있는 마지막 줄 길이 상한 — 넘으면 박스가 화면을 덮는다 */
+const THUMB_BOX_MAX = 6;
+
 export const LongformThumb: React.FC<LongformInputProps> = ({
   thumbTitle,
   thumbBadge,
@@ -675,7 +684,6 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
   grade,
 }) => {
   ensureFonts();
-  const accent = grade?.thumbAccent ?? grade?.accent ?? DEFAULT_ACCENT;
   // 썸네일 전용 사진이 있으면 그것, 없으면 1챕터 배경으로 폴백
   const bgSrc = thumbBgSrc ?? chapters[0]?.bgSrc;
   const lines = (thumbTitle ?? "")
@@ -685,7 +693,13 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
     .filter(Boolean);
   const longest = Math.max(...lines.map((l) => l.length), 1);
   // 한 줄이 길수록 줄여 잡되, 360px 에서도 읽히도록 하한을 높게 둔다
-  const fontSize = longest <= 6 ? 200 : longest <= 8 ? 172 : longest <= 10 ? 146 : 124;
+  const fontSize = longest <= 6 ? 196 : longest <= 8 ? 176 : longest <= 10 ? 148 : 124;
+  const stroke = Math.round(fontSize * 0.085);
+  const last = lines.length - 1;
+  // 마지막 줄이 짧을 때만 빨간 박스 — 길면 박스가 화면을 덮어 오히려 안 읽힌다
+  const boxed = lines.length > 1 && lines[last].length <= THUMB_BOX_MAX;
+
+  const strokeCss = { WebkitTextStroke: `${stroke}px #000`, paintOrder: "stroke fill" } as const;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#07080b" }}>
@@ -696,8 +710,8 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            transform: "scale(1.08)",
-            filter: `${grade?.bgFilter ?? ""} brightness(0.42) saturate(0.8)`.trim(),
+            transform: "scale(1.06)",
+            filter: `${grade?.bgFilter ?? ""} brightness(0.6) saturate(0.82)`.trim(),
           }}
         />
       ) : (
@@ -707,60 +721,76 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
           }}
         />
       )}
-      {/* 글자가 놓이는 왼쪽은 거의 불투명하게 눌러 흰 글자가 항상 이긴다 */}
+      {/* 글자가 놓이는 왼쪽을 눌러 노란 글자가 항상 이기게 한다 */}
       <AbsoluteFill
         style={{
           background:
-            "linear-gradient(90deg, rgba(4,5,8,0.94) 0%, rgba(4,5,8,0.88) 55%, rgba(4,5,8,0.45) 100%)",
+            "linear-gradient(90deg, rgba(4,5,8,0.88) 0%, rgba(4,5,8,0.72) 60%, rgba(4,5,8,0.30) 100%)",
         }}
       />
       <div
         style={{
           position: "absolute",
-          left: 72,
-          right: 72,
+          left: 64,
+          right: 64,
           top: 0,
           bottom: 0,
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          gap: 30,
+          alignItems: "flex-start",
+          gap: 22,
         }}
       >
         <div
           style={{
-            alignSelf: "flex-start",
-            background: "#c1121f",
+            background: THUMB_RED,
             color: "#fff",
             fontFamily: FONT_FAMILY,
             fontSize: 44,
             fontWeight: 800,
             letterSpacing: "3px",
-            padding: "12px 30px",
-            borderRadius: 8,
+            padding: "11px 28px",
           }}
         >
           {thumbBadge?.trim() || "실화 사건 기록"}
         </div>
-        <div
-          style={{
-            color: "#fff",
-            fontFamily: FONT_FAMILY,
-            fontSize,
-            fontWeight: 800,
-            lineHeight: 1.02,
-            letterSpacing: "-4px",
-            wordBreak: "keep-all",
-            textShadow: "0 8px 34px rgba(0,0,0,0.98)",
-          }}
-        >
-          {lines.map((l, i) => (
-            // 마지막 줄만 강조색 — 시선이 꽂히는 지점을 하나만 둔다
-            <div key={i} style={i === lines.length - 1 && lines.length > 1 ? { color: accent } : undefined}>
+
+        {lines.map((l, i) =>
+          boxed && i === last ? (
+            <div key={i} style={{ background: THUMB_RED, padding: `6px 28px ${Math.round(fontSize * 0.09)}px` }}>
+              <span
+                style={{
+                  ...strokeCss,
+                  color: "#fff",
+                  fontFamily: FONT_FAMILY,
+                  fontSize,
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  letterSpacing: "-5px",
+                }}
+              >
+                {l}
+              </span>
+            </div>
+          ) : (
+            <div
+              key={i}
+              style={{
+                ...strokeCss,
+                color: i === last && lines.length > 1 ? "#fff" : THUMB_YELLOW,
+                fontFamily: FONT_FAMILY,
+                fontSize,
+                fontWeight: 800,
+                lineHeight: 1.0,
+                letterSpacing: "-5px",
+                wordBreak: "keep-all",
+              }}
+            >
               {l}
             </div>
-          ))}
-        </div>
+          ),
+        )}
       </div>
     </AbsoluteFill>
   );

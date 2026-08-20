@@ -111,10 +111,27 @@ const jobs: Array<[string, string, number]> = [
   ["LongformDoc", "lf-stress-timeline.png", 1650],
   ["LongformDoc", "lf-stress-narration.png", 1780],
   ["LongformThumb", "lf-thumb.png", 0],
+  ["LongformThumb", "lf-thumb-long.png", 0],
+  ["LongformThumb", "lf-thumb-one.png", 0],
 ];
+// 썸네일은 제목 길이에 따라 레이아웃이 달라진다(빨간 박스 가드) — 경우별로 찍어 본다
+const thumbVariants: Record<string, { thumbTitle: string; thumbBadge: string }> = {
+  "lf-thumb-long.png": { thumbTitle: "5백 년 전\n멈추지 않은 춤", thumbBadge: "역사 미스터리" },
+  "lf-thumb-one.png": { thumbTitle: "사라진 목격자", thumbBadge: "미제 실화" },
+};
+
 for (const [id, out, frame] of jobs) {
-  const composition = await selectComposition({ serveUrl, id, inputProps });
+  // selectComposition 이 props 를 미리 확정하므로 변형도 여기서 같이 넘겨야 한다.
+  // renderStill 에만 넘기면 컴포지션이 들고 있는 기본 props 가 이긴다.
+  const props = { ...inputProps, ...(thumbVariants[out] ?? {}) };
+  const composition = await selectComposition({ serveUrl, id, inputProps: props });
   const f = Math.min(frame, composition.durationInFrames - 1);
-  await renderStill({ composition, serveUrl, output: path.resolve(outDir, out), inputProps, frame: f });
+  await renderStill({
+    composition,
+    serveUrl,
+    output: path.resolve(outDir, out),
+    inputProps: props,
+    frame: f,
+  });
   console.log("STILL:", out, "frame", f, "/", composition.durationInFrames);
 }
