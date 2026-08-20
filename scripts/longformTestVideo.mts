@@ -17,6 +17,9 @@ import { config } from "../src/config.js";
 import { inputProps } from "./longformFixture.js";
 
 const out = path.resolve(process.argv[2] ?? "scratchpad/longform-test.mp4");
+// 기본 화질(crf 18)로 1분을 뽑으면 30MB 를 넘어 공유가 안 된다.
+// 확인용이므로 화질을 낮춰 파일을 가볍게 만든다.
+const crf = Number(process.argv[3] ?? 30);
 
 const serveUrl = await bundle({
   entryPoint: config.paths.remotionEntry,
@@ -37,6 +40,7 @@ await renderMedia({
   outputLocation: out,
   inputProps,
   muted: true,
+  crf,
   onProgress: ({ progress }) => {
     if (Math.round(progress * 100) % 20 === 0) process.stdout.write(`\r  ${Math.round(progress * 100)}%`);
   },
