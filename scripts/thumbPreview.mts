@@ -21,14 +21,16 @@ const outDir = process.argv[2] ?? "scratchpad/thumbs";
 
 // [파일명, thumbTitle, thumbBadge, 배경사진, 규칙 유형]
 const CASES: Array<[string, string, string, string, string]> = [
-  ["p-num.png", "열두 명이\n마신 것", "실화 미제사건", "broll/lf-ch-1.jpg", "① 숫자"],
-  ["p-contra.png", "범인 없는\n살인", "판결 기록", "broll/lf-ch-2.jpg", "② 모순"],
-  ["p-neg.png", "끝내 안 열린\n금고", "실화 미제사건", "broll/lf-ch-0.jpg", "③ 부정"],
-  ["p-obj.png", "명함\n한 장", "미제 실화", "broll/lf-ch-3.jpg", "④ 사물"],
-  ["p-year.png", "37년 만에\n나온 이름", "판결 기록", "broll/lf-ch-2.jpg", "① 숫자(햇수)"],
-  ["p-hist.png", "5백 년 동안\n멈춘 춤", "역사 미스터리", "broll/lf-ch-0.jpg", "① 숫자 + 마지막 5자"],
-  ["p-long.png", "아무도 보지 못한\n세 번째 그림자", "전설 기록", "broll/lf-ch-1.jpg", "마지막 줄 7자 → 박스 해제"],
+  ["p-num.png", "열두 명이 마신 것\n예방약", "실화 미제사건", "broll/lf-ch-1.jpg", "① 숫자"],
+  ["p-contra.png", "범인이 없는 살인\n사건 기록", "판결 기록", "broll/lf-ch-2.jpg", "② 모순"],
+  ["p-neg.png", "끝내 열리지 않은\n금고 안", "실화 미제사건", "broll/lf-ch-0.jpg", "③ 부정"],
+  ["p-obj.png", "그가 남긴 것은\n명함 한 장", "미제 실화", "broll/lf-ch-3.jpg", "④ 사물 (짧던 문구 보완)"],
+  ["p-year.png", "37년 만에 나온\n한 사람", "판결 기록", "broll/lf-ch-2.jpg", "① 숫자(햇수)"],
+  ["p-hist.png", "5백 년 동안\n멈춘 춤", "역사 미스터리", "broll/lf-ch-0.jpg", "① 숫자"],
+  ["p-short.png", "명함\n한 장", "미제 실화", "broll/lf-ch-3.jpg", "⚠ 너무 짧음 → 반려"],
+  ["p-long.png", "아무도 보지 못한\n세 번째 그림자", "전설 기록", "broll/lf-ch-1.jpg", "⚠ 마지막 줄 8자 → 박스 해제"],
 ];
+
 
 const serveUrl = await bundle({
   entryPoint: config.paths.remotionEntry,

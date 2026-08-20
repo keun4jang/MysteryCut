@@ -141,8 +141,10 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "  예: 'DNA가 가리킨 범인은 존재하지 않았다' / '죽은 아들이 법정에 나타난 날'",
     "",
     "[★thumbTitle — 썸네일에 대문짝만하게 박히는 문구. 조회수를 여기서 번다]",
-    "- 형식: 2줄. 실제 개행(\\n)으로 나눠라. 1줄은 5~9자, **2줄(마지막 줄)은 6자 이내**.",
+    "- 형식: 2줄. 실제 개행(\\n)으로 나눠라. **1줄은 6~10자, 2줄(마지막 줄)은 3~6자** (공백 포함).",
     "  마지막 줄은 빨간 박스로 강조된다. 6자를 넘으면 강조가 풀리므로 반드시 짧게 끊어라.",
+    "  ★너무 짧아도 안 된다. '명함\\n한 장'처럼 두 줄 합쳐 5자면 화면이 텅 비고 사건이 안 읽힌다.",
+    "  같은 소재라도 '그가 남긴 것은\\n명함 한 장'처럼 앞줄에 맥락을 실어라. 합쳐서 10자 이상.",
     "- 마지막 줄에 **핵심 명사**를 놓아라. 꾸밈말로 끝내지 마라.",
     "  좋다: '존재하지 않은\\n예방약' / '아무도 못 본\\n세 번째 손' — 마지막이 사물·인물이다.",
     "  나쁘다: '예방약을\\n나눠 주었다' — 마지막이 서술어라 남는 인상이 없다.",
@@ -151,7 +153,7 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "     (가장 강력하다. 사람 수·햇수·증거 번호처럼 원문에 있는 숫자를 그대로 써라)",
     "  ② 모순 — '범인 없는\\n살인' / '죽은 사람의\\n지문' / '존재하지 않은\\n예방약'",
     "  ③ 부정 — '끝내 안 열린\\n금고' / '돌아오지 못한\\n열두 명'",
-    "  ④ 사물 하나 — '명함\\n한 장' / '찻잔에 남은\\n것'",
+    "  ④ 사물 하나 — '그가 남긴 것은\\n명함 한 장' / '찻잔에 남아 있던\\n가루'",
     "- ★금지어: 충격, 경악, 소름, 역대급, 실화냐, 미친, 대반전, 무서운, 레전드.",
     "  이 채널 시청자는 45세 이상이 87%다. 이런 낱말은 유치해 보여 오히려 안 눌린다.",
     "  게다가 유튜브는 '오해를 부르는 메타데이터'를 수익창출 감점 사유로 든다.",
@@ -272,9 +274,20 @@ export function thumbTitleIssues(thumbTitle: string): string[] {
   if (lines.length !== 2) {
     issues.push(`2줄이어야 하는데 ${lines.length}줄이다`);
   }
+  const first = lines[0] ?? "";
   const last = lines[lines.length - 1] ?? "";
   if (last.length > 6) {
     issues.push(`마지막 줄 "${last}"이 ${last.length}자다(6자 이내여야 빨간 박스 강조가 걸린다)`);
+  }
+  // 너무 짧으면 화면이 비고 사건이 안 읽힌다 ('명함 / 한 장' = 5자)
+  if (lines.length === 2 && first.length < 6) {
+    issues.push(`1줄 "${first}"이 ${first.length}자로 짧다(6~10자여야 한다)`);
+  }
+  if (first.length > 10) {
+    issues.push(`1줄 "${first}"이 ${first.length}자로 길다(6~10자여야 한다)`);
+  }
+  if (last.length < 3) {
+    issues.push(`마지막 줄 "${last}"이 ${last.length}자로 짧다(3~6자여야 한다)`);
   }
   if (/[?？]/.test(thumbTitle)) issues.push("물음표가 들어 있다");
   const banned = THUMB_BANNED.exec(thumbTitle);

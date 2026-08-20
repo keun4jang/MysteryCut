@@ -671,6 +671,14 @@ const Watermark: React.FC = () => {
  * 자극적이되 낚시는 아니다 — 문구는 대본이 실제로 다루는 내용이어야 한다.
  * 유튜브는 '오해를 부르는 메타데이터'를 수익창출 감점 사유로 든다.
  */
+/** 문자열의 대략적인 폭(em) — 한글 전각 1.0, 라틴·숫자 0.55, 공백 0.3 */
+function textEm(line: string): number {
+  return [...line].reduce(
+    (w, ch) => w + (/[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7A3]/.test(ch) ? 1 : ch === " " ? 0.3 : 0.55),
+    0,
+  );
+}
+
 const THUMB_YELLOW = "#FFE14D";
 const THUMB_RED = "#E01020";
 /** 빨간 박스로 강조할 수 있는 마지막 줄 길이 상한 — 넘으면 박스가 화면을 덮는다 */
@@ -691,9 +699,13 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
-  const longest = Math.max(...lines.map((l) => l.length), 1);
-  // 한 줄이 길수록 줄여 잡되, 360px 에서도 읽히도록 하한을 높게 둔다
-  const fontSize = longest <= 6 ? 196 : longest <= 8 ? 176 : longest <= 10 ? 148 : 124;
+  // 글자 수만 세면 크기가 안 맞는다 — 한글은 전각(1em)이고 숫자·라틴은 그 절반쯤,
+  // 공백은 더 좁다. '37년 만에'와 '존재하지만'은 둘 다 5자지만 폭이 다르다.
+  // 실제 폭을 em 으로 어림해 상자에 맞춰야 넘치지도 비지도 않는다.
+  const widest = Math.max(...lines.map(textEm), 0.1);
+  // 좌우 여백 64 + 빨간 박스 안쪽 여백까지 빼고 남는 폭
+  const boxWidth = 1280 - 64 * 2 - 56;
+  const fontSize = Math.round(Math.min(196, Math.max(104, boxWidth / widest)));
   const stroke = Math.round(fontSize * 0.085);
   const last = lines.length - 1;
   // 마지막 줄이 짧을 때만 빨간 박스 — 길면 박스가 화면을 덮어 오히려 안 읽힌다
