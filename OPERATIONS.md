@@ -257,6 +257,8 @@ GitHub 는 60일간 커밋이 없는 저장소의 cron 을 자동으로 끕니�
 | 롱폼 길이 | `src/assistants/longformProducer.ts` | `MIN_CHARS` / `IDEAL_CHARS` / `MAX_CHARS` |
 | 롱폼 나레이션 속도 | `src/lib/variety.ts` | `LONGFORM_VOICE` 의 `rate` |
 | 롱폼 글자 크기·레이아웃 | `src/remotion/LongformDoc.tsx` | `NarrationSubtitle` / `DataFrame` / `ChapterOpener` |
+| 롱폼 썸네일 디자인 | 같은 파일 | `LongformThumb` / `THUMB_YELLOW` / `THUMB_BOX_MAX` |
+| 썸네일 문구 규칙 | `src/assistants/longformProducer.ts` | 프롬프트 `[★thumbTitle]` + `thumbTitleIssues` |
 | 유튜브 자막 안전선 | 같은 파일 | `SAFE_BOTTOM` |
 | 롱폼 배경 밝기 자동 조절 | `src/assistants/broll.ts` | `brightnessForAvgColor` |
 | 롱폼 문장 사이 호흡 | `src/remotion/timing.ts` | `longformBreathSeconds` |

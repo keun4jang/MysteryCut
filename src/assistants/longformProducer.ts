@@ -139,8 +139,29 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "[★제목·썸네일]",
     "- title: 25자 안팎. '미스터리'로 끝나는 틀을 쓰지 마라. 모순·질문·판결·증거 중 하나를 앞세워라.",
     "  예: 'DNA가 가리킨 범인은 존재하지 않았다' / '죽은 아들이 법정에 나타난 날'",
-    "- thumbTitle: 4~8자씩 최대 2줄, 줄바꿈은 실제 개행(\\n)으로. 예: '존재하지 않은\\n범인'",
+    "",
+    "[★thumbTitle — 썸네일에 대문짝만하게 박히는 문구. 조회수를 여기서 번다]",
+    "- 형식: 2줄. 실제 개행(\\n)으로 나눠라. 1줄은 5~9자, **2줄(마지막 줄)은 6자 이내**.",
+    "  마지막 줄은 빨간 박스로 강조된다. 6자를 넘으면 강조가 풀리므로 반드시 짧게 끊어라.",
+    "- 마지막 줄에 **핵심 명사**를 놓아라. 꾸밈말로 끝내지 마라.",
+    "  좋다: '존재하지 않은\\n예방약' / '아무도 못 본\\n세 번째 손' — 마지막이 사물·인물이다.",
+    "  나쁘다: '예방약을\\n나눠 주었다' — 마지막이 서술어라 남는 인상이 없다.",
+    "- 다음 넷 중 **최소 하나**를 반드시 써라. 둘을 겹치면 더 좋다.",
+    "  ① 숫자 — '열두 명이\\n마신 것' / '37년 만에\\n나온 이름'",
+    "     (가장 강력하다. 사람 수·햇수·증거 번호처럼 원문에 있는 숫자를 그대로 써라)",
+    "  ② 모순 — '범인 없는\\n살인' / '죽은 사람의\\n지문' / '존재하지 않은\\n예방약'",
+    "  ③ 부정 — '끝내 안 열린\\n금고' / '돌아오지 못한\\n열두 명'",
+    "  ④ 사물 하나 — '명함\\n한 장' / '찻잔에 남은\\n것'",
+    "- ★금지어: 충격, 경악, 소름, 역대급, 실화냐, 미친, 대반전, 무서운, 레전드.",
+    "  이 채널 시청자는 45세 이상이 87%다. 이런 낱말은 유치해 보여 오히려 안 눌린다.",
+    "  게다가 유튜브는 '오해를 부르는 메타데이터'를 수익창출 감점 사유로 든다.",
+    "- ★영상이 실제로 답하지 않는 것을 쓰지 마라. 낚시는 시청 지속시간을 무너뜨린다.",
+    "  thumbTitle 의 내용은 반드시 chapters 안에서 다뤄져야 한다.",
+    "- 물음표를 쓰지 마라. 단정적인 명사구가 더 세다(질문은 centralQuestion 이 맡는다).",
+    "- 사건명·인명·지명을 쓰지 마라. 몰라도 궁금해지는 문구여야 한다.",
+    "",
     "- thumbBadge: 4~8자 소재 분류. 사건 성격과 일치해야 한다(미제/법정/역사/괴담 등).",
+    "  빨간 배지로 뜬다. '실화 미제사건' / '역사 미스터리' / '판결 기록' 처럼 담백하게.",
     "- centralQuestion: 이 영상이 답할 질문 한 문장(25자 안팎). 도입부 화면에 뜬다.",
     "- thumbQuery: 썸네일 배경 사진 검색어(영어 2~4단어). ★챕터 배경과 기준이 다르다.",
     "  챕터 배경은 '분위기'면 되지만 썸네일은 **thumbTitle 과 직결된 상징물**이어야 한다.",
@@ -179,6 +200,7 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     sanitize(script);
     const chars = totalChars(script);
     const flagged = findSensitiveTerms(collectTexts(script));
+    const thumbIssues = thumbTitleIssues(script.thumbTitle);
     const gap = Math.abs(chars - IDEAL_CHARS);
     if (gap < bestGap) {
       best = script;
@@ -187,12 +209,20 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     console.log(
       `   📝 롱폼 대본 ${chars}자 / 챕터 ${script.chapters.length}개 / 컷 ${countSegments(script)}개`,
     );
-    if (!flagged.length && chars >= MIN_CHARS && chars <= MAX_CHARS) return script;
+    console.log(`   🖼️  썸네일 문구 "${script.thumbTitle.replace(/\n/g, " / ")}" (${script.thumbBadge})`);
+    if (!flagged.length && !thumbIssues.length && chars >= MIN_CHARS && chars <= MAX_CHARS) {
+      return script;
+    }
 
     feedback = "";
     if (flagged.length) {
       console.warn(`   ⚠️ 연령제한 위험 표현(${flagged.join(", ")}) — 재생성`);
       feedback += `\n★직전 시도에 연령제한을 유발하는 표현(${flagged.join(", ")})이 있었다. 사실은 유지하되 중립 표현으로 다시 써라.`;
+    }
+    if (thumbIssues.length) {
+      console.warn(`   ⚠️ 썸네일 문구 문제: ${thumbIssues.join(" / ")} — 재생성`);
+      feedback += `\n★직전 thumbTitle "${script.thumbTitle.replace(/\n/g, "\\n")}"에 문제가 있었다: ${thumbIssues.join(" / ")}.
+thumbTitle 규칙을 다시 읽고 고쳐라. 대본 내용은 그대로 둬도 된다.`;
     }
     if (chars < MIN_CHARS || chars > MAX_CHARS) {
       const dir = chars < MIN_CHARS ? "부족" : "초과";
@@ -216,6 +246,53 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     console.warn(`   ⚠️ 재생성에도 위험 표현 잔존(${leftover.join(", ")}) — 자동 중립화`);
   }
   return best!;
+}
+
+/** 썸네일 문구에서 걸러야 하는 낚시 상투어 — 45세 이상 시청자에게는 역효과다 */
+const THUMB_BANNED = /충격|경악|소름|역대급|실화냐|미친|대반전|무서운|레전드|헐/;
+
+/**
+ * thumbTitle 품질 점검.
+ *
+ * 프롬프트에 규칙을 써 두는 것만으로는 매번 지켜지지 않는다(실측: 분량 규칙도
+ * 어겼다). 썸네일 문구는 조회수를 좌우하는데 사람이 매 회차 눈으로 볼 수 없으니
+ * 여기서 재서 문제가 있으면 재생성 피드백에 실어 보낸다.
+ *
+ * 렌더 쪽 규칙(LongformDoc 의 THUMB_BOX_MAX=6)과 숫자를 맞춰야 한다 —
+ * 마지막 줄이 6자를 넘으면 빨간 박스 강조가 풀린다.
+ */
+export function thumbTitleIssues(thumbTitle: string): string[] {
+  const lines = (thumbTitle ?? "")
+    .replace(/\\n/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const issues: string[] = [];
+
+  if (lines.length !== 2) {
+    issues.push(`2줄이어야 하는데 ${lines.length}줄이다`);
+  }
+  const last = lines[lines.length - 1] ?? "";
+  if (last.length > 6) {
+    issues.push(`마지막 줄 "${last}"이 ${last.length}자다(6자 이내여야 빨간 박스 강조가 걸린다)`);
+  }
+  if (/[?？]/.test(thumbTitle)) issues.push("물음표가 들어 있다");
+  const banned = THUMB_BANNED.exec(thumbTitle);
+  if (banned) issues.push(`낚시 상투어 "${banned[0]}"가 들어 있다`);
+  // 숫자·모순·부정 중 하나는 있어야 한다 — 둘 다 없으면 밋밋한 문구다.
+  // 한글 수사는 낱말만 보면 '조용한'의 '한'까지 숫자로 잡히므로 단위(명·장·번…)를
+  // 뒤에 달고 있을 때만 숫자로 센다.
+  const COUNTER = "명|개|장|번|년|달|시간|구|통|건|줄|점|병|잔|자루|차례|번째|가지|사람|밤|살";
+  const hasNumber =
+    /[0-9]/.test(thumbTitle) ||
+    new RegExp(`(한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|열한|열두|스물|백|천|만)\\s*(${COUNTER})`).test(
+      thumbTitle,
+    );
+  const hasContrast = /없|않|못|아닌|사라진|지워진|빈|끝내|안 /.test(thumbTitle);
+  if (!hasNumber && !hasContrast) {
+    issues.push("숫자도 모순·부정 표현도 없다(둘 중 하나는 반드시 필요하다)");
+  }
+  return issues;
 }
 
 export function totalChars(s: LongformScript): number {
