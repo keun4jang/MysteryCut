@@ -86,6 +86,8 @@ export async function publishLongform(
   /** 위키백과 참고자료 (설명란 하단) */
   citation: string | undefined,
   thumbPath?: string,
+  /** 나레이션 원문으로 만든 한국어 자막(SRT) — 자동자막을 대체한다 */
+  srt?: string,
 ): Promise<{ videoId: string }> {
   const accessToken = await getAccessToken();
   const bytes = await fs.readFile(videoPath);
@@ -135,28 +137,48 @@ export async function publishLongform(
   }
 
   if (thumbPath) await setThumbnail(json.id, thumbPath, accessToken);
+
+  // 정확한 한국어 자막 트랙 등록.
+  // 유튜브가 만드는 '자동 생성됨' 자막은 화면에 구워 넣은 자막과 겹쳐 두 겹으로
+  // 보인다. 같은 언어의 수동 트랙이 있으면 유튜브는 그쪽을 쓰므로 겹침이 사라진다.
+  // 덤으로 ASR 이 자주 틀리는 연도·고유명사가 정확해져 검색·추천에도 유리하다.
+  if (srt) await uploadCaptionTrack(json.id, srt, accessToken, "한국어");
+
   return { videoId: json.id };
 }
 
 /**
- * 자동 생성 자막이 화면 자막과 겹쳐 보이는 문제 억제.
- * 유튜브는 업로드된 자막 트랙이 있으면 자동자막 대신 그것을 쓰므로,
- * 사실상 빈 한국어 SRT 를 등록해 아무것도 표시되지 않게 한다.
- * captions.insert 는 youtube.force-ssl 스코프 필요 — 없으면 안내만 남기고 계속.
+ * 쇼츠용 — 자동 생성 자막 억제.
+ * 쇼츠는 60초 내내 화면 한가운데에 큰 자막이 떠 있어 CC 가 켜지면 반드시 겹친다.
+ * 세로 화면에는 자막을 피할 여백이 없으므로 빈 트랙으로 자동자막을 대신한다.
+ * (롱폼은 반대다 — 겹치지 않게 배치할 여백이 있으므로 진짜 자막을 올린다)
  */
 export async function suppressAutoCaptions(
   videoId: string,
   accessToken: string,
 ): Promise<boolean> {
   // 완전히 빈 파일은 거부될 수 있어 0.4초짜리 공백 큐 하나를 넣는다 (검증된 포맷)
-  const blankSrt = "1\n00:00:00,000 --> 00:00:00,400\n \n";
+  return uploadCaptionTrack(videoId, "1\n00:00:00,000 --> 00:00:00,400\n \n", accessToken, "");
+}
+
+/**
+ * 한국어 자막 트랙 등록 (captions.insert, multipart).
+ * captions.insert 는 youtube.force-ssl 스코프 필요 — 없으면 안내만 남기고 계속한다.
+ * 자막 실패로 게시 자체를 되돌리지 않는다(영상은 이미 올라가 있다).
+ */
+async function uploadCaptionTrack(
+  videoId: string,
+  srt: string,
+  accessToken: string,
+  name: string,
+): Promise<boolean> {
   const meta = JSON.stringify({
-    snippet: { videoId, language: "ko", name: "", isDraft: false },
+    snippet: { videoId, language: "ko", name, isDraft: false },
   });
   const boundary = "mysterycut_caption_boundary";
   const body =
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
-    `--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n${blankSrt}\r\n` +
+    `--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n${srt}\r\n` +
     `--${boundary}--`;
 
   try {
@@ -172,7 +194,11 @@ export async function suppressAutoCaptions(
       },
     );
     if (res.ok) {
-      console.log("   🔇 자동자막 억제용 빈 자막 트랙 등록 완료");
+      console.log(
+        name
+          ? `   💬 자막 트랙 등록 완료 (${srt.split("\n\n").length}개 큐) — 자동자막 대체`
+          : "   🔇 자동자막 억제용 빈 자막 트랙 등록 완료",
+      );
       return true;
     }
     const text = (await res.text()).replace(/\s+/g, " ").slice(0, 250);

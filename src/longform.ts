@@ -9,6 +9,7 @@ import { renderLongform, renderLongformThumb } from "./render.js";
 import { publishLongform } from "./assistants/youtubePublisher.js";
 import { loadHistory, recentAvoidList, isDuplicate, appendPost } from "./assistants/history.js";
 import { gatherSources, sourcesCitation, type SourceDoc } from "./lib/sources.js";
+import { longformSrt } from "./lib/captions.js";
 import { pickStylePack, LONGFORM_VOICE } from "./lib/variety.js";
 import { deriveGrade } from "./lib/grade.js";
 import { longformDurationInFrames } from "./remotion/timing.js";
@@ -128,6 +129,8 @@ async function main() {
     path.join(config.paths.out, "longform.json"),
     JSON.stringify({ probe, script, inputProps }, null, 2),
   );
+  // 자막 트랙은 게시 때 올리지만, 드라이런에서도 파일로 남겨 눈으로 확인한다
+  await fs.writeFile(path.join(config.paths.out, "longform.ko.srt"), longformSrt(chapters, 30));
 
   // ⑤ 렌더 (영상 + 전용 썸네일)
   console.log("⑤ 영상 렌더 (1920x1080)...");
@@ -144,7 +147,8 @@ async function main() {
   // ⑥ 유튜브 업로드 (인스타 제외 — 가로 8분은 릴스 포맷이 아니다)
   console.log("⑥ 유튜브 업로드...");
   const citation = sourcesCitation(sources);
-  const { videoId } = await publishLongform(videoPath, script, citation, thumbPath);
+  const srt = longformSrt(chapters, 30);
+  const { videoId } = await publishLongform(videoPath, script, citation, thumbPath, srt);
   console.log(`   ✅ 롱폼 게시 완료: https://youtu.be/${videoId}`);
 
   // 이력에 기록 — 쇼츠와 같은 history.json 을 써서 소재가 겹치지 않게 한다

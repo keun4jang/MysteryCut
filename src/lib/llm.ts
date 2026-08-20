@@ -53,6 +53,24 @@ function isRetryable(err: unknown): boolean {
 // 라운드별 대기: 1라운드는 대기 없이 전 모델을 즉시 한 번씩 시도 → 작동 모델을 초 단위로 발견
 const ROUND_BACKOFF_MS = [0, 8000, 25000, 50000];
 
+/**
+ * 출력 상한.
+ *
+ * 16k 로는 롱폼 대본이 잘렸다(2026-08-19 실측: "Unterminated string in JSON").
+ * 최신 Flash 계열은 생각(thinking) 토큰도 이 상한에서 함께 빠져나가므로, 본문이
+ * 3,000자쯤 되는 롱폼에서는 생각이 예산을 먹고 JSON 이 중간에서 끊긴다.
+ * 무료 등급은 토큰당 과금이 없어 상한을 열어도 비용이 늘지 않는다(실사용분만 소비).
+ * 상한을 못 받는 구형 모델을 만나면 아래에서 자동으로 낮춰 다시 부른다.
+ */
+const MAX_OUTPUT_TOKENS = 65536;
+const FALLBACK_OUTPUT_TOKENS = 16384;
+
+/** 모델이 상한 자체를 거부하는가 (구형 모델은 8k 고정) */
+function isTokenLimitRejection(err: unknown): boolean {
+  const msg = String((err as { message?: unknown })?.message ?? err);
+  return statusOf(err) === 400 && /max_output_tokens|maxOutputTokens|output token/i.test(msg);
+}
+
 async function generateText(
   system: string,
   user: string,
@@ -64,10 +82,7 @@ async function generateText(
     responseMimeType: "application/json",
     responseJsonSchema: jsonSchema, // 스키마를 강제해 필수 필드 누락 방지
     temperature,
-    // 대본이 30세그먼트(한/영 자막 + visualQuery)로 길어져 모델 기본 상한(8k)에
-    // 걸리면 JSON 이 잘려 파싱에 실패한다. 무료 등급은 토큰당 과금이 없으므로
-    // 상한만 넉넉히 열어둔다(실제 사용량만큼만 소비됨).
-    maxOutputTokens: 16384,
+    maxOutputTokens: MAX_OUTPUT_TOKENS,
   };
   let candidates: string[];
   if (workingModel) {
@@ -96,12 +111,28 @@ async function generateText(
     for (const model of candidates) {
       if (dead.has(model)) continue;
       try {
-        const res = await getAI().models.generateContent({ model, contents: user, config: cfg });
+        let res;
+        try {
+          res = await getAI().models.generateContent({ model, contents: user, config: cfg });
+        } catch (e) {
+          if (!isTokenLimitRejection(e)) throw e;
+          // 이 모델은 큰 상한을 못 받는다 — 낮춰서 한 번 더
+          res = await getAI().models.generateContent({
+            model,
+            contents: user,
+            config: { ...cfg, maxOutputTokens: FALLBACK_OUTPUT_TOKENS },
+          });
+        }
         if (workingModel !== model) {
           workingModel = model;
           console.log(`  🤖 Gemini 모델: ${model}`);
         }
         await persistGeminiModel(model).catch(() => {});
+        // 잘려서 돌아오면 JSON 파싱 실패로만 드러나 원인을 알 수 없다 — 여기서 밝힌다
+        const reason = res.candidates?.[0]?.finishReason;
+        if (reason && String(reason) !== "STOP") {
+          console.warn(`  ⚠️ Gemini 응답이 정상 종료되지 않음 (finishReason=${reason})`);
+        }
         return res.text ?? "";
       } catch (e) {
         lastErr = e;
