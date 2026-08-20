@@ -388,7 +388,7 @@ const DataFrame: React.FC<{
             style={{
               position: "absolute",
               left: 120,
-              top: 140,
+              top: 110,
               color: lc,
               fontFamily: FONT_FAMILY,
               fontSize: 84,
@@ -405,7 +405,7 @@ const DataFrame: React.FC<{
             style={{
               position: "absolute",
               left: 128,
-              top: 268,
+              top: 244,
               width: 5,
               height: interpolate(frame, [6, 20], [0, 440], {
                 extrapolateLeft: "clamp",
@@ -422,7 +422,7 @@ const DataFrame: React.FC<{
           style={{
             position: "absolute",
             left: 120,
-            top: 140,
+            top: 110,
             color: lc,
             fontFamily: FONT_FAMILY,
             fontSize: 56,
@@ -437,15 +437,21 @@ const DataFrame: React.FC<{
         </div>
       )}
 
-      {/* 본문 = 지금 말하는 문장 */}
+      {/*
+        본문 + 보조 문구는 한 흐름에 쌓는다.
+
+        보조 문구를 고정 위치(top: 600)에 두면 본문이 2줄일 땐 사이가 138px 로
+        벌어지고 3줄일 땐 25px 로 붙어 다섯 줄이 한 덩어리로 읽힌다. 문장 길이는
+        회차마다 다르니 고정값으로는 두 경우를 다 만족시킬 수 없다.
+        흐름으로 쌓으면 간격이 항상 GAP 으로 일정하고, 가장 긴 경우(본문 3줄 +
+        보조 2줄 = y 200~753)에도 자막 안전선(812) 안에 들어온다.
+      */}
       <div
         style={{
           position: "absolute",
           left: textLeft,
           right: 120,
-          top: isTimeline ? 268 : 240,
-          opacity: enter,
-          transform: `translateY(${(1 - enter) * 12}px)`,
+          top: isTimeline ? 244 : 210,
         }}
       >
         <div
@@ -458,7 +464,9 @@ const DataFrame: React.FC<{
             wordBreak: "keep-all",
             textWrap: "balance",
             textShadow: "0 4px 20px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.9)",
-            // 문장이 길어져 줄이 늘면 아래 보조 문구를 덮는다 — 3줄에서 끊는다
+            opacity: enter,
+            transform: `translateY(${(1 - enter) * 12}px)`,
+            // 안전장치 — 프롬프트 상한(40자)을 크게 넘긴 문장이 와도 안전선을 못 넘게
             display: "-webkit-box",
             WebkitBoxOrient: "vertical",
             WebkitLineClamp: 3,
@@ -467,35 +475,32 @@ const DataFrame: React.FC<{
         >
           {main}
         </div>
-      </div>
 
-      {support ? (
-        <div
-          style={{
-            position: "absolute",
-            left: textLeft,
-            right: 160,
-            top: isTimeline ? 628 : 600,
-            opacity: supportEnter,
-            transform: `translateY(${(1 - supportEnter) * 10}px)`,
-            color: SUB_TEXT,
-            fontFamily: FONT_FAMILY,
-            fontSize: 72,
-            fontWeight: 600,
-            lineHeight: 1.22,
-            wordBreak: "keep-all",
-            textWrap: "balance",
-            textShadow: "0 3px 16px rgba(0,0,0,0.92)",
-            // 2줄을 넘기면 유튜브 자막 안전선(y=812)을 침범한다
-            display: "-webkit-box",
-            WebkitBoxOrient: "vertical",
-            WebkitLineClamp: 2,
-            overflow: "hidden",
-          }}
-        >
-          {support}
-        </div>
-      ) : null}
+        {support ? (
+          <div
+            style={{
+              marginTop: 44,
+              marginRight: 40,
+              opacity: supportEnter,
+              transform: `translateY(${(1 - supportEnter) * 10}px)`,
+              color: SUB_TEXT,
+              fontFamily: FONT_FAMILY,
+              fontSize: 72,
+              fontWeight: 600,
+              lineHeight: 1.22,
+              wordBreak: "keep-all",
+              textWrap: "balance",
+              textShadow: "0 3px 16px rgba(0,0,0,0.92)",
+              display: "-webkit-box",
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: 2,
+              overflow: "hidden",
+            }}
+          >
+            {support}
+          </div>
+        ) : null}
+      </div>
 
       {/* 타임라인 진행 점 — 읽는 정보가 아니라 위치 감각만 준다 */}
       {isTimeline && timelineTotal > 1 ? (

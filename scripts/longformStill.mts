@@ -69,6 +69,20 @@ const chapters: NarratedChapter[] = [
           { kind: "verdict", label: "공식 결론" }),
     ],
   },
+  // 스트레스 케이스 — 모델이 분량 규칙(본문 30~38자, 보조 30자)을 넘겼을 때도
+  // 자막 안전선(y=812)을 못 넘는지 확인한다. line-clamp 가 실제로 먹는지가 핵심.
+  {
+    heading: "분량 초과 검증", visualQuery: "", bgSrc: "broll/lf-ch-0.jpg", bgBrightness: 0.78,
+    segments: [
+      seg("경찰은 사건 당일 은행 안에 있었던 사람들의 진술을 하나하나 대조했지만 서로 맞아떨어지는 대목이 거의 없었습니다.", "normal",
+          { kind: "person", label: "핵심 인물",
+            support: "체포 당시 예순 살, 사건과의 접점은 명함 한 장뿐이었고 알리바이를 증명해 줄 사람은 아무도 없었습니다" }),
+      seg("법원은 물증이 아니라 자백에 기대어 사형을 확정했고 재심 청구는 서른 번 넘게 기각되었습니다.", "reveal",
+          { kind: "timeline", label: "1955년 4월 6일",
+            support: "변호인단이 제출한 감정서는 끝내 증거로 채택되지 않았고 판결문에는 언급조차 없었습니다" }),
+      seg("그가 정말 범인이었는지는 지금도 아무도 자신 있게 말하지 못하고 기록만 남아 있습니다.", "tension"),
+    ],
+  },
 ];
 
 const grade = deriveGrade("teigin-1948", "역사 속 미스터리");
@@ -91,6 +105,9 @@ const jobs: Array<[string, string, number]> = [
   ["LongformDoc", "lf-person.png", 1140],
   ["LongformDoc", "lf-theory.png", 1270],
   ["LongformDoc", "lf-verdict.png", 1390],
+  ["LongformDoc", "lf-stress-person.png", 1530],
+  ["LongformDoc", "lf-stress-timeline.png", 1650],
+  ["LongformDoc", "lf-stress-narration.png", 1780],
   ["LongformThumb", "lf-thumb.png", 0],
 ];
 for (const [id, out, frame] of jobs) {
