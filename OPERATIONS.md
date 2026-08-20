@@ -256,8 +256,8 @@ GitHub 는 60일간 커밋이 없는 저장소의 cron 을 자동으로 끕니�
 | 롱폼 게시 요일·시각 | `.github/workflows/post-longform.yml` | 맨 위 `cron:` 두 줄 |
 | 롱폼 길이 | `src/assistants/longformProducer.ts` | `MIN_CHARS` / `IDEAL_CHARS` / `MAX_CHARS` |
 | 롱폼 나레이션 속도 | `src/lib/variety.ts` | `LONGFORM_VOICE` 의 `rate` |
-| 롱폼 글자 크기·레이아웃 | `src/remotion/LongformDoc.tsx` | `Subtitle` / `SideCard` / `TimelineBoard` / `TheoryCompare` |
-| 롱폼 카드 페이지당 항목 수 | 같은 파일 | `PER_PAGE` |
+| 롱폼 글자 크기·레이아웃 | `src/remotion/LongformDoc.tsx` | `NarrationSubtitle` / `DataFrame` / `ChapterOpener` |
+| 유튜브 자막 안전선 | 같은 파일 | `SAFE_BOTTOM` |
 | 롱폼 배경 밝기 자동 조절 | `src/assistants/broll.ts` | `brightnessForAvgColor` |
 | 롱폼 문장 사이 호흡 | `src/remotion/timing.ts` | `longformBreathSeconds` |
 | 자막 디자인 (매트 패널·라벨) | `src/remotion/MysteryReel.tsx` | `Caption` / `PANEL_LABELS` |
@@ -288,6 +288,47 @@ Hyunsu 저음 **8.66자/초**(가장 느림), Hyunsu 기본 9.13, InJoon 9.68.
 
 길이를 바꿀 때 `producer.ts` 의 상수와 프롬프트 문구를 **둘 다** 고쳐야
 합니다. 한쪽만 고치면 재생성이 헛돕니다.
+
+### 유튜브 자동자막과 겹치지 않게 하기 (롱폼)
+
+유튜브는 올린 영상마다 음성인식으로 '자동 생성됨' 자막을 만듭니다. 시청자가
+CC 를 켜면 플레이어가 **화면 하단 중앙에 불투명도 0.7 짜리 검은 상자**를 깔고
+그 위에 글자를 그리므로, 구워 넣은 자막이 그 자리에 있으면 지저분해지는 정도가
+아니라 **아예 가려집니다**.
+
+조사해서 확인한 것(2026-08):
+
+| 시도해볼 만한 방법 | 결과 |
+| --- | --- |
+| 같은 언어 수동 자막 트랙 업로드 | ❌ ASR 트랙이 그대로 남습니다. 유튜브는 한 영상에 같은 언어 트랙을 여러 개 두는 구조라 '대체' 동작 자체가 없습니다 |
+| 빈 자막 트랙 업로드 | ❌ 억제 안 되고, CC 메뉴에 '한국어' 항목만 떠서 아무것도 안 보이는 접근성 결함만 생깁니다 |
+| `isDraft: true` 트랙 | ❌ 초안은 시청자에게 안 보이므로 가릴 수가 없습니다 |
+| 스튜디오·API 설정으로 끄기 | ❌ 자동 챕터·Featured places·자동 더빙은 옵트아웃이 있지만 자동자막만 없습니다 |
+| 스튜디오 > 자막에서 자동 트랙 직접 삭제 | ⭕ 되지만 영상마다 수동 작업이라 무인 운영과 안 맞습니다 |
+| **화면 배치로 피하기** | ⭕ **채택** |
+
+그래서 `LongformDoc.tsx` 에 `SAFE_BOTTOM = 268` 을 두고 **y=812 아래로는 읽을
+글자를 두지 않습니다**. CC 자막 블록의 윗변은 컨트롤바 표시 여부에 따라
+1080 기준 y≈946(컨트롤 숨김) ~ y≈836(전체화면 컨트롤 표시) 사이를 오갑니다.
+시청자가 자막 글자 크기를 400% 로 키운 극단은 대응하지 않습니다 — 거기까지
+피하려면 화면 상단 38% 만 써야 해서 영상이 성립하지 않습니다.
+
+레이아웃을 만질 때는 **본문 3줄 / 보조 2줄 `WebkitLineClamp` 를 지우지 마세요.**
+문장이 길어져도 안전선을 넘지 못하게 구조로 고정한 장치입니다(사람이 매번
+글자 수를 세지 않아도 되도록).
+
+확인 방법 — 스틸을 렌더한 뒤 픽셀로 잽니다:
+
+```bash
+npx tsx scripts/longformStill.mts scratchpad
+python3 scripts/checkSafeArea.py scratchpad
+```
+
+쇼츠는 이 문제가 없습니다. 화면 자막이 세로 중앙(+70px)에 있고 CC 는 하단에
+뜨므로 애초에 겹치지 않습니다. 쇼츠·롱폼 모두 나레이션 원문으로 만든 정확한
+한국어 자막 트랙을 올리는데, 이건 자동자막을 막으려는 게 아니라 ASR 이 자주
+틀리는 연도·인명을 CC 시청자에게 정확히 보여주기 위한 것입니다.
+(`captions.insert` 는 `youtube.force-ssl` 스코프 필요, 1회 400 units)
 
 수정 후에는 `npx tsc --noEmit` 으로 타입 검사를 하고, `dry_run` 으로 확인하세요.
 
