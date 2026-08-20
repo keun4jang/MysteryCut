@@ -151,6 +151,7 @@ export async function narrateLongform(
       const meta = await parseBuffer(new Uint8Array(bytes), { mimeType: "audio/mpeg" });
       segments.push({
         text: seg.text,
+        textEn: seg.textEn,
         emphasis: seg.emphasis,
         audioSrc: `audio/${fileName}`,
         durationInSeconds: meta.format.duration ?? estimateDuration(seg.text),

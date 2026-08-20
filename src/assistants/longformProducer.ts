@@ -104,6 +104,13 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "  40자가 넘을 것 같으면 두 문장으로 쪼개라.",
     "- 쉼표를 3개 이상 넣지 마라. 귀로 들으면 따라오지 못한다.",
     "",
+    "[★textEn — 영어 자막]",
+    "- 모든 문장에 textEn 을 붙여라. 한국어 문장 바로 아래에 작게 깔린다.",
+    "- 직역이 아니라 자연스러운 영어 문장으로. 다큐 나레이션 어투(평서문, 과거형).",
+    "- 한 문장당 영어 90자 이내. 넘으면 화면에서 잘린다.",
+    "- 한국어 문장 하나 = 영어 문장 하나. 쪼개거나 합치지 마라(자막 싱크가 어긋난다).",
+    "- 고유명사·연도는 영어권 표기를 써라(예: 'Strasbourg', '1518').",
+    "",
     "[★label·support 작성 규칙 — 화면에 그대로 뜨는 글자다]",
     "- label 12자 이내 / support 30자 이내. 넘으면 화면에서 잘린다.",
     "- support 는 본문을 되풀이하지 마라. 본문이 충분하면 아예 생략하라.",
@@ -219,7 +226,12 @@ function collectTexts(s: LongformScript): string[] {
     s.description,
     ...s.chapters.flatMap((c) => [
       c.heading,
-      ...c.segments.flatMap((g) => [g.text, g.frame?.label ?? "", g.frame?.support ?? ""]),
+      ...c.segments.flatMap((g) => [
+        g.text,
+        g.textEn ?? "",
+        g.frame?.label ?? "",
+        g.frame?.support ?? "",
+      ]),
     ]),
   ];
 }
@@ -233,6 +245,7 @@ function soften(s: LongformScript): void {
     c.heading = softenText(c.heading);
     for (const g of c.segments) {
       g.text = softenText(g.text);
+      g.textEn = softenText(g.textEn ?? "");
       if (g.frame) {
         g.frame.label = softenText(g.frame.label);
         if (g.frame.support) g.frame.support = softenText(g.frame.support);
@@ -263,6 +276,7 @@ function sanitize(s: LongformScript): void {
     c.visualQuery = toSpace(c.visualQuery);
     for (const g of c.segments) {
       g.text = toSpace(g.text);
+      g.textEn = toSpace(g.textEn ?? "");
       if (g.frame) {
         g.frame.label = toSpace(g.frame.label);
         if (g.frame.support) g.frame.support = toSpace(g.frame.support);

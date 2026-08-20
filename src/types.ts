@@ -205,6 +205,12 @@ export const LongformScriptSchema = z.object({
            * 자막과 카드를 따로 띄울 필요가 없고 시선이 한 곳에 모인다.
            */
           text: z.string(),
+          /**
+           * 영어 번역 — 한국어 문장 바로 아래에 작게 깔린다.
+           * 시청자의 22%가 미국이라 붙이지만, 주 독자는 한국어 쪽이므로
+           * 크기는 작게 간다(나레이션에는 쓰이지 않는다).
+           */
+          textEn: z.string(),
           emphasis: z.enum(["normal", "tension", "reveal"]).default("normal"),
           /** 있으면 자료 프레임, 없으면 하단 자막만 있는 내레이션 화면 */
           frame: LongformFrameSchema.optional(),
@@ -221,6 +227,8 @@ export interface NarratedChapter {
   visualQuery: string;
   segments: Array<{
     text: string;
+    /** 영어 번역 자막 (한국어 문장 아래 작게) */
+    textEn?: string;
     emphasis: "normal" | "tension" | "reveal";
     audioSrc: string;
     durationInSeconds: number;

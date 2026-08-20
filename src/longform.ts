@@ -131,6 +131,7 @@ async function main() {
   );
   // 자막 트랙은 게시 때 올리지만, 드라이런에서도 파일로 남겨 눈으로 확인한다
   await fs.writeFile(path.join(config.paths.out, "longform.ko.srt"), longformSrt(chapters, 30));
+  await fs.writeFile(path.join(config.paths.out, "longform.en.srt"), longformSrt(chapters, 30, "en"));
 
   // ⑤ 렌더 (영상 + 전용 썸네일)
   console.log("⑤ 영상 렌더 (1920x1080)...");
@@ -148,7 +149,8 @@ async function main() {
   console.log("⑥ 유튜브 업로드...");
   const citation = sourcesCitation(sources);
   const srt = longformSrt(chapters, 30);
-  const { videoId } = await publishLongform(videoPath, script, citation, thumbPath, srt);
+  const srtEn = longformSrt(chapters, 30, "en");
+  const { videoId } = await publishLongform(videoPath, script, citation, thumbPath, srt, srtEn);
   console.log(`   ✅ 롱폼 게시 완료: https://youtu.be/${videoId}`);
 
   // 이력에 기록 — 쇼츠와 같은 history.json 을 써서 소재가 겹치지 않게 한다

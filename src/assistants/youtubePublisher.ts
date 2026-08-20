@@ -19,6 +19,8 @@ export async function publishYouTube(
   thumbPath?: string,
   /** 나레이션 원문으로 만든 한국어 자막(SRT) */
   srt?: string,
+  /** 영어 자막(SRT) */
+  srtEn?: string,
 ): Promise<{ videoId: string }> {
   const accessToken = await getAccessToken();
   const bytes = await fs.readFile(videoPath);
@@ -68,8 +70,9 @@ export async function publishYouTube(
   // 3) 커스텀 썸네일 지정 (실패해도 게시 자체는 성공으로 처리)
   if (thumbPath) await setThumbnail(json.id, thumbPath, accessToken);
 
-  // 4) 정확한 한국어 자막 트랙 등록
+  // 4) 정확한 한국어·영어 자막 트랙 등록
   if (srt) await uploadCaptionTrack(json.id, srt, accessToken, "한국어");
+  if (srtEn) await uploadCaptionTrack(json.id, srtEn, accessToken, "English", "en");
 
   return { videoId: json.id };
 }
@@ -87,8 +90,10 @@ export async function publishLongform(
   /** 위키백과 참고자료 (설명란 하단) */
   citation: string | undefined,
   thumbPath?: string,
-  /** 나레이션 원문으로 만든 한국어 자막(SRT) — 자동자막을 대체한다 */
+  /** 나레이션 원문으로 만든 한국어 자막(SRT) */
   srt?: string,
+  /** 영어 자막(SRT) — 시청자의 22%가 미국이라 별도 트랙으로 올린다 */
+  srtEn?: string,
 ): Promise<{ videoId: string }> {
   const accessToken = await getAccessToken();
   const bytes = await fs.readFile(videoPath);
@@ -141,6 +146,9 @@ export async function publishLongform(
 
   // 정확한 한국어 자막 트랙 등록 (ASR 오인식 대체용 — 겹침 문제는 화면 배치로 푼다)
   if (srt) await uploadCaptionTrack(json.id, srt, accessToken, "한국어");
+  // 영어 트랙 — 화면에 깔리는 작은 영어 자막과 같은 문장이지만, CC 로 켜면
+  // 시청자가 크기·색을 직접 조절할 수 있다. 미국 시청자 22% 를 위한 것.
+  if (srtEn) await uploadCaptionTrack(json.id, srtEn, accessToken, "English", "en");
 
   return { videoId: json.id };
 }
@@ -162,9 +170,10 @@ async function uploadCaptionTrack(
   srt: string,
   accessToken: string,
   name: string,
+  language: "ko" | "en" = "ko",
 ): Promise<boolean> {
   const meta = JSON.stringify({
-    snippet: { videoId, language: "ko", name, isDraft: false },
+    snippet: { videoId, language, name, isDraft: false },
   });
   const boundary = "mysterycut_caption_boundary";
   const body =
@@ -185,7 +194,7 @@ async function uploadCaptionTrack(
       },
     );
     if (res.ok) {
-      console.log(`   💬 한국어 자막 트랙 등록 완료 (${srt.split("\n\n").length}개 큐)`);
+      console.log(`   💬 ${name || language} 자막 트랙 등록 완료 (${srt.split("\n\n").length}개 큐)`);
       return true;
     }
     const text = (await res.text()).replace(/\s+/g, " ").slice(0, 250);

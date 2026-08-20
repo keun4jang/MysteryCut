@@ -49,6 +49,8 @@ const easeOut = Easing.bezier(0.22, 1, 0.36, 1);
 const TEXT = "#F4F5F6";
 const SUB_TEXT = "rgba(255,255,255,0.84)";
 const WARN = "#FF8A7A";
+// 영어 자막 — 한국어보다 확실히 뒤로 물러나게. 읽고 싶은 사람만 읽으면 된다.
+const EN_TEXT = "rgba(255,255,255,0.60)";
 const DEFAULT_ACCENT = "#7fa8c9";
 
 /** 챕터 오프너: 번호+제목을 잠깐 크게 띄우고 사라진다 (상시 라벨 없음) */
@@ -232,6 +234,7 @@ const ChapterView: React.FC<{
               kind={s.frame.kind}
               label={s.frame.label}
               main={s.text}
+              mainEn={s.textEn}
               support={s.frame.support}
               accent={accent}
               emphasis={s.emphasis}
@@ -239,7 +242,7 @@ const ChapterView: React.FC<{
               timelineTotal={tCount}
             />
           ) : (
-            <NarrationSubtitle text={s.text} emphasis={s.emphasis} accent={accent} />
+            <NarrationSubtitle text={s.text} textEn={s.textEn} emphasis={s.emphasis} accent={accent} />
           )}
         </Sequence>
       ))}
@@ -328,12 +331,13 @@ const DataFrame: React.FC<{
   kind: LongformFrameKind;
   label: string;
   main: string;
+  mainEn?: string;
   support?: string;
   accent: string;
   emphasis: "normal" | "tension" | "reveal";
   timelinePos?: number;
   timelineTotal: number;
-}> = ({ kind, label, main, support, accent, emphasis, timelinePos, timelineTotal }) => {
+}> = ({ kind, label, main, mainEn, support, accent, emphasis, timelinePos, timelineTotal }) => {
   const frame = useCurrentFrame();
   const enter = interpolate(frame, [2, 12], [0, 1], {
     extrapolateLeft: "clamp",
@@ -388,7 +392,7 @@ const DataFrame: React.FC<{
             style={{
               position: "absolute",
               left: 120,
-              top: 110,
+              top: 96,
               color: lc,
               fontFamily: FONT_FAMILY,
               fontSize: 84,
@@ -405,7 +409,7 @@ const DataFrame: React.FC<{
             style={{
               position: "absolute",
               left: 128,
-              top: 244,
+              top: 204,
               width: 5,
               height: interpolate(frame, [6, 20], [0, 440], {
                 extrapolateLeft: "clamp",
@@ -422,7 +426,7 @@ const DataFrame: React.FC<{
           style={{
             position: "absolute",
             left: 120,
-            top: 110,
+            top: 100,
             color: lc,
             fontFamily: FONT_FAMILY,
             fontSize: 56,
@@ -451,7 +455,7 @@ const DataFrame: React.FC<{
           position: "absolute",
           left: textLeft,
           right: 120,
-          top: isTimeline ? 244 : 210,
+          top: isTimeline ? 204 : 190,
         }}
       >
         <div
@@ -460,7 +464,7 @@ const DataFrame: React.FC<{
             fontFamily: FONT_FAMILY,
             fontSize: isQuestion ? 104 : 96,
             fontWeight: 800,
-            lineHeight: 1.16,
+            lineHeight: 1.14,
             wordBreak: "keep-all",
             textWrap: "balance",
             textShadow: "0 4px 20px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.9)",
@@ -476,18 +480,41 @@ const DataFrame: React.FC<{
           {main}
         </div>
 
+        {mainEn ? (
+          <div
+            style={{
+              marginTop: 10,
+              marginRight: 40,
+              opacity: enter,
+              transform: `translateY(${(1 - enter) * 8}px)`,
+              color: EN_TEXT,
+              fontFamily: FONT_FAMILY,
+              fontSize: 40,
+              fontWeight: 500,
+              lineHeight: 1.3,
+              textShadow: "0 2px 12px rgba(0,0,0,0.9)",
+              display: "-webkit-box",
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: 2,
+              overflow: "hidden",
+            }}
+          >
+            {mainEn}
+          </div>
+        ) : null}
+
         {support ? (
           <div
             style={{
-              marginTop: 44,
+              marginTop: 24,
               marginRight: 40,
               opacity: supportEnter,
               transform: `translateY(${(1 - supportEnter) * 10}px)`,
               color: SUB_TEXT,
               fontFamily: FONT_FAMILY,
-              fontSize: 72,
+              fontSize: 58,
               fontWeight: 600,
-              lineHeight: 1.22,
+              lineHeight: 1.2,
               wordBreak: "keep-all",
               textWrap: "balance",
               textShadow: "0 3px 16px rgba(0,0,0,0.92)",
@@ -533,9 +560,10 @@ const DataFrame: React.FC<{
  */
 const NarrationSubtitle: React.FC<{
   text: string;
+  textEn?: string;
   emphasis: "normal" | "tension" | "reveal";
   accent: string;
-}> = ({ text, emphasis, accent }) => {
+}> = ({ text, textEn, emphasis, accent }) => {
   const frame = useCurrentFrame();
   const enter = interpolate(frame, [1, 10], [0, 1], {
     extrapolateLeft: "clamp",
@@ -575,6 +603,25 @@ const NarrationSubtitle: React.FC<{
       >
         {text}
       </div>
+      {textEn ? (
+        <div
+          style={{
+            marginTop: 10,
+            color: EN_TEXT,
+            fontFamily: FONT_FAMILY,
+            fontSize: 38,
+            fontWeight: 500,
+            lineHeight: 1.3,
+            textAlign: "left",
+            display: "-webkit-box",
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: 2,
+            overflow: "hidden",
+          }}
+        >
+          {textEn}
+        </div>
+      ) : null}
     </div>
   );
 };

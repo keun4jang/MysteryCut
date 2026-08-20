@@ -182,6 +182,7 @@ async function main() {
           thumbPath,
           // 썸네일 카드가 맨 앞 1프레임을 차지하므로 컴포지션과 같은 조건을 써야 싱크가 맞는다
           reelSrt(segments, Boolean(inputProps.thumbTitle), 30),
+          reelSrt(segments, Boolean(inputProps.thumbTitle), 30, "en"),
         );
         ytVideoId = videoId;
         console.log(`   ✅ 유튜브 게시 완료: https://youtu.be/${videoId}`);

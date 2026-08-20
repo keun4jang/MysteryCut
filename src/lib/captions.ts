@@ -23,7 +23,7 @@ import type { NarratedChapter, NarratedSegment } from "../types.js";
  * (호흡 구간은 무음이므로 자막 큐에 포함하지 않는다 — 문장 사이에 자막이
  *  잠깐 사라지는 편이 읽기에 낫다)
  */
-export function longformSrt(chapters: NarratedChapter[], fps = 30): string {
+export function longformSrt(chapters: NarratedChapter[], fps = 30, lang: "ko" | "en" = "ko"): string {
   const cues: Array<{ start: number; end: number; text: string }> = [];
   let f = 0;
 
@@ -33,7 +33,7 @@ export function longformSrt(chapters: NarratedChapter[], fps = 30): string {
       const breathFrames = Math.round(
         longformBreathSeconds(seg.emphasis, i === chapter.segments.length - 1) * fps,
       );
-      const text = seg.text.trim();
+      const text = (lang === "en" ? (seg.textEn ?? "") : seg.text).trim();
       if (text) cues.push({ start: f / fps, end: (f + audioFrames) / fps, text });
       f += audioFrames + breathFrames;
     });
@@ -65,6 +65,8 @@ function srtTime(seconds: number): string {
  * 우리가 나눠 준다. (한국어는 공백 기준 어절이 곧 읽기 단위)
  */
 function wrapCue(text: string, maxPerLine = 26): string {
+  // 라틴 문자는 한글보다 좁아 한 줄에 두 배쯤 들어간다
+  if (!/[가-힣]/.test(text)) maxPerLine = 52;
   if (text.length <= maxPerLine) return text;
   const words = text.split(/\s+/);
   const half = text.length / 2;
@@ -90,14 +92,19 @@ function wrapCue(text: string, maxPerLine = 26): string {
  * 않는다. 그래서 쇼츠에는 '자동자막을 가리는' 목적이 없고, 순수하게 정확한
  * 자막을 제공하는 목적만 있다.
  */
-export function reelSrt(segments: NarratedSegment[], hasThumb: boolean, fps = 30): string {
+export function reelSrt(
+  segments: NarratedSegment[],
+  hasThumb: boolean,
+  fps = 30,
+  lang: "ko" | "en" = "ko",
+): string {
   const cues: Array<{ start: number; end: number; text: string }> = [];
   let f = hasThumb ? THUMB_FRAMES : 0;
 
   segments.forEach((seg, i) => {
     const audioFrames = Math.max(1, Math.round(seg.durationInSeconds * fps));
     const breath = i < segments.length - 1 ? breathFramesAfter(seg.emphasis, fps) : 0;
-    const text = seg.text.trim();
+    const text = (lang === "en" ? (seg.textEn ?? "") : seg.text).trim();
     if (text) cues.push({ start: f / fps, end: (f + audioFrames) / fps, text });
     f += audioFrames + breath;
   });
