@@ -1,17 +1,21 @@
-import { longformBreathSeconds } from "../remotion/timing.js";
-import type { NarratedChapter } from "../types.js";
+import { breathFramesAfter, longformBreathSeconds, THUMB_FRAMES } from "../remotion/timing.js";
+import type { NarratedChapter, NarratedSegment } from "../types.js";
 
 /**
- * 롱폼 자막 트랙(SRT) 생성.
+ * 자막 트랙(SRT) 생성.
  *
- * 왜 직접 만드는가 — 두 가지를 한 번에 해결한다.
+ * 왜 직접 만드는가 — 정확도 때문이다.
  *
- * ① 자동자막(ASR) 억제. 유튜브는 올린 영상마다 음성을 인식해 '자동 생성됨'
- *    자막을 만든다. 그게 화면에 구워 넣은 자막과 겹쳐 두 겹으로 보인다.
- *    같은 언어의 수동 자막 트랙이 있으면 유튜브는 그쪽을 쓴다.
- * ② 정확도. ASR 은 고유명사·연도·법률 용어를 자주 틀리는데, 우리는 원본
- *    문장을 그대로 갖고 있으므로 100% 정확한 자막을 낼 수 있다. 자막은
- *    유튜브가 영상 내용을 이해하는 주요 신호라 추천에도 유리하다.
+ * 유튜브는 올린 영상마다 음성을 인식해 '자동 생성됨'(ASR) 자막을 만드는데,
+ * 연도·인명·법률 용어를 자주 틀린다("사형" → "사영", "1948년" → "1940년" 같은
+ * 오인식). 우리는 나레이션 원문을 그대로 갖고 있으므로 100% 정확한 자막을
+ * 낼 수 있고, CC 를 켜는 시청자는 그쪽을 보게 된다.
+ *
+ * 주의 — 이걸 올려도 ASR 트랙이 사라지지는 않는다. 유튜브는 한 영상에 같은
+ * 언어의 트랙을 여러 개 두는 구조라 수동 트랙이 ASR 을 '대체'하는 동작 자체가
+ * 없다(실측 확인). ASR 을 없애려면 유튜브 스튜디오 > 자막에서 자동 생성 트랙을
+ * 직접 지워야 하고, API 로 끄는 방법은 없다. 그래서 화면 자막과 CC 가 겹치지
+ * 않게 하는 일은 자막 트랙이 아니라 **화면 배치**로 푼다(LongformDoc 의 안전선).
  *
  * 타이밍은 LongformDoc 의 시퀀스 계산과 **같은 식**을 써야 한다. 여기서
  * 어긋나면 화면 자막과 CC 가 서로 다른 시점에 뜬다. 그래서 프레임 단위로
@@ -35,6 +39,10 @@ export function longformSrt(chapters: NarratedChapter[], fps = 30): string {
     });
   }
 
+  return toSrt(cues);
+}
+
+function toSrt(cues: Array<{ start: number; end: number; text: string }>): string {
   return cues
     .map((c, i) => `${i + 1}\n${srtTime(c.start)} --> ${srtTime(c.end)}\n${wrapCue(c.text)}\n`)
     .join("\n");
@@ -73,4 +81,26 @@ function wrapCue(text: string, maxPerLine = 26): string {
   }
   if (!best) return text;
   return `${best}\n${text.slice(best.length).trim()}`;
+}
+
+/**
+ * 쇼츠 자막 트랙(SRT).
+ *
+ * 쇼츠 화면 자막은 세로 중앙에 있고 유튜브 CC 는 아래쪽에 뜨므로 서로 겹치지
+ * 않는다. 그래서 쇼츠에는 '자동자막을 가리는' 목적이 없고, 순수하게 정확한
+ * 자막을 제공하는 목적만 있다.
+ */
+export function reelSrt(segments: NarratedSegment[], hasThumb: boolean, fps = 30): string {
+  const cues: Array<{ start: number; end: number; text: string }> = [];
+  let f = hasThumb ? THUMB_FRAMES : 0;
+
+  segments.forEach((seg, i) => {
+    const audioFrames = Math.max(1, Math.round(seg.durationInSeconds * fps));
+    const breath = i < segments.length - 1 ? breathFramesAfter(seg.emphasis, fps) : 0;
+    const text = seg.text.trim();
+    if (text) cues.push({ start: f / fps, end: (f + audioFrames) / fps, text });
+    f += audioFrames + breath;
+  });
+
+  return toSrt(cues);
 }

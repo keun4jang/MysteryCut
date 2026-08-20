@@ -19,6 +19,7 @@ import {
 import { pickStylePack } from "./lib/variety.js";
 import { deriveGrade, gradeColors } from "./lib/grade.js";
 import { totalDurationInFrames } from "./remotion/timing.js";
+import { reelSrt } from "./lib/captions.js";
 import type { ReelInputProps } from "./types.js";
 
 /**
@@ -174,7 +175,14 @@ async function main() {
     if (config.youtube.enabled) {
       console.log("⑦ 유튜브 업로드...");
       try {
-        const { videoId } = await publishYouTube(videoPath, idea, metadata, thumbPath);
+        const { videoId } = await publishYouTube(
+          videoPath,
+          idea,
+          metadata,
+          thumbPath,
+          // 썸네일 카드가 맨 앞 1프레임을 차지하므로 컴포지션과 같은 조건을 써야 싱크가 맞는다
+          reelSrt(segments, Boolean(inputProps.thumbTitle), 30),
+        );
         ytVideoId = videoId;
         console.log(`   ✅ 유튜브 게시 완료: https://youtu.be/${videoId}`);
         anyPublished = true;

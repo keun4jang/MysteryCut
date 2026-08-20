@@ -52,6 +52,24 @@ const WARN = "#FF8A7A";
 const DEFAULT_ACCENT = "#7fa8c9";
 
 /** 챕터 오프너: 번호+제목을 잠깐 크게 띄우고 사라진다 (상시 라벨 없음) */
+/**
+ * 유튜브 자막(CC) 안전선 — 화면 아래에서 이만큼은 '의미 있는 글자'를 두지 않는다.
+ *
+ * 유튜브는 올린 영상마다 자동자막을 만들고, 시청자가 CC 를 켜면 플레이어가
+ * 화면 하단 중앙에 검은 상자(#080808, 불투명도 0.7~0.75)를 깔고 그 위에 글자를
+ * 그린다. 구워 넣은 자막이 그 자리에 있으면 '지저분해지는' 정도가 아니라 아예
+ * 가려진다. 자동자막 생성을 끄는 설정은 유튜브 스튜디오에도 API 에도 없고,
+ * 같은 언어의 자막을 우리가 올려도 자동 트랙은 그대로 남는다(실측 확인).
+ * 결국 겹침은 화면 배치로만 풀 수 있다.
+ *
+ * 자막 창의 세로 위치는 컨트롤바 표시 여부에 따라 움직인다. 1080 기준 자막
+ * 블록 윗변은 컨트롤이 숨으면 y≈946, 전체화면에서 컨트롤이 뜨면 y≈836 까지
+ * 올라온다. 그래서 812 를 경계로 잡는다(= 하단 268px 을 비운다).
+ * 시청자가 자막 글자 크기를 400% 로 키운 극단은 대응하지 않는다 — 그 경우까지
+ * 피하려면 화면 상단 38% 만 써야 해서 영상이 성립하지 않는다.
+ */
+const SAFE_BOTTOM = 268;
+
 const OPENER_IN = 8;
 const OPENER_HOLD = 26;
 const OPENER_OUT = 10;
@@ -370,7 +388,7 @@ const DataFrame: React.FC<{
             style={{
               position: "absolute",
               left: 120,
-              top: 168,
+              top: 140,
               color: lc,
               fontFamily: FONT_FAMILY,
               fontSize: 84,
@@ -387,7 +405,7 @@ const DataFrame: React.FC<{
             style={{
               position: "absolute",
               left: 128,
-              top: 300,
+              top: 268,
               width: 5,
               height: interpolate(frame, [6, 20], [0, 440], {
                 extrapolateLeft: "clamp",
@@ -404,7 +422,7 @@ const DataFrame: React.FC<{
           style={{
             position: "absolute",
             left: 120,
-            top: 158,
+            top: 140,
             color: lc,
             fontFamily: FONT_FAMILY,
             fontSize: 56,
@@ -425,7 +443,7 @@ const DataFrame: React.FC<{
           position: "absolute",
           left: textLeft,
           right: 120,
-          top: isTimeline ? 300 : 262,
+          top: isTimeline ? 268 : 240,
           opacity: enter,
           transform: `translateY(${(1 - enter) * 12}px)`,
         }}
@@ -440,6 +458,11 @@ const DataFrame: React.FC<{
             wordBreak: "keep-all",
             textWrap: "balance",
             textShadow: "0 4px 20px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.9)",
+            // 문장이 길어져 줄이 늘면 아래 보조 문구를 덮는다 — 3줄에서 끊는다
+            display: "-webkit-box",
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: 3,
+            overflow: "hidden",
           }}
         >
           {main}
@@ -452,7 +475,7 @@ const DataFrame: React.FC<{
             position: "absolute",
             left: textLeft,
             right: 160,
-            top: isTimeline ? 592 : 566,
+            top: isTimeline ? 628 : 600,
             opacity: supportEnter,
             transform: `translateY(${(1 - supportEnter) * 10}px)`,
             color: SUB_TEXT,
@@ -463,6 +486,11 @@ const DataFrame: React.FC<{
             wordBreak: "keep-all",
             textWrap: "balance",
             textShadow: "0 3px 16px rgba(0,0,0,0.92)",
+            // 2줄을 넘기면 유튜브 자막 안전선(y=812)을 침범한다
+            display: "-webkit-box",
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: 2,
+            overflow: "hidden",
           }}
         >
           {support}
@@ -517,7 +545,7 @@ const NarrationSubtitle: React.FC<{
         position: "absolute",
         left: 120,
         right: 120,
-        bottom: 76,
+        bottom: SAFE_BOTTOM,
         opacity: enter,
         transform: `translateY(${(1 - enter) * 8}px)`,
         padding: "22px 36px 26px 40px",
@@ -559,7 +587,8 @@ const Watermark: React.FC = () => {
       style={{
         position: "absolute",
         right: 120,
-        top: 96,
+        // 유튜브 상단 정보바(제목·채널)가 컨트롤 표시 때 여기까지 내려온다
+        top: 150,
         opacity: 0.34 * vis,
         color: "#ffffff",
         fontFamily: FONT_FAMILY,

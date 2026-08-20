@@ -17,6 +17,8 @@ export async function publishYouTube(
   metadata: ReelMetadata,
   /** 커스텀 썸네일 jpg 경로 (유튜브는 첫 프레임을 자동 채택하지 않으므로 직접 지정) */
   thumbPath?: string,
+  /** 나레이션 원문으로 만든 한국어 자막(SRT) */
+  srt?: string,
 ): Promise<{ videoId: string }> {
   const accessToken = await getAccessToken();
   const bytes = await fs.readFile(videoPath);
@@ -66,8 +68,8 @@ export async function publishYouTube(
   // 3) 커스텀 썸네일 지정 (실패해도 게시 자체는 성공으로 처리)
   if (thumbPath) await setThumbnail(json.id, thumbPath, accessToken);
 
-  // 4) 자동자막 억제: 빈 한국어 자막 트랙 등록 (있으면 유튜브가 자동자막 대신 사용)
-  await suppressAutoCaptions(json.id, accessToken);
+  // 4) 정확한 한국어 자막 트랙 등록
+  if (srt) await uploadCaptionTrack(json.id, srt, accessToken, "한국어");
 
   return { videoId: json.id };
 }
@@ -77,8 +79,7 @@ export async function publishYouTube(
  *
  * 쇼츠와 다른 점: 3분을 넘고 가로라서 Shorts 로 분류되지 않는다(= 시청 시간이
  * YPP 4,000시간에 산입된다). 썸네일도 첫 프레임이 아니라 전용 1280x720 이미지를
- * 올린다. 자동자막 억제는 하지 않는다 — 롱폼은 화면 자막이 하단 한 줄뿐이라
- * 자동자막이 겹치지 않고, CC 가 있으면 접근성·검색에 오히려 유리하다.
+ * 올린다.
  */
 export async function publishLongform(
   videoPath: string,
@@ -138,33 +139,23 @@ export async function publishLongform(
 
   if (thumbPath) await setThumbnail(json.id, thumbPath, accessToken);
 
-  // 정확한 한국어 자막 트랙 등록.
-  // 유튜브가 만드는 '자동 생성됨' 자막은 화면에 구워 넣은 자막과 겹쳐 두 겹으로
-  // 보인다. 같은 언어의 수동 트랙이 있으면 유튜브는 그쪽을 쓰므로 겹침이 사라진다.
-  // 덤으로 ASR 이 자주 틀리는 연도·고유명사가 정확해져 검색·추천에도 유리하다.
+  // 정확한 한국어 자막 트랙 등록 (ASR 오인식 대체용 — 겹침 문제는 화면 배치로 푼다)
   if (srt) await uploadCaptionTrack(json.id, srt, accessToken, "한국어");
 
   return { videoId: json.id };
 }
 
 /**
- * 쇼츠용 — 자동 생성 자막 억제.
- * 쇼츠는 60초 내내 화면 한가운데에 큰 자막이 떠 있어 CC 가 켜지면 반드시 겹친다.
- * 세로 화면에는 자막을 피할 여백이 없으므로 빈 트랙으로 자동자막을 대신한다.
- * (롱폼은 반대다 — 겹치지 않게 배치할 여백이 있으므로 진짜 자막을 올린다)
- */
-export async function suppressAutoCaptions(
-  videoId: string,
-  accessToken: string,
-): Promise<boolean> {
-  // 완전히 빈 파일은 거부될 수 있어 0.4초짜리 공백 큐 하나를 넣는다 (검증된 포맷)
-  return uploadCaptionTrack(videoId, "1\n00:00:00,000 --> 00:00:00,400\n \n", accessToken, "");
-}
-
-/**
- * 한국어 자막 트랙 등록 (captions.insert, multipart).
+ * 한국어 자막 트랙 등록 (captions.insert, multipart, 400 units).
+ *
+ * 이 트랙은 자동자막(ASR)을 없애지 못한다 — 유튜브는 한 영상에 같은 언어의
+ * 트랙을 여러 개 두는 구조라 '대체' 동작 자체가 없고, ASR 생성을 끄는 API 도
+ * 없다(실측 확인). 목적은 정확도다: CC 를 켜는 시청자에게 ASR 오인식 대신
+ * 나레이션 원문을 그대로 보여준다.
+ *
  * captions.insert 는 youtube.force-ssl 스코프 필요 — 없으면 안내만 남기고 계속한다.
  * 자막 실패로 게시 자체를 되돌리지 않는다(영상은 이미 올라가 있다).
+ * 같은 (언어, 이름) 쌍이 이미 있으면 409 — 재시도 상황에서 정상이므로 넘어간다.
  */
 async function uploadCaptionTrack(
   videoId: string,
@@ -194,11 +185,7 @@ async function uploadCaptionTrack(
       },
     );
     if (res.ok) {
-      console.log(
-        name
-          ? `   💬 자막 트랙 등록 완료 (${srt.split("\n\n").length}개 큐) — 자동자막 대체`
-          : "   🔇 자동자막 억제용 빈 자막 트랙 등록 완료",
-      );
+      console.log(`   💬 한국어 자막 트랙 등록 완료 (${srt.split("\n\n").length}개 큐)`);
       return true;
     }
     const text = (await res.text()).replace(/\s+/g, " ").slice(0, 250);
