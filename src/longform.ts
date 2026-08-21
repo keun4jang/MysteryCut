@@ -10,6 +10,7 @@ import { publishLongform } from "./assistants/youtubePublisher.js";
 import { loadHistory, recentAvoidList, isDuplicate, appendPost } from "./assistants/history.js";
 import { gatherSources, sourcesCitation, type SourceDoc } from "./lib/sources.js";
 import { longformSrt } from "./lib/captions.js";
+import { dropUnreadableVisuals } from "./lib/visual/normalize.js";
 import { pickStylePack, LONGFORM_VOICE } from "./lib/variety.js";
 import { deriveGrade } from "./lib/grade.js";
 import { longformDurationInFrames } from "./remotion/timing.js";
@@ -100,6 +101,14 @@ async function main() {
   // ③ 나레이션 (쇼츠보다 느린 고정 보이스)
   console.log("③ 나레이션(TTS) 합성...");
   const chapters = await narrateLongform(script, LONGFORM_VOICE);
+  // 컷 길이가 확정된 뒤에야 '조립이 끝나고도 읽을 시간이 남는가'를 잴 수 있다.
+  // 못 읽는 그래픽은 화면만 바쁘고 정보는 전달 못 하니 없느니만 못하다.
+  {
+    const dropped = dropUnreadableVisuals(chapters, 30);
+    if (dropped) console.log(`   ⏱️ 읽을 시간이 모자란 그래픽 ${dropped}개 폐기`);
+    const kept = chapters.reduce((n, c) => n + c.segments.filter((g) => g.frame?.visual).length, 0);
+    console.log(`   📐 최종 그래픽 ${kept}개`);
+  }
   const secs = longformDurationInFrames(chapters, 30) / 30;
   console.log(
     `   ⏱️ 대본 ${totalChars(script)}자 / ${countSegments(script)}컷 → 예상 러닝타임 ${Math.floor(secs / 60)}분 ${Math.round(secs % 60)}초`,

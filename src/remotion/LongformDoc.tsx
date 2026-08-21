@@ -15,8 +15,12 @@ import type {
   LongformInputProps,
   NarratedChapter,
   ReelGrade,
+  ResolvedVisual,
 } from "../types.js";
 import { LONGFORM_OPENER_LEAD, longformBreathSeconds, longformChapterFrames } from "./timing.js";
+import { textEm } from "../lib/text.js";
+import { VisualQuantity } from "./VisualQuantity.js";
+import { scrim } from "./visualTokens.js";
 import { ensureFonts, FONT_FAMILY } from "./fonts.js";
 
 /**
@@ -261,6 +265,7 @@ const ChapterView: React.FC<{
                 label={s.frame.label}
                 main={s.text}
                 support={s.frame.support}
+                visual={s.frame.visual}
                 accent={accent}
                 emphasis={s.emphasis}
                 timelinePos={timelineIdx.get(i)}
@@ -358,11 +363,12 @@ const DataFrame: React.FC<{
   label: string;
   main: string;
   support?: string;
+  visual?: ResolvedVisual;
   accent: string;
   emphasis: "normal" | "tension" | "reveal";
   timelinePos?: number;
   timelineTotal: number;
-}> = ({ kind, label, main, support, accent, emphasis, timelinePos, timelineTotal }) => {
+}> = ({ kind, label, main, support, visual, accent, emphasis, timelinePos, timelineTotal }) => {
   const frame = useCurrentFrame();
   const enter = interpolate(frame, [2, 12], [0, 1], {
     extrapolateLeft: "clamp",
@@ -379,6 +385,17 @@ const DataFrame: React.FC<{
   const lc = labelColor(kind, accent);
   const shown = isTimeline ? normalizeDateLabel(label) : label;
   const textLeft = isTimeline ? 232 : 120;
+
+  // 그래픽이 붙은 문장은 그래픽이 화면의 주인공이다. 같은 문장을 100px 로
+  // 또 띄우면 '자막의 확대판'이 되어 그래픽을 넣은 의미가 없어진다.
+  if (visual) {
+    return (
+      <>
+        <AbsoluteFill style={{ background: scrim() }} />
+        <VisualQuantity visual={visual} accent={accent} />
+      </>
+    );
+  }
 
   return (
     <>
@@ -655,14 +672,6 @@ const Watermark: React.FC = () => {
  * 자극적이되 낚시는 아니다 — 문구는 대본이 실제로 다루는 내용이어야 한다.
  * 유튜브는 '오해를 부르는 메타데이터'를 수익창출 감점 사유로 든다.
  */
-/** 문자열의 대략적인 폭(em) — 한글 전각 1.0, 라틴·숫자 0.55, 공백 0.3 */
-function textEm(line: string): number {
-  return [...line].reduce(
-    (w, ch) => w + (/[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7A3]/.test(ch) ? 1 : ch === " " ? 0.3 : 0.55),
-    0,
-  );
-}
-
 const THUMB_YELLOW = "#FFE14D";
 const THUMB_RED = "#E01020";
 /** 빨간 박스로 강조할 수 있는 마지막 줄 길이 상한 — 넘으면 박스가 화면을 덮는다 */

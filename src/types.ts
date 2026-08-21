@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VisualSchema, type VisualLoose } from "./lib/visual/schema.js";
 
 /** 1단계: 스토리 구상 어시스트 산출물 */
 export const StoryIdeaSchema = z.object({
@@ -170,12 +171,49 @@ export const LONGFORM_FRAME_KINDS = [
 export type LongformFrameKind = (typeof LONGFORM_FRAME_KINDS)[number];
 
 /** 한 문장에 붙는 자료 프레임 (없으면 그냥 내레이션 화면) */
+/** 게이트를 통과해 렌더가 실제로 그리는 수치 그래픽 */
+export type VisualQuantityMode = "single" | "pair" | "pair-nobar";
+export interface ResolvedVisual {
+  kind: "quantity";
+  title: string;
+  mode: VisualQuantityMode;
+  claims: Array<{
+    text: string;
+    value: number;
+    unit: string;
+    role: string;
+    /** 원문이 '약·가량'이라고 했으면 화면에도 '약'을 붙인다 */
+    approx: boolean;
+    confidence: "stated" | "hedged";
+    /** 원문 대조에 쓴 인용 — 두 수가 같은 인용에서 나왔는지 판정에 쓴다 */
+    quote: string;
+  }>;
+  /** 조립이 끝나는 프레임 — 읽을 시간이 남는지 판정에 쓴다 */
+  buildFrames: number;
+}
+
+/**
+ * 대본의 frame 은 두 단계를 같은 슬롯에 담는다.
+ *  ① LLM 산출 직후 — visual 이 느슨한 VisualLoose
+ *  ② 게이트 통과 후 — visual 이 확정된 ResolvedVisual (실패하면 아예 없음)
+ * 나레이션 이후 단계는 ②만 본다.
+ */
+export function isResolvedVisual(v: VisualLoose | ResolvedVisual | undefined): v is ResolvedVisual {
+  return !!v && typeof (v as ResolvedVisual).buildFrames === "number";
+}
+
 export const LongformFrameSchema = z.object({
   kind: z.enum(LONGFORM_FRAME_KINDS),
   /** 화면 상단 분류 표시. 예: '1948. 01. 26.' / '핵심 인물' / '증거 03' / '남은 문제' */
   label: z.string(),
   /** 아래에 한 줄 더 붙일 보조 문장 (선택, 30자 이내) */
   support: z.string().optional(),
+  /**
+   * 시각 문법(선택). LLM 이 느슨하게 뱉으면 Node 쪽 게이트가 원문과 대조해
+   * 통과한 것만 ResolvedVisual 로 바꿔 놓고, 실패하면 이 필드를 지운다.
+   * 지워져도 그 문장은 기존 자료 프레임(문장 확대)으로 나간다.
+   */
+  visual: VisualSchema.optional(),
 });
 
 export const LongformScriptSchema = z.object({
@@ -238,7 +276,13 @@ export interface NarratedChapter {
     emphasis: "normal" | "tension" | "reveal";
     audioSrc: string;
     durationInSeconds: number;
-    frame?: { kind: LongformFrameKind; label: string; support?: string };
+    frame?: {
+      kind: LongformFrameKind;
+      label: string;
+      support?: string;
+      /** 게이트를 통과한 것만 여기 남는다 */
+      visual?: ResolvedVisual;
+    };
   }>;
   /** 배경 이미지 public/ 상대경로 */
   bgSrc?: string;

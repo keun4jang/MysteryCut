@@ -295,6 +295,8 @@ OAuth Playground 는 리디렉션 URI 등록이 필요해서 **웹 애플리케�
 | 롱폼 나레이션 속도 | `src/lib/variety.ts` | `LONGFORM_VOICE` 의 `rate` |
 | 롱폼 글자 크기·레이아웃 | `src/remotion/LongformDoc.tsx` | `NarrationSubtitle` / `DataFrame` / `ChapterOpener` |
 | 롱폼 썸네일 디자인 | 같은 파일 | `LongformThumb` / `THUMB_YELLOW` / `THUMB_BOX_MAX` |
+| 시각 문법(그래픽) 색·모션 | `src/remotion/visualTokens.ts` | `V` / `scrim` / `V_EASE` |
+| 그래픽 날조 방지 게이트 | `src/lib/visual/gates.ts` | `resolveSpan` / `nameLeak` / `numberInQuote` |
 | 썸네일 문구 규칙 | `src/assistants/longformProducer.ts` | 프롬프트 `[★thumbTitle]` + `thumbTitleIssues` |
 | 유튜브 자막 안전선 | 같은 파일 | `SAFE_BOTTOM` |
 | 롱폼 배경 밝기 자동 조절 | `src/assistants/broll.ts` | `brightnessForAvgColor` |

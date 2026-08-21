@@ -155,7 +155,8 @@ export async function narrateLongform(
         emphasis: seg.emphasis,
         audioSrc: `audio/${fileName}`,
         durationInSeconds: meta.format.duration ?? estimateDuration(seg.text),
-        frame: seg.frame,
+        // 게이트를 통과한 visual 만 남아 있는 상태다 (normalizeVisuals 가 앞에서 걸렀다)
+        frame: seg.frame as NarratedChapter["segments"][0]["frame"],
       });
       done += 1;
     }

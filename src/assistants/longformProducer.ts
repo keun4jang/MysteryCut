@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { generateStructured } from "../lib/llm.js";
 import { findSensitiveTerms, softenText } from "../lib/safeText.js";
+import { normalizeVisuals } from "../lib/visual/normalize.js";
 import { sourcesPromptBlock, type SourceDoc } from "../lib/sources.js";
 import { LongformScriptSchema, type LongformScript } from "../types.js";
 import type { CaseProbe } from "./producer.js";
@@ -105,6 +106,32 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "timeline / evidence+problem / theory / person / verdict 중 **하나를 주연**으로 삼고",
     "나머지는 조연으로 두 종류까지만 쓴다. 매 편 모든 종류를 골고루 쓰면 다 똑같아 보인다.",
     "연대기형이면 timeline 이, 조사형이면 evidence+problem 이, 판결형이면 verdict 가 주연이다.",
+    "",
+    "[★visual — 사실을 그래픽으로 보여주는 화면]",
+    "frame 만 붙이면 그 화면은 '지금 말하는 문장을 100px 로 확대한 것'일 뿐이다.",
+    "새 시각 정보가 아니라 자막의 확대판이라, 8분 내내 그것만 반복되면",
+    "유튜브가 수익창출 부적합으로 드는 '이미지 슬라이드쇼'와 다를 게 없다.",
+    "**수치가 나오는 문장에는 frame 에 visual 을 함께 붙여라.**",
+    "",
+    "지금 지원하는 종류는 quantity(수치 비교) 하나다. kind 는 'quantity' 로 고정.",
+    "- claims 에 수를 1개 또는 2개. 2개면 화면에 막대로 나란히 비교된다.",
+    "- 각 claim 에 넣을 것:",
+    "  · value  — 숫자. **원문에 그 숫자로 적혀 있는 것만.** 계산하거나 어림하지 마라.",
+    "  · unit   — 단위 3자 이내 (명 / 년 / 번 / 건 / 차례 / %)",
+    "  · role   — 이 수가 무엇인지. 아래 목록에서만 골라라:",
+    "             사망자 / 생존자 / 실종자 / 피해자 / 목격자 / 증인 / 주민 / 승객 /",
+    "             직원 / 환자 / 가축 / 재심 청구 / 경과 / 간격 / 조사 기간 / 수색 기간 /",
+    "             기록 / 진술 / 신고 / 출동 / 검출 / 불검출 / 건물 / 가구 / 세대",
+    "  · text   — 화면에 뜨는 짧은 설명. 실명·지명 금지.",
+    "  · source.quote — ★**원문 문장을 글자 그대로 복사**. 요약·의역·번역 금지.",
+    "                   코드가 원문과 글자 단위로 대조한다. 한 글자라도 다르면 버려진다.",
+    "",
+    "★두 수를 나란히 놓으려면 **같은 문장에서 나온 두 수**여야 한다.",
+    "  '열여섯 명 중 열두 명이 사망했다' → 16과 12를 함께 놓아도 된다(같은 인용).",
+    "  서로 다른 문단의 수를 붙여 놓으면 원문에 없는 비교를 만들어내는 것이다.",
+    "★확실하지 않으면 visual 을 아예 붙이지 마라. 빠뜨리는 것이 지어내는 것보다 낫다.",
+    "  원문에 없는 숫자를 그래픽으로 그리는 순간 채널이 끝난다.",
+    "★첫 챕터와 마지막 챕터에는 visual 을 붙이지 마라.",
     "",
     "[★frame 비율] 전체 문장의 45~60%에 frame 을 붙여라. 너무 적으면 배경 사진만 흐르는",
     "슬라이드쇼가 되고(유튜브가 수익창출 부적합으로 드는 형태다), 너무 많으면 쉴 틈 없이",
@@ -236,6 +263,7 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     );
     console.log(`   🖼️  썸네일 문구 "${script.thumbTitle.replace(/\n/g, " / ")}" (${script.thumbBadge})`);
     if (!flagged.length && !thumbIssues.length && chars >= MIN_CHARS && chars <= MAX_CHARS) {
+      applyVisualGates(script, opts.sources, opts.forcedCase.title);
       return script;
     }
 
@@ -265,6 +293,7 @@ thumbTitle 규칙을 다시 읽고 고쳐라. 대본 내용은 그대로 둬도 
     }
   }
 
+  applyVisualGates(best!, opts.sources, opts.forcedCase.title);
   const leftover = findSensitiveTerms(collectTexts(best!));
   if (leftover.length) {
     soften(best!);
@@ -331,6 +360,33 @@ export function thumbTitleIssues(thumbTitle: string): string[] {
   return issues;
 }
 
+/**
+ * 원문 대조 게이트를 태우고 결과를 로그로 남긴다.
+ *
+ * 폐기 사유를 안 찍으면 채택률이 0인 것을 몇 달간 모른다. 그래픽이 하나도
+ * 안 붙는데 "잘 돌고 있다"고 착각하는 것이 가장 나쁘다.
+ */
+function applyVisualGates(script: LongformScript, sources: SourceDoc[], probeTitle: string): void {
+  const before = countVisuals(script);
+  const drops = normalizeVisuals(script, sources, probeTitle);
+  const after = countVisuals(script);
+  if (!before) {
+    console.log("   📐 그래픽 없음 (모델이 visual 을 안 붙였다)");
+    return;
+  }
+  console.log(`   📐 그래픽 ${after}/${before}개 채택`);
+  for (const d of drops) {
+    console.log(`      ✗ 챕터${d.chapter + 1} 컷${d.segment + 1} ${d.kind}: ${d.reason}`);
+  }
+}
+
+function countVisuals(s: LongformScript): number {
+  return s.chapters.reduce(
+    (n, c) => n + c.segments.filter((g) => g.frame?.visual).length,
+    0,
+  );
+}
+
 export function totalChars(s: LongformScript): number {
   return s.chapters.reduce((n, c) => n + c.segments.reduce((m, g) => m + g.text.length, 0), 0);
 }
@@ -352,9 +408,21 @@ function collectTexts(s: LongformScript): string[] {
         g.textEn ?? "",
         g.frame?.label ?? "",
         g.frame?.support ?? "",
+        ...visualTexts(g.frame),
       ]),
     ]),
   ];
+}
+
+/**
+ * 화면에 뜨는 그래픽 글자들.
+ * ★ source.quote 는 절대 포함하면 안 된다 — 순화하거나 줄바꿈을 정리하면
+ *   원문과의 글자 단위 대조가 깨져서 그래픽이 전부 폐기된다.
+ */
+function visualTexts(frame?: LongformScript["chapters"][0]["segments"][0]["frame"]): string[] {
+  const v = frame?.visual;
+  if (!v) return [];
+  return [v.title ?? "", ...(v.claims ?? []).flatMap((c) => [c.text ?? "", c.role ?? ""])];
 }
 
 function soften(s: LongformScript): void {
@@ -367,6 +435,14 @@ function soften(s: LongformScript): void {
     for (const g of c.segments) {
       g.text = softenText(g.text);
       g.textEn = softenText(g.textEn ?? "");
+      if (g.frame?.visual) {
+        const v = g.frame.visual;
+        if (v.title) v.title = softenText(v.title);
+        for (const c of v.claims ?? []) {
+          c.text = softenText(c.text ?? "");
+          if (c.role) c.role = softenText(c.role);
+        }
+      }
       if (g.frame) {
         g.frame.label = softenText(g.frame.label);
         if (g.frame.support) g.frame.support = softenText(g.frame.support);
@@ -399,6 +475,14 @@ function sanitize(s: LongformScript): void {
     for (const g of c.segments) {
       g.text = toSpace(g.text);
       g.textEn = toSpace(g.textEn ?? "");
+      if (g.frame?.visual) {
+        const v = g.frame.visual;
+        if (v.title) v.title = toSpace(v.title);
+        for (const c of v.claims ?? []) {
+          c.text = toSpace(c.text ?? "");
+          if (c.role) c.role = toSpace(c.role);
+        }
+      }
       if (g.frame) {
         g.frame.label = toSpace(g.frame.label);
         if (g.frame.support) g.frame.support = toSpace(g.frame.support);

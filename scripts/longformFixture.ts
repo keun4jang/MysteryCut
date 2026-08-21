@@ -59,6 +59,34 @@ export const chapters: NarratedChapter[] = [
           { kind: "verdict", label: "공식 결론" }),
     ],
   },
+  {
+    heading: "숫자로 보는 것", visualQuery: "", bgSrc: "broll/lf-ch-2.jpg", bgBrightness: 0.78,
+    segments: [
+      { ...seg("열여섯 명 중 열두 명이 돌아오지 못했습니다.", "The court finalized a death sentence.", "reveal"),
+        frame: { kind: "evidence", label: "증거 03", visual: {
+          kind: "quantity", title: "그날의 인원", mode: "pair", buildFrames: 44,
+          claims: [
+            { text: "은행 안에 있던 사람", value: 16, unit: "명", role: "주민", approx: false, confidence: "stated", quote: "q" },
+            { text: "돌아오지 못한 사람", value: 12, unit: "명", role: "사망자", approx: false, confidence: "stated", quote: "q" },
+          ],
+        } } },
+      { ...seg("재심 청구는 서른 번 넘게 기각되었습니다.", "Retrial petitions were rejected.", "tension"),
+        frame: { kind: "problem", label: "남은 문제", visual: {
+          kind: "quantity", title: "재심 기록", mode: "single", buildFrames: 44,
+          claims: [
+            { text: "기각된 재심 청구", value: 30, unit: "번", role: "재심 청구", approx: true, confidence: "stated", quote: "q" },
+          ],
+        } } },
+      { ...seg("조사단이 도착하기까지 이틀이 걸렸습니다.", "It took two days.", "normal"),
+        frame: { kind: "timeline", label: "1948. 01. 28.", visual: {
+          kind: "quantity", title: "도착까지", mode: "pair-nobar", buildFrames: 44,
+          claims: [
+            { text: "현장 도착", value: 2, unit: "일", role: "경과", approx: false, confidence: "stated", quote: "a" },
+            { text: "추정 원인", value: 3, unit: "건", role: "기록", approx: false, confidence: "hedged", quote: "b" },
+          ],
+        } } },
+    ],
+  },
   // 스트레스 케이스 — 모델이 분량 규칙(본문 30~38자, 보조 30자)을 넘겼을 때도
   // 자막 안전선(y=812)을 못 넘는지 확인한다. line-clamp 가 실제로 먹는지가 핵심.
   {
