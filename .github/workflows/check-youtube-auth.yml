@@ -1,0 +1,35 @@
+name: 유튜브 토큰 점검
+
+# 게시하지 않고 유튜브 권한만 확인합니다.
+#
+# 왜 따로 두는가: 롱폼·쇼츠 드라이런은 --no-publish 라 업로드 경로를 타지 않아
+# 토큰이 멀쩡한지 알 수 없다. 확인하겠다고 실제 게시를 돌리면 인스타에 중복으로
+# 올라간다. 이 워크플로는 읽기 호출만 해서 30초 안에 판정한다.
+#
+# 2026-08-20: yt-analytics.readonly 만 선택해 토큰을 재발급받는 바람에
+# youtube.upload 가 빠졌고, 그날 쇼츠·롱폼 게시가 전부 403 으로 죽었다.
+# 아무 알림도 없어서 로그를 열어보고서야 알았다.
+on:
+  workflow_dispatch:
+  schedule:
+    # 매주 월요일 08:00 UTC (17:00 KST) — 그날 저녁 롱폼 게시(18:00 KST) 전에
+    # 토큰이 살아 있는지 미리 확인한다.
+    - cron: "0 8 * * 1"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check YouTube auth
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: npx tsx scripts/checkYouTubeAuth.mts
