@@ -39,7 +39,8 @@ def lowest_text_row(path: str) -> int | None:
 def main() -> int:
     out_dir = sys.argv[1] if len(sys.argv) > 1 else "scratchpad"
     files = sorted(glob.glob(os.path.join(out_dir, "lf-*.png")))
-    files = [f for f in files if not f.endswith("lf-thumb.png")]  # 썸네일은 플레이어 밖
+    # 썸네일은 1280x720 이고 플레이어 안에서 재생되지 않으므로 검사 대상이 아니다
+    files = [f for f in files if "thumb" not in os.path.basename(f)]
     if not files:
         sys.exit(f"{out_dir} 에 lf-*.png 가 없습니다. 먼저 스틸을 렌더하세요.")
 

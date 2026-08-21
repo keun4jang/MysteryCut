@@ -62,13 +62,13 @@ export function longformBreathSeconds(
  * 밟는다. 그런데 나레이션까지 그대로 흐르게 두면 첫 문장의 앞 1초를 자막
  * 없이 듣게 된다. 자막을 읽는 시청자층이라 그 손실이 작지 않다.
  * 그래서 오프너 길이만큼 챕터 앞에 무음 여백을 둔다.
- * 8챕터 × 0.93초 ≈ 7.4초 — 7분짜리에서 1.8%다. 챕터 전환이 또렷해지는
+ * 6~7챕터 × 1.67초 ≈ 10~12초 — 7분짜리에서 2.5% 남짓이다. 챕터 전환이 또렷해지는
  * 값으로 충분히 싸다.
  *
  * ★이 값은 LongformDoc 의 OPENER_END, captions.ts 의 자막 타이밍과 함께
  *  움직여야 한다. 한 곳만 고치면 자막이 어긋난다.
  */
-export const LONGFORM_OPENER_LEAD = 28;
+export const LONGFORM_OPENER_LEAD = 50;
 
 /** 롱폼 챕터 하나의 프레임 수 — 오프너 여백 + 세그먼트 오디오 + 문장 사이 호흡 */
 export function longformChapterFrames(

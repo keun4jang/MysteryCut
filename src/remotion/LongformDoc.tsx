@@ -49,8 +49,14 @@ const easeOut = Easing.bezier(0.22, 1, 0.36, 1);
 const TEXT = "#F4F5F6";
 const SUB_TEXT = "rgba(255,255,255,0.84)";
 const WARN = "#FF8A7A";
-// 영어 자막 — 한국어보다 확실히 뒤로 물러나게. 읽고 싶은 사람만 읽으면 된다.
-const EN_TEXT = "rgba(255,255,255,0.60)";
+/*
+ * 영어는 화면에 굽지 않는다.
+ * 38~40px 은 폰 인라인(축소율 0.2047)에서 7.8~8.2pt 라 실용적인 자막이 아니면서
+ * 화면 정보량만 늘린다. 미국 조회수 27% 는 전부 쇼츠 트래픽이라 롱폼 영어 수요의
+ * 근거가 되지 못한다(롱폼 조회수 2회). 대신 정확한 영어 자막 트랙을 유튜브에
+ * 그대로 올리므로, 필요한 시청자는 CC 로 켜서 크기·색까지 직접 조절할 수 있다.
+ * 대본의 textEn 은 그 트랙을 위해 계속 생성한다.
+ */
 const DEFAULT_ACCENT = "#7fa8c9";
 
 /** 챕터 오프너: 번호+제목을 잠깐 크게 띄우고 사라진다 (상시 라벨 없음) */
@@ -72,9 +78,10 @@ const DEFAULT_ACCENT = "#7fa8c9";
  */
 const SAFE_BOTTOM = 268;
 
-const OPENER_IN = 6;
-const OPENER_HOLD = 14;
-const OPENER_OUT = 6;
+// 0.93초로는 45세 이상 시청자가 번호와 제목을 읽어내지 못한다. 1.67초로 늘린다.
+const OPENER_IN = 10;
+const OPENER_HOLD = 30;
+const OPENER_OUT = 8;
 /**
  * 오프너가 사라지고 첫 컷 화면이 들어오는 프레임.
  *
@@ -253,7 +260,6 @@ const ChapterView: React.FC<{
                 kind={s.frame.kind}
                 label={s.frame.label}
                 main={s.text}
-                mainEn={s.textEn}
                 support={s.frame.support}
                 accent={accent}
                 emphasis={s.emphasis}
@@ -261,7 +267,7 @@ const ChapterView: React.FC<{
                 timelineTotal={tCount}
               />
             ) : (
-              <NarrationSubtitle text={s.text} textEn={s.textEn} emphasis={s.emphasis} accent={accent} />
+              <NarrationSubtitle text={s.text} emphasis={s.emphasis} accent={accent} />
             )}
           </Sequence>
         ))}
@@ -317,8 +323,8 @@ const ChapterOpener: React.FC<{ number: number; heading: string; accent: string 
           style={{
             color: accent,
             fontFamily: FONT_FAMILY,
-            fontSize: 112,
-            fontWeight: 800,
+            fontSize: 72,
+            fontWeight: 700,
             lineHeight: 1,
           }}
         >
@@ -351,13 +357,12 @@ const DataFrame: React.FC<{
   kind: LongformFrameKind;
   label: string;
   main: string;
-  mainEn?: string;
   support?: string;
   accent: string;
   emphasis: "normal" | "tension" | "reveal";
   timelinePos?: number;
   timelineTotal: number;
-}> = ({ kind, label, main, mainEn, support, accent, emphasis, timelinePos, timelineTotal }) => {
+}> = ({ kind, label, main, support, accent, emphasis, timelinePos, timelineTotal }) => {
   const frame = useCurrentFrame();
   const enter = interpolate(frame, [2, 12], [0, 1], {
     extrapolateLeft: "clamp",
@@ -415,7 +420,7 @@ const DataFrame: React.FC<{
               top: 96,
               color: lc,
               fontFamily: FONT_FAMILY,
-              fontSize: 84,
+              fontSize: 92,
               fontWeight: 800,
               lineHeight: 1.1,
               opacity: enter,
@@ -429,7 +434,7 @@ const DataFrame: React.FC<{
             style={{
               position: "absolute",
               left: 128,
-              top: 204,
+              top: 210,
               width: 5,
               // 본문만 있으면 짧게, 보조 문구까지 있으면 길게 — 고정 길이로 두면
               // 짧은 컷에서 선이 글자보다 한참 아래 빈 배경까지 늘어진다
@@ -448,10 +453,10 @@ const DataFrame: React.FC<{
           style={{
             position: "absolute",
             left: 120,
-            top: 100,
+            top: 104,
             color: lc,
             fontFamily: FONT_FAMILY,
-            fontSize: 56,
+            fontSize: 60,
             fontWeight: 700,
             letterSpacing: "2px",
             opacity: enter,
@@ -477,16 +482,16 @@ const DataFrame: React.FC<{
           position: "absolute",
           left: textLeft,
           right: 120,
-          top: isTimeline ? 204 : 190,
+          top: isTimeline ? 210 : 194,
         }}
       >
         <div
           style={{
             color: emphasis === "reveal" ? "#FFD9D2" : TEXT,
             fontFamily: FONT_FAMILY,
-            fontSize: isQuestion ? 104 : 96,
+            fontSize: isQuestion ? 108 : 100,
             fontWeight: 800,
-            lineHeight: 1.14,
+            lineHeight: 1.13,
             wordBreak: "keep-all",
             textWrap: "balance",
             textShadow: "0 4px 20px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.9)",
@@ -502,39 +507,16 @@ const DataFrame: React.FC<{
           {main}
         </div>
 
-        {mainEn ? (
-          <div
-            style={{
-              marginTop: 10,
-              marginRight: 40,
-              opacity: enter,
-              transform: `translateY(${(1 - enter) * 8}px)`,
-              color: EN_TEXT,
-              fontFamily: FONT_FAMILY,
-              fontSize: 40,
-              fontWeight: 500,
-              lineHeight: 1.3,
-              textShadow: "0 2px 12px rgba(0,0,0,0.9)",
-              display: "-webkit-box",
-              WebkitBoxOrient: "vertical",
-              WebkitLineClamp: 2,
-              overflow: "hidden",
-            }}
-          >
-            {mainEn}
-          </div>
-        ) : null}
-
         {support ? (
           <div
             style={{
-              marginTop: 24,
+              marginTop: 40,
               marginRight: 40,
               opacity: supportEnter,
               transform: `translateY(${(1 - supportEnter) * 10}px)`,
               color: SUB_TEXT,
               fontFamily: FONT_FAMILY,
-              fontSize: 58,
+              fontSize: 72,
               fontWeight: 600,
               lineHeight: 1.2,
               wordBreak: "keep-all",
@@ -582,10 +564,9 @@ const DataFrame: React.FC<{
  */
 const NarrationSubtitle: React.FC<{
   text: string;
-  textEn?: string;
   emphasis: "normal" | "tension" | "reveal";
   accent: string;
-}> = ({ text, textEn, emphasis, accent }) => {
+}> = ({ text, emphasis, accent }) => {
   const frame = useCurrentFrame();
   const enter = interpolate(frame, [1, 10], [0, 1], {
     extrapolateLeft: "clamp",
@@ -603,20 +584,20 @@ const NarrationSubtitle: React.FC<{
         bottom: SAFE_BOTTOM,
         opacity: enter,
         transform: `translateY(${(1 - enter) * 8}px)`,
-        padding: "22px 36px 26px 40px",
+        padding: "26px 40px 30px 40px",
         borderLeft: `10px solid ${bar}`, // 폰 인라인(852px)에서도 강조바가 보이도록
         borderRadius: 6,
         background:
-          "linear-gradient(90deg, rgba(5,7,10,0.92) 0%, rgba(5,7,10,0.86) 62%, rgba(5,7,10,0.78) 100%)",
+          "linear-gradient(90deg, rgba(7,10,15,0.92) 0%, rgba(7,10,15,0.88) 62%, rgba(7,10,15,0.82) 100%)",
       }}
     >
       <div
         style={{
           color: TEXT,
           fontFamily: FONT_FAMILY,
-          fontSize: 84,
+          fontSize: 92,
           fontWeight: 800,
-          lineHeight: 1.22,
+          lineHeight: 1.18,
           textAlign: "left",
           wordBreak: "keep-all",
           textWrap: "balance",
@@ -625,25 +606,6 @@ const NarrationSubtitle: React.FC<{
       >
         {text}
       </div>
-      {textEn ? (
-        <div
-          style={{
-            marginTop: 10,
-            color: EN_TEXT,
-            fontFamily: FONT_FAMILY,
-            fontSize: 38,
-            fontWeight: 500,
-            lineHeight: 1.3,
-            textAlign: "left",
-            display: "-webkit-box",
-            WebkitBoxOrient: "vertical",
-            WebkitLineClamp: 2,
-            overflow: "hidden",
-          }}
-        >
-          {textEn}
-        </div>
-      ) : null}
     </div>
   );
 };
@@ -728,7 +690,9 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
   // 좌우 여백 64 + 빨간 박스 안쪽 여백까지 빼고 남는 폭
   const boxWidth = 1280 - 64 * 2 - 56;
   const fontSize = Math.round(Math.min(196, Math.max(104, boxWidth / widest)));
-  const stroke = Math.round(fontSize * 0.085);
+  // 외곽선이 두꺼우면 글자가 뭉개져 '사건 요약 쇼츠'처럼 보인다. 5%면 사진 위에서
+  // 읽히면서도 글자 형태가 살아 있다(160px 글자 → 8px).
+  const stroke = Math.round(fontSize * 0.05);
   const last = lines.length - 1;
   // 마지막 줄이 짧을 때만 빨간 박스 — 길면 박스가 화면을 덮어 오히려 안 읽힌다
   const boxed = lines.length > 1 && lines[last].length <= THUMB_BOX_MAX;

@@ -8,6 +8,7 @@
  */
 import type { LongformInputProps, NarratedChapter } from "../src/types.js";
 import { deriveGrade } from "../src/lib/grade.js";
+import { LONGFORM_OPENER_LEAD, longformBreathSeconds } from "../src/remotion/timing.js";
 
 type Seg = NarratedChapter["segments"][0];
 const seg = (
@@ -84,3 +85,29 @@ export const inputProps: LongformInputProps = {
   chapters, grade, bgmSrc: undefined,
 };
 
+
+
+/**
+ * (챕터, 컷) → 절대 프레임.
+ *
+ * 스틸 스크립트가 프레임 번호를 하드코딩하면, 오프너 여백이나 호흡 길이를
+ * 바꿀 때마다 엉뚱한 화면을 찍는다(실제로 겪었다 — 겹침 버그를 '스틸을
+ * 잘못 골랐다'고 오판한 원인이 이것이었다). 컴포지션과 같은 식으로 계산한다.
+ */
+export function frameAt(chapter: number, segment: number, offset = 14, fps = 30): number {
+  let abs = 0;
+  for (let ci = 0; ci < chapters.length; ci++) {
+    if (ci === chapter && segment < 0) return abs + offset; // 오프너 창
+    let f = abs + LONGFORM_OPENER_LEAD;
+    for (let si = 0; si < chapters[ci].segments.length; si++) {
+      const seg = chapters[ci].segments[si];
+      const len =
+        Math.max(1, Math.round(seg.durationInSeconds * fps)) +
+        Math.round(longformBreathSeconds(seg.emphasis, si === chapters[ci].segments.length - 1) * fps);
+      if (ci === chapter && si === segment) return f + offset;
+      f += len;
+    }
+    abs = f;
+  }
+  return 0;
+}

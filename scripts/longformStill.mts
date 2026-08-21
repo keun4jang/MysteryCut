@@ -7,7 +7,7 @@ import path from "node:path";
 import { bundle } from "@remotion/bundler";
 import { selectComposition, renderStill } from "@remotion/renderer";
 import { config } from "../src/config.js";
-import { inputProps } from "./longformFixture.js";
+import { inputProps, frameAt } from "./longformFixture.js";
 
 const outDir = process.argv[2] ?? "scratchpad";
 
@@ -20,22 +20,23 @@ const serveUrl = await bundle({
   }),
 });
 
+// [컴포지션, 파일명, 프레임]. 프레임은 (챕터, 컷)에서 계산한다 — 하드코딩하면
+// 타이밍을 바꿀 때마다 엉뚱한 화면을 찍는다.
 const jobs: Array<[string, string, number]> = [
-  ["LongformDoc", "lf-opener.png", 16],
-  ["LongformDoc", "lf-opener-frame.png", 875],
-  ["LongformDoc", "lf-opener-after.png", 905],
-  ["LongformDoc", "lf-narration.png", 70],
-  ["LongformDoc", "lf-question.png", 370],
-  ["LongformDoc", "lf-timeline.png", 550],
-  ["LongformDoc", "lf-timeline2.png", 670],
-  ["LongformDoc", "lf-evidence.png", 920],
-  ["LongformDoc", "lf-problem.png", 1020],
-  ["LongformDoc", "lf-person.png", 1140],
-  ["LongformDoc", "lf-theory.png", 1270],
-  ["LongformDoc", "lf-verdict.png", 1390],
-  ["LongformDoc", "lf-stress-person.png", 1530],
-  ["LongformDoc", "lf-stress-timeline.png", 1650],
-  ["LongformDoc", "lf-stress-narration.png", 1780],
+  ["LongformDoc", "lf-opener.png", frameAt(0, -1, 20)],
+  ["LongformDoc", "lf-narration.png", frameAt(0, 0)],
+  ["LongformDoc", "lf-question.png", frameAt(1, 1)],
+  ["LongformDoc", "lf-timeline.png", frameAt(2, 0)],
+  ["LongformDoc", "lf-timeline2.png", frameAt(2, 1)],
+  ["LongformDoc", "lf-opener-frame.png", frameAt(3, -1, 20)],
+  ["LongformDoc", "lf-evidence.png", frameAt(3, 0)],
+  ["LongformDoc", "lf-problem.png", frameAt(3, 1)],
+  ["LongformDoc", "lf-person.png", frameAt(3, 2)],
+  ["LongformDoc", "lf-theory.png", frameAt(3, 3)],
+  ["LongformDoc", "lf-verdict.png", frameAt(3, 4)],
+  ["LongformDoc", "lf-stress-person.png", frameAt(4, 0)],
+  ["LongformDoc", "lf-stress-timeline.png", frameAt(4, 1)],
+  ["LongformDoc", "lf-stress-narration.png", frameAt(4, 2)],
   ["LongformThumb", "lf-thumb.png", 0],
   ["LongformThumb", "lf-thumb-long.png", 0],
   ["LongformThumb", "lf-thumb-one.png", 0],
