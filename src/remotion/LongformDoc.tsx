@@ -24,7 +24,7 @@ import {
 } from "./timing.js";
 import { textEm } from "../lib/text.js";
 import { VisualQuantity } from "./VisualQuantity.js";
-import { scrim } from "./visualTokens.js";
+import { FRAME_V_BOTTOM, FRAME_V_TOP, scrim } from "./visualTokens.js";
 import { ensureFonts, FONT_FAMILY } from "./fonts.js";
 
 /**
@@ -380,11 +380,20 @@ const DataFrame: React.FC<{
     extrapolateRight: "clamp",
     easing: easeOut,
   });
+  // 타임라인 세로선의 '자라나는' 애니메이션. 예전엔 최종 높이(300/420px)를
+  // 미리 추측해서 interpolate 했는데, 그룹을 세로 중앙 정렬로 바꾸면서 본문
+  // 줄 수에 따라 실제 높이가 매번 달라진다. scaleY 는 레이아웃이 아니라 페인트
+  // 단계에서만 동작하므로, flex stretch 로 정해진 실제 높이를 그대로 두고
+  // 자라나는 것처럼 보이게만 하면 된다 — 높이를 몰라도 애니메이션이 맞는다.
+  const railGrow = interpolate(frame, [6, 20], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: easeOut,
+  });
   const isTimeline = kind === "timeline";
   const isQuestion = kind === "question";
   const lc = labelColor(kind, accent);
   const shown = isTimeline ? normalizeDateLabel(label) : label;
-  const textLeft = isTimeline ? 232 : 120;
 
   // 그래픽이 붙은 문장은 그래픽이 화면의 주인공이다. 같은 문장을 100px 로
   // 또 띄우면 '자막의 확대판'이 되어 그래픽을 넣은 의미가 없어진다.
@@ -427,127 +436,121 @@ const DataFrame: React.FC<{
         </div>
       ) : null}
 
-      {/* 타임라인은 날짜를 크게 세우고 세로선으로 흐름을 만든다 */}
-      {isTimeline ? (
-        <>
-          <div
-            style={{
-              position: "absolute",
-              left: 120,
-              top: 96,
-              color: lc,
-              fontFamily: FONT_FAMILY,
-              fontSize: 92,
-              fontWeight: 800,
-              lineHeight: 1.1,
-              opacity: enter,
-              transform: `translateY(${(1 - enter) * 10}px)`,
-              textShadow: "0 3px 16px rgba(0,0,0,0.9)",
-            }}
-          >
-            {shown}
-          </div>
-          <div
-            style={{
-              position: "absolute",
-              left: 128,
-              top: 210,
-              width: 5,
-              // 본문만 있으면 짧게, 보조 문구까지 있으면 길게 — 고정 길이로 두면
-              // 짧은 컷에서 선이 글자보다 한참 아래 빈 배경까지 늘어진다
-              height: interpolate(frame, [6, 20], [0, support ? 420 : 300], {
-                extrapolateLeft: "clamp",
-                extrapolateRight: "clamp",
-                easing: easeOut,
-              }),
-              background: `linear-gradient(180deg, ${lc} 0%, rgba(255,255,255,0.12) 100%)`,
-              borderRadius: 3,
-            }}
-          />
-        </>
-      ) : (
-        <div
-          style={{
-            position: "absolute",
-            left: 120,
-            top: 104,
-            color: lc,
-            fontFamily: FONT_FAMILY,
-            fontSize: 60,
-            fontWeight: 700,
-            letterSpacing: "2px",
-            opacity: enter,
-            transform: `translateY(${(1 - enter) * 10}px)`,
-            textShadow: "0 3px 14px rgba(0,0,0,0.9)",
-          }}
-        >
-          {shown}
-        </div>
-      )}
-
       {/*
-        본문 + 보조 문구는 한 흐름에 쌓는다.
-
-        보조 문구를 고정 위치(top: 600)에 두면 본문이 2줄일 땐 사이가 138px 로
-        벌어지고 3줄일 땐 25px 로 붙어 다섯 줄이 한 덩어리로 읽힌다. 문장 길이는
-        회차마다 다르니 고정값으로는 두 경우를 다 만족시킬 수 없다.
-        흐름으로 쌓으면 간격이 항상 GAP 으로 일정하고, 가장 긴 경우(본문 3줄 +
-        보조 2줄 = y 200~753)에도 자막 안전선(812) 안에 들어온다.
+        라벨(날짜) + 본문 + 보조 문구를 한 그룹으로 묶어 화면 중앙 대역
+        (FRAME_V_TOP~FRAME_V_BOTTOM) 안에서 justifyContent:"center" 로 놓는다.
+        예전엔 라벨 top:96/104, 본문 top:194/210 처럼 고정값을 썼는데, 문장
+        길이가 회차마다 달라서 어떤 컷은 화면 위쪽에, 어떤 컷은 중간 밑에
+        떠 있는 것처럼 보였다 — "위/아래 쏠림" 피드백의 원인. 그룹째로 가운데
+        정렬하면 길이가 달라도 항상 같은 무게중심에서 시작한다. 가로는 그대로
+        왼쪽 정렬(alignItems:"flex-start").
       */}
       <div
         style={{
           position: "absolute",
-          left: textLeft,
+          left: 120,
           right: 120,
-          top: isTimeline ? 210 : 194,
+          top: FRAME_V_TOP,
+          bottom: FRAME_V_BOTTOM,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "flex-start",
         }}
       >
         <div
           style={{
-            color: emphasis === "reveal" ? "#FFD9D2" : TEXT,
+            color: lc,
             fontFamily: FONT_FAMILY,
-            fontSize: isQuestion ? 108 : 100,
-            fontWeight: 800,
-            lineHeight: 1.13,
-            wordBreak: "keep-all",
-            textWrap: "balance",
-            textShadow: "0 4px 20px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.9)",
+            fontSize: isTimeline ? 92 : 60,
+            fontWeight: isTimeline ? 800 : 700,
+            lineHeight: 1.1,
+            letterSpacing: isTimeline ? undefined : "2px",
             opacity: enter,
-            transform: `translateY(${(1 - enter) * 12}px)`,
-            // 안전장치 — 프롬프트 상한(40자)을 크게 넘긴 문장이 와도 안전선을 못 넘게
-            display: "-webkit-box",
-            WebkitBoxOrient: "vertical",
-            WebkitLineClamp: 3,
-            overflow: "hidden",
+            transform: `translateY(${(1 - enter) * 10}px)`,
+            textShadow: isTimeline ? "0 3px 16px rgba(0,0,0,0.9)" : "0 3px 14px rgba(0,0,0,0.9)",
+            marginBottom: isTimeline ? 14 : 30,
           }}
         >
-          {main}
+          {shown}
         </div>
 
-        {support ? (
-          <div
-            style={{
-              marginTop: 40,
-              marginRight: 40,
-              opacity: supportEnter,
-              transform: `translateY(${(1 - supportEnter) * 10}px)`,
-              color: SUB_TEXT,
-              fontFamily: FONT_FAMILY,
-              fontSize: 80,
-              fontWeight: 700,
-              lineHeight: 1.2,
-              wordBreak: "keep-all",
-              textWrap: "balance",
-              textShadow: "0 3px 16px rgba(0,0,0,0.92)",
-              display: "-webkit-box",
-              WebkitBoxOrient: "vertical",
-              WebkitLineClamp: 2,
-              overflow: "hidden",
-            }}
-          >
-            {support}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "stretch",
+            width: "100%",
+          }}
+        >
+          {isTimeline ? (
+            // 세로선 — 예전엔 최종 높이(300/420px)를 미리 추측해서 interpolate 했다.
+            // 그룹을 가운데 정렬로 바꾸면서 본문 줄 수에 따라 실제 높이가 매번
+            // 달라지므로, alignItems:"stretch" 로 옆 텍스트 칼럼과 같은 높이를
+            // 그대로 받고(레이아웃), scaleY 로 자라나는 것처럼만 보이게 한다(페인트).
+            <div style={{ position: "relative", width: 5, marginRight: 99, flexShrink: 0 }}>
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  transform: `scaleY(${railGrow})`,
+                  transformOrigin: "top",
+                  background: `linear-gradient(180deg, ${lc} 0%, rgba(255,255,255,0.12) 100%)`,
+                  borderRadius: 3,
+                }}
+              />
+            </div>
+          ) : null}
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                color: emphasis === "reveal" ? "#FFD9D2" : TEXT,
+                fontFamily: FONT_FAMILY,
+                fontSize: isQuestion ? 108 : 100,
+                fontWeight: 800,
+                lineHeight: 1.13,
+                wordBreak: "keep-all",
+                textWrap: "balance",
+                textShadow: "0 4px 20px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.9)",
+                opacity: enter,
+                transform: `translateY(${(1 - enter) * 12}px)`,
+                // 안전장치 — 프롬프트 상한(40자)을 크게 넘긴 문장이 와도 안전선을 못 넘게
+                display: "-webkit-box",
+                WebkitBoxOrient: "vertical",
+                WebkitLineClamp: 3,
+                overflow: "hidden",
+              }}
+            >
+              {main}
+            </div>
+
+            {support ? (
+              <div
+                style={{
+                  marginTop: 40,
+                  marginRight: 40,
+                  opacity: supportEnter,
+                  transform: `translateY(${(1 - supportEnter) * 10}px)`,
+                  color: SUB_TEXT,
+                  fontFamily: FONT_FAMILY,
+                  fontSize: 80,
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  wordBreak: "keep-all",
+                  textWrap: "balance",
+                  textShadow: "0 3px 16px rgba(0,0,0,0.92)",
+                  display: "-webkit-box",
+                  WebkitBoxOrient: "vertical",
+                  WebkitLineClamp: 2,
+                  overflow: "hidden",
+                }}
+              >
+                {support}
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        </div>
       </div>
 
       {/* 타임라인 진행 점 — 읽는 정보가 아니라 위치 감각만 준다 */}

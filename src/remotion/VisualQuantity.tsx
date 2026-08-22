@@ -1,7 +1,7 @@
 import React from "react";
 import { Easing, interpolate, useCurrentFrame } from "remotion";
 import type { ResolvedVisual } from "../types.js";
-import { V, V_EASE } from "./visualTokens.js";
+import { FRAME_V_BOTTOM, FRAME_V_TOP, V, V_EASE } from "./visualTokens.js";
 
 const FONT = "Pretendard, -apple-system, BlinkMacSystemFont, sans-serif";
 const ease = Easing.bezier(...V_EASE);
@@ -35,14 +35,26 @@ export const VisualQuantity: React.FC<{ visual: ResolvedVisual; accent: string }
   const { mode, claims, title } = visual;
   const vmax = Math.max(...claims.map((c) => c.value), 1);
 
+  // 제목 + 수치를 한 그룹으로 묶어 화면 중앙 대역에 놓는다. DataFrame 과 같은
+  // 이유 — 클레임 개수·자릿수가 회차마다 달라 고정 top 값으로는 위/아래로
+  // 들쭉날쭉해진다. 가로는 그대로 왼쪽 정렬.
   return (
-    <>
+    <div
+      style={{
+        position: "absolute",
+        left: 120,
+        right: 120,
+        top: FRAME_V_TOP,
+        bottom: FRAME_V_BOTTOM,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "flex-start",
+      }}
+    >
       {title ? (
         <div
           style={{
-            position: "absolute",
-            left: 120,
-            top: 104,
             color: accent,
             fontFamily: FONT,
             fontSize: 60,
@@ -50,6 +62,7 @@ export const VisualQuantity: React.FC<{ visual: ResolvedVisual; accent: string }
             letterSpacing: "2px",
             opacity: fade(2, 12),
             textShadow: V.SHADOW,
+            marginBottom: 36,
           }}
         >
           {title}
@@ -59,20 +72,22 @@ export const VisualQuantity: React.FC<{ visual: ResolvedVisual; accent: string }
       {mode === "single" ? (
         <SingleValue claim={claims[0]} accent={accent} fade={fade} />
       ) : (
-        claims.map((c, i) => (
-          <Row
-            key={i}
-            claim={c}
-            index={i}
-            withBar={mode === "pair"}
-            ratio={c.value / vmax}
-            biggest={c.value === vmax}
-            fade={fade}
-            accent={accent}
-          />
-        ))
+        <div style={{ display: "flex", flexDirection: "column", width: "100%" }}>
+          {claims.map((c, i) => (
+            <Row
+              key={i}
+              claim={c}
+              index={i}
+              withBar={mode === "pair"}
+              ratio={c.value / vmax}
+              biggest={c.value === vmax}
+              fade={fade}
+              accent={accent}
+            />
+          ))}
+        </div>
       )}
-    </>
+    </div>
   );
 };
 
@@ -90,12 +105,9 @@ const SingleValue: React.FC<{
     easing: ease,
   });
   return (
-    <>
+    <div>
       <div
         style={{
-          position: "absolute",
-          left: 120,
-          top: 236,
           display: "flex",
           alignItems: "baseline",
           gap: 18,
@@ -114,9 +126,7 @@ const SingleValue: React.FC<{
       </div>
       <div
         style={{
-          position: "absolute",
-          left: 120,
-          top: 596,
+          marginTop: 20,
           width: ruleW,
           height: 8,
           borderRadius: 4,
@@ -125,10 +135,7 @@ const SingleValue: React.FC<{
       />
       <div
         style={{
-          position: "absolute",
-          left: 120,
-          top: 626,
-          right: 216,
+          marginTop: 22,
           color: V.TEXT,
           fontFamily: FONT,
           fontSize: 88,
@@ -141,7 +148,7 @@ const SingleValue: React.FC<{
       >
         {claim.text}
       </div>
-    </>
+    </div>
   );
 };
 
@@ -156,8 +163,6 @@ const Row: React.FC<{
   fade: (a: number, b: number) => number;
 }> = ({ claim, index, withBar, ratio, biggest, fade }) => {
   const frame = useCurrentFrame();
-  const numTop = index === 0 ? 226 : 520;
-  const barTop = index === 0 ? 434 : 728;
   const numColor = claim.confidence === "hedged" ? V.HEDGE : biggest ? V.TEXT : V.TEXT_WARN;
   const barW = interpolate(frame, [12, 32], [0, Math.max(24, 1400 * ratio)], {
     extrapolateLeft: "clamp",
@@ -166,12 +171,9 @@ const Row: React.FC<{
   });
 
   return (
-    <>
+    <div style={{ marginTop: index === 0 ? 0 : 56 }}>
       <div
         style={{
-          position: "absolute",
-          left: 120,
-          top: numTop,
           display: "flex",
           alignItems: "baseline",
           gap: 20,
@@ -194,14 +196,11 @@ const Row: React.FC<{
         </span>
       </div>
       {withBar ? (
-        <>
+        <div style={{ position: "relative", marginTop: 20, width: 1400, height: 30 }}>
           <div
             style={{
               position: "absolute",
-              left: 120,
-              top: barTop,
-              width: 1400,
-              height: 30,
+              inset: 0,
               borderRadius: 15,
               background: V.TRACK,
               opacity: fade(8, 16),
@@ -210,16 +209,16 @@ const Row: React.FC<{
           <div
             style={{
               position: "absolute",
-              left: 120,
-              top: barTop,
+              left: 0,
+              top: 0,
               width: barW,
               height: 30,
               borderRadius: 15,
               background: biggest ? "rgba(244,245,246,0.34)" : V.WARN,
             }}
           />
-        </>
+        </div>
       ) : null}
-    </>
+    </div>
   );
 };
