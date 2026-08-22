@@ -8,7 +8,7 @@
  */
 import type { LongformInputProps, NarratedChapter } from "../src/types.js";
 import { deriveGrade } from "../src/lib/grade.js";
-import { LONGFORM_OPENER_LEAD, longformBreathSeconds } from "../src/remotion/timing.js";
+import { LONGFORM_OPENER_LEAD, longformSegmentFrames } from "../src/remotion/timing.js";
 
 type Seg = NarratedChapter["segments"][0];
 const seg = (
@@ -129,9 +129,7 @@ export function frameAt(chapter: number, segment: number, offset = 14, fps = 30)
     let f = abs + LONGFORM_OPENER_LEAD;
     for (let si = 0; si < chapters[ci].segments.length; si++) {
       const seg = chapters[ci].segments[si];
-      const len =
-        Math.max(1, Math.round(seg.durationInSeconds * fps)) +
-        Math.round(longformBreathSeconds(seg.emphasis, si === chapters[ci].segments.length - 1) * fps);
+      const len = longformSegmentFrames(seg, si === chapters[ci].segments.length - 1, fps);
       if (ci === chapter && si === segment) return f + offset;
       f += len;
     }

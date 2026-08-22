@@ -17,7 +17,11 @@ import type {
   ReelGrade,
   ResolvedVisual,
 } from "../types.js";
-import { LONGFORM_OPENER_LEAD, longformBreathSeconds, longformChapterFrames } from "./timing.js";
+import {
+  LONGFORM_OPENER_LEAD,
+  longformChapterFrames,
+  longformSegmentFrames,
+} from "./timing.js";
 import { textEm } from "../lib/text.js";
 import { VisualQuantity } from "./VisualQuantity.js";
 import { scrim } from "./visualTokens.js";
@@ -135,9 +139,7 @@ export const LongformDoc: React.FC<LongformInputProps> = ({ chapters, bgmSrc, gr
   chapters.forEach((c, ci) => {
     let f = starts[ci] + LONGFORM_OPENER_LEAD;
     c.segments.forEach((s, i) => {
-      const segFrames =
-        Math.max(1, Math.round(s.durationInSeconds * fps)) +
-        Math.round(longformBreathSeconds(s.emphasis, i === c.segments.length - 1) * fps);
+      const segFrames = longformSegmentFrames(s, i === c.segments.length - 1, fps);
       if (s.emphasis === "reveal") {
         dips.push([f - Math.round(fps * 0.3), f + segFrames + Math.round(fps * 0.8)]);
       }
@@ -183,9 +185,7 @@ const ChapterView: React.FC<{
     // 오프너 여백만큼 뒤로 밀어 시작 — 오디오도 같이 밀려 자막과 어긋나지 않는다
     let f = LONGFORM_OPENER_LEAD;
     chapter.segments.forEach((s, i) => {
-      const len =
-        Math.max(1, Math.round(s.durationInSeconds * fps)) +
-        Math.round(longformBreathSeconds(s.emphasis, i === chapter.segments.length - 1) * fps);
+      const len = longformSegmentFrames(s, i === chapter.segments.length - 1, fps);
       segStarts.push(f);
       segLens.push(len);
       f += len;
@@ -533,8 +533,8 @@ const DataFrame: React.FC<{
               transform: `translateY(${(1 - supportEnter) * 10}px)`,
               color: SUB_TEXT,
               fontFamily: FONT_FAMILY,
-              fontSize: 72,
-              fontWeight: 600,
+              fontSize: 80,
+              fontWeight: 700,
               lineHeight: 1.2,
               wordBreak: "keep-all",
               textWrap: "balance",

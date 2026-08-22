@@ -26,7 +26,7 @@ const jobs: Array<[string, string, number]> = [
   ["LongformDoc", "lf-opener.png", frameAt(0, -1, 20)],
   ["LongformDoc", "lf-narration.png", frameAt(0, 0)],
   ["LongformDoc", "lf-question.png", frameAt(1, 1)],
-  ["LongformDoc", "lf-timeline.png", frameAt(2, 0)],
+  ["LongformDoc", "lf-timeline.png", frameAt(2, 0, 60)], // 60 = support 등장 애니메이션이 끝난 뒤
   ["LongformDoc", "lf-timeline2.png", frameAt(2, 1)],
   ["LongformDoc", "lf-opener-frame.png", frameAt(3, -1, 20)],
   ["LongformDoc", "lf-evidence.png", frameAt(3, 0)],

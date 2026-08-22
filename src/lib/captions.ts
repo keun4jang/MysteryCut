@@ -1,7 +1,7 @@
 import {
   LONGFORM_OPENER_LEAD,
   breathFramesAfter,
-  longformBreathSeconds,
+  longformSegmentFrames,
   THUMB_FRAMES,
 } from "../remotion/timing.js";
 import type { NarratedChapter, NarratedSegment } from "../types.js";
@@ -35,13 +35,13 @@ export function longformSrt(chapters: NarratedChapter[], fps = 30, lang: "ko" | 
   for (const chapter of chapters) {
     f += LONGFORM_OPENER_LEAD; // 챕터 오프너 여백 — 컴포지션과 같은 값이어야 싱크가 맞는다
     chapter.segments.forEach((seg, i) => {
+      // 자막은 소리 내어 읽는 부분(오디오)에만 걸어야 한다. 화면 표시 길이는
+      // support 를 읽을 시간만큼 더 길어질 수 있지만(longformSegmentFrames),
+      // 그 늘어난 몫까지 자막을 띄우면 이미 끝난 문장을 계속 띄우는 꼴이 된다.
       const audioFrames = Math.max(1, Math.round(seg.durationInSeconds * fps));
-      const breathFrames = Math.round(
-        longformBreathSeconds(seg.emphasis, i === chapter.segments.length - 1) * fps,
-      );
       const text = (lang === "en" ? (seg.textEn ?? "") : seg.text).trim();
       if (text) cues.push({ start: f / fps, end: (f + audioFrames) / fps, text });
-      f += audioFrames + breathFrames;
+      f += longformSegmentFrames(seg, i === chapter.segments.length - 1, fps);
     });
   }
 

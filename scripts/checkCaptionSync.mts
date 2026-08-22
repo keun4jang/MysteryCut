@@ -7,7 +7,7 @@
  * 있어서, 한 곳만 고치면 자막이 통째로 밀린다. 영상에서는 눈으로 못 잡는다.
  */
 import { longformSrt } from "../src/lib/captions.js";
-import { LONGFORM_OPENER_LEAD, longformBreathSeconds } from "../src/remotion/timing.js";
+import { LONGFORM_OPENER_LEAD, longformSegmentFrames } from "../src/remotion/timing.js";
 import { chapters } from "./longformFixture.js";
 
 const fps = 30;
@@ -18,8 +18,7 @@ for (const c of chapters) {
   let f = abs + LONGFORM_OPENER_LEAD;
   c.segments.forEach((s, i) => {
     expected.push(f);
-    f += Math.max(1, Math.round(s.durationInSeconds * fps))
-       + Math.round(longformBreathSeconds(s.emphasis, i === c.segments.length - 1) * fps);
+    f += longformSegmentFrames(s, i === c.segments.length - 1, fps);
   });
   abs = f;
 }
