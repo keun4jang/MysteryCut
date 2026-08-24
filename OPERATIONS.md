@@ -30,7 +30,7 @@
 | 파일 | 이름 | 일정 | 하는 일 |
 | --- | --- | --- | --- |
 | `post-reel.yml` | 미스터리 릴스 자동 게시 | 매일 1회 (UTC 10시 = KST 19시) + 0~120분 랜덤 지연 | 세로 쇼츠. 대본 생성 → 렌더 → 인스타·유튜브 게시 |
-| `post-longform.yml` | 미스터리 롱폼 자동 게시 | 주 2회 (월·목 UTC 09시 = KST 18시) | **YPP 핵심.** 가로 6~8분 사건 분석 다큐 → 유튜브 |
+| `post-longform.yml` | 미스터리 롱폼 자동 게시 | 주 2회 (월·목 UTC 09시 = KST 18시) | **YPP 핵심.** 가로 사건 분석 다큐(약 6~14분, 원문 분량 비례) → 유튜브 |
 | `refresh-token.yml` | 인스타 토큰 자동 갱신 | 매주 월 03:00 UTC | 60일 만료 전에 재교환하고 시크릿 자동 갱신 |
 | `backfill-captions.yml` | 기존 영상 자동자막 끄기 | 매일 20:40 UTC | 과거 영상 4개씩 처리. **다 끝나면 스스로 비활성화됨** |
 | `health-check.yml` | 🩺 자동화 건강 점검 | 매주 일 22:00 UTC | GH_PAT 만료·게시 중단·유튜브 리프레시 토큰 감시 + 하트비트 커밋. 문제 시 실패로 메일 알림 |
@@ -233,7 +233,7 @@ OAuth Playground 는 리디렉션 URI 등록이 필요해서 **웹 애플리케�
 | | 쇼츠 (`post-reel.yml`) | 롱폼 (`post-longform.yml`) |
 | --- | --- | --- |
 | 빈도 | 하루 1개 (19:00 KST 창) | 주 2개 (월·목 18:00 KST) |
-| 규격 | 세로 1080x1920, 100~110초 | 가로 1920x1080, 6~8분 |
+| 규격 | 세로 1080x1920, 100~110초 | 가로 1920x1080, 약 6~14분(원문 분량 비례) |
 | 역할 | 소재 테스트 · 신규 시청자 발견 | 시청 시간 확보 (YPP 경로) |
 | 게시처 | 인스타 + 유튜브 | 유튜브만 |
 
@@ -291,7 +291,7 @@ OAuth Playground 는 리디렉션 URI 등록이 필요해서 **웹 애플리케�
 | 마무리 멘트 종류 | 같은 파일 | `SIGNOFF_STYLES` |
 | 목소리·말 속도 | 같은 파일 | `VOICES` 의 `rate` / `pitch` |
 | 롱폼 게시 요일·시각 | `.github/workflows/post-longform.yml` | 맨 위 `cron:` 두 줄 |
-| 롱폼 길이 | `src/assistants/longformProducer.ts` | `MIN_CHARS` / `IDEAL_CHARS` / `MAX_CHARS` |
+| 롱폼 길이(하한·상한) | `src/assistants/longformProducer.ts` | `MIN_CHARS` / `MAX_CHARS` (목표치는 `idealCharsFor()` 가 원문 분량 비례로 계산) |
 | 롱폼 나레이션 속도 | `src/lib/variety.ts` | `LONGFORM_VOICE` 의 `rate` |
 | 롱폼 글자 크기·레이아웃 | `src/remotion/LongformDoc.tsx` | `NarrationSubtitle` / `DataFrame` / `ChapterOpener` |
 | 롱폼 썸네일 디자인 | 같은 파일 | `LongformThumb` / `THUMB_YELLOW` / `THUMB_BOX_MAX` |

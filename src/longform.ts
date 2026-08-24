@@ -38,7 +38,7 @@ async function main() {
   console.log(`   🧭 ${pack.topicAngle.split(" — ")[0]} | ${pack.regionAngle.split(" — ")[0]}`);
 
   // ① 사건 선정 + 원문 수집 — 롱폼은 정보량이 많아야 하므로 원문이 필수에 가깝다.
-  //    원문을 못 찾은 사건으로 8분을 채우면 반드시 지어내게 된다.
+  //    원문을 못 찾은 사건으로 러닝타임을 채우면 반드시 지어내게 된다.
   console.log("① 사건 선정 + 원문 수집...");
   let probe = await proposeCase(args.seed, avoid, {
     topicAngle: pack.topicAngle,
@@ -52,7 +52,7 @@ async function main() {
       console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);
       sources = await gatherSources(probe.searchTerms);
       const volume = sources.reduce((n, d) => n + d.extract.length, 0);
-      // 원문이 짧으면 8분을 채울 정보가 없다 — 다른 사건으로 간다
+      // 원문이 짧으면 최소 러닝타임을 채울 정보가 없다 — 다른 사건으로 간다
       if (sources.length && volume >= 3000) {
         console.log(`   📚 원문 ${sources.length}건 / ${volume}자: ${sources.map((d) => d.title).join(", ")}`);
         break;
@@ -71,7 +71,7 @@ async function main() {
   if (!sources.length) {
     throw new Error(
       "롱폼에 쓸 만한 원문을 5회 시도에도 찾지 못했습니다. " +
-        "확인되지 않은 사실로 8분을 채우는 것은 채널 신뢰와 수익창출 심사 양쪽에 치명적이라 중단합니다.",
+        "확인되지 않은 사실로 러닝타임을 채우는 것은 채널 신뢰와 수익창출 심사 양쪽에 치명적이라 중단합니다.",
     );
   }
 
@@ -113,8 +113,10 @@ async function main() {
   console.log(
     `   ⏱️ 대본 ${totalChars(script)}자 / ${countSegments(script)}컷 → 예상 러닝타임 ${Math.floor(secs / 60)}분 ${Math.round(secs % 60)}초`,
   );
-  if (secs < 300) console.warn(`   ⚠️ 5분 미만(${secs.toFixed(0)}초) — 목표(6~8분)보다 짧습니다.`);
-  if (secs > 660) console.warn(`   ⚠️ 11분 초과(${secs.toFixed(0)}초) — 분량 기준 확인 필요.`);
+  // 분량 목표가 회차마다(원문 두께에 따라) 달라지므로 고정 분·초가 아니라
+  // longformProducer 의 MIN/MAX 글자 기준이 내는 러닝타임 범위 바깥일 때만 경고한다.
+  if (secs < 330) console.warn(`   ⚠️ 5분 30초 미만(${secs.toFixed(0)}초) — 최소 기준보다 짧습니다.`);
+  if (secs > 1080) console.warn(`   ⚠️ 18분 초과(${secs.toFixed(0)}초) — 분량 기준 확인 필요.`);
 
   // ④ 챕터 배경
   console.log("④ 챕터 배경 자료화면(Pexels)...");
@@ -156,7 +158,7 @@ async function main() {
     return;
   }
 
-  // ⑥ 유튜브 업로드 (인스타 제외 — 가로 8분은 릴스 포맷이 아니다)
+  // ⑥ 유튜브 업로드 (인스타 제외 — 가로 장편은 릴스 포맷이 아니다)
   console.log("⑥ 유튜브 업로드...");
   const citation = sourcesCitation(sources);
   const srt = longformSrt(chapters, 30);

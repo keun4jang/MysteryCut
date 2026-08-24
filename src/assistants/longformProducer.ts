@@ -22,13 +22,30 @@ import type { CaseProbe } from "./producer.js";
  * 러닝타임 기준.
  *
  * 실측(2026-08-19 첫 드라이런): 2,295자 / 69컷 → 324초. 즉 호흡까지 포함해
- * **초당 7.08자**다. 처음에 7.7자/초로 잡았더니 5분 24초가 나와 목표(6~8분)에
- * 미달했다. 실측값으로 다시 계산한다:
- *   6분(360초) ≈ 2,550자 / 7분(420초) ≈ 2,975자 / 8분(480초) ≈ 3,400자
+ * **초당 7.08자**다(나레이션 속도는 고정 — 이 값을 건드려서 늘리지 않는다).
+ *
+ * 러닝타임은 고정 목표가 아니라 **원문이 뒷받침하는 만큼**만 늘린다. 비용은
+ * GitHub Actions(공개 저장소라 무료·무제한) · Gemini/edge-tts/Pexels(전부
+ * 무료 등급) 어느 쪽도 늘어난 분량 자체에 값을 매기지 않으므로 진짜 상한은
+ * '더 말해도 지어내지 않을 수 있는가'뿐이다. 그래서 목표 글자수를 그 회차의
+ * 원문 분량(sourceVolume)에 비례해 정하고, MIN~MAX 사이로만 자른다.
+ * 얕은 원문을 억지로 채우면 반복(패딩)이나 날조로 이어지므로 floor 는 낮게
+ * 두고, 두꺼운 원문(연쇄사건·장기 미제 등)만 ceiling 까지 올라가게 한다.
+ *   MIN  2,600자 ≈ 6~7분 (얕은 원문의 하한 — 예전 기본값과 동일)
+ *   MAX  6,000자 ≈ 14분 (CI 180분 타임아웃은 이 두 배를 줘도 여유롭다 — 진짜
+ *                         병목은 Gemini maxOutputTokens=65536 다. 16k 로는
+ *                         3,000자 대본도 중간에 잘렸던 전례가 있어(위 참고),
+ *                         컷 수가 많아지는 만큼 JSON 출력도 커진다. 실측으로
+ *                         안전 여유를 확인하기 전까지는 이 값을 더 올리지 않는다)
  */
 const MIN_CHARS = 2600;
-const IDEAL_CHARS = 3000;
-const MAX_CHARS = 3400;
+const MAX_CHARS = 6000;
+/** 원문 1자당 목표 대본 글자수. 위키 서술을 다 옮기지 않고도 다큐로 재구성하니 1보다 작게 잡는다 */
+const CHARS_PER_SOURCE_CHAR = 0.8;
+
+function idealCharsFor(sourceVolume: number): number {
+  return Math.min(MAX_CHARS, Math.max(MIN_CHARS, Math.round(sourceVolume * CHARS_PER_SOURCE_CHAR)));
+}
 
 export interface LongformOptions {
   /** 1단계에서 확정된 사건 */
@@ -40,8 +57,28 @@ export interface LongformOptions {
 }
 
 export async function writeLongform(opts: LongformOptions): Promise<LongformScript> {
+  const sourceVolume = opts.sources.reduce((n, d) => n + d.extract.length, 0);
+  const idealChars = idealCharsFor(sourceVolume);
+  const idealMinutes = Math.round((idealChars / 7.08 / 60) * 10) / 10;
+  // 챕터 5~12개, 컷 34자 평균으로 역산 — 챕터당 14~20컷 사이가 되도록 챕터 수를 고른다.
+  const targetCuts = Math.max(60, Math.round(idealChars / 34));
+  const chapterCount = Math.min(12, Math.max(5, Math.round(targetCuts / 17)));
+  const cutsPerChapter = Math.round(targetCuts / chapterCount);
+
   const system = [
-    `너는 ${config.channel.language} 시사·사건 다큐멘터리의 작가다. 방송 다큐(그것이 알고 싶다, PD수첩, BBC Panorama)의 구성법으로 6~8분짜리 '사건 분석' 대본을 쓴다.`,
+    `너는 ${config.channel.language} 시사·사건 다큐멘터리의 작가다. 방송 다큐(그것이 알고 싶다, PD수첩, BBC Panorama)의 구성법으로 '사건 분석' 대본을 쓴다.`,
+    `이번 회차 목표는 원문 분량(${sourceVolume}자)에 맞춘 ${idealChars}자(약 ${idealMinutes}분)다 — 회차마다 원문이 뒷받침하는 만큼만 늘어나거나 줄어든다.`,
+    "",
+    "[★★분량을 늘리는 방법 — 절대 속도나 반복으로 늘리지 마라]",
+    "이 채널의 나레이션 속도는 고정이다. 영상을 길게 만드는 유일하게 옳은 방법은",
+    "**원문에 있는 새로운 사실을 더 쓰는 것**이다 — 추가 증거, 추가 인물의 진술,",
+    "추가 시간대, 추가 반박, 다른 가설. 이미 말한 내용을 다른 표현으로 되풀이해",
+    "글자수만 채우는 것은 실패다(재생성 대상이다). 원문에 그만한 사실이 없으면",
+    "억지로 늘리지 말고 목표보다 짧게 끝내라 — 지어내는 것보다 짧은 게 낫다.",
+    "★그리고 컷이 많아졌다고 뒤로 갈수록 설명문처럼 늘어지면 안 된다. **컷 하나하나가",
+    "쇼츠와 똑같이 그 자체로 훅이어야 한다** — 의문을 던지거나, 방금 말한 것을 뒤집거나,",
+    "다음 문장을 보고 싶게 만드는 구체적 사실 하나. '배경 설명을 위한 배경 설명'이나",
+    "'채우기용 문장'은 컷 수가 아무리 남아도 쓰지 마라.",
     "출력은 LongformScript JSON 하나다.",
     "",
     "[★이번 회차 사건 — 바꾸지 마라]",
@@ -96,7 +133,8 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "D) 전설 검증형 — 전해지는 이야기와 기록이 어긋날 때 (괴담·민담)",
     "   전승 → 변형된 이야기 → 확인된 기록 → 가능한 설명 → 남은 공백",
     "",
-    "- 챕터 수는 **5~7개**. 구조에 맞게 정하고 억지로 8개를 채우지 마라.",
+    `- 챕터 수는 **약 ${chapterCount}개**(회차 목표 분량에 맞춘 값. 원문에 그만한 사건 전개가`,
+    "  없으면 억지로 채우지 말고 줄여도 된다). 구조에 맞게 정하되 개수를 억지로 맞추지 마라.",
     "- 첫 챕터는 사건의 가장 큰 모순을 먼저 던진다(콜드 오픈). 전부 내레이션 화면.",
     "- 마지막 챕터는 번호로 답하는 선택형 질문으로 닫는다. 전부 내레이션 화면.",
     "   ★'구독·팔로우·채널' 금지. '좋아요'와 '댓글'만 쓴다.",
@@ -109,7 +147,7 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "",
     "[★visual — 사실을 그래픽으로 보여주는 화면]",
     "frame 만 붙이면 그 화면은 '지금 말하는 문장을 100px 로 확대한 것'일 뿐이다.",
-    "새 시각 정보가 아니라 자막의 확대판이라, 8분 내내 그것만 반복되면",
+    "새 시각 정보가 아니라 자막의 확대판이라, 영상 내내 그것만 반복되면",
     "유튜브가 수익창출 부적합으로 드는 '이미지 슬라이드쇼'와 다를 게 없다.",
     "**수치가 나오는 문장에는 frame 에 visual 을 함께 붙여라.**",
     "",
@@ -138,9 +176,11 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "정보만 쏟아진다. 첫 챕터와 마지막 챕터는 frame 이 아예 없어도 된다.",
     "",
     "[★분량]",
-    `- 모든 segments 의 text 글자수 합계가 공백 포함 ${MIN_CHARS}~${MAX_CHARS}자(목표 ${IDEAL_CHARS}자).`,
-    "- ★총합을 어림하지 말고 이렇게 맞춰라: **챕터 6개 × 문장 14~17개 × 한 문장 28~34자**",
-    `  (8 × 11 × 34 ≈ ${IDEAL_CHARS}자).`,
+    `- 모든 segments 의 text 글자수 합계가 공백 포함 ${MIN_CHARS}~${MAX_CHARS}자(이번 회차 목표 ${idealChars}자).`,
+    `- ★총합을 어림하지 말고 이렇게 맞춰라: **챕터 ${chapterCount}개 × 문장 ${cutsPerChapter}개 안팎 × 한 문장 28~34자**`,
+    `  (${chapterCount} × ${cutsPerChapter} × 34 ≈ ${chapterCount * cutsPerChapter * 34}자).`,
+    "  ★단, 이 계산은 배분 계획일 뿐이다 — 챕터마다 원문이 뒷받침하는 사실 수가 다르면",
+    "  챕터별 문장 수를 계산값과 다르게 가져가도 된다. 억지로 균등 배분하지 마라.",
     "- ★한 문장은 36자를 넘기지 마라. 화면에 100px 로 띄우면 그게 두 줄 상한이다.",
     "- ★frame 이 붙는 문장은 30자 이내로 더 짧게. 자료 화면은 한눈에 읽혀야 한다.",
     "  넘칠 것 같으면 두 문장으로 쪼개고, 뒷 문장에 frame 을 붙여라.",
@@ -244,7 +284,7 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     const script = (await generateStructured({
       schema: LongformScriptSchema,
       system,
-      user: `위 사건으로 6~8분짜리 사건 분석 다큐 대본을 만들어줘.${feedback}`,
+      user: `위 사건으로 목표 ${idealChars}자(약 ${idealMinutes}분)짜리 사건 분석 다큐 대본을 만들어줘.${feedback}`,
       temperature: 0.9,
       maxRetries: 1,
     })) as LongformScript;
@@ -253,7 +293,7 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     const chars = totalChars(script);
     const flagged = findSensitiveTerms(collectTexts(script));
     const thumbIssues = thumbTitleIssues(script.thumbTitle);
-    const gap = Math.abs(chars - IDEAL_CHARS);
+    const gap = Math.abs(chars - idealChars);
     if (gap < bestGap) {
       best = script;
       bestGap = gap;
@@ -282,13 +322,13 @@ thumbTitle 규칙을 다시 읽고 고쳐라. 대본 내용은 그대로 둬도 
       console.warn(`   ⚠️ 분량 ${dir}(${chars}자) — 재생성`);
       const cuts = countSegments(script);
       const perCut = cuts ? Math.round(chars / cuts) : 0;
-      const needCuts = Math.max(72, Math.ceil(IDEAL_CHARS / 41));
-      feedback += `\n★직전 대본이 ${cuts}컷 / ${chars}자(컷당 평균 ${perCut}자)로 ${dir}했다. 목표는 ${IDEAL_CHARS}자다.
+      const needCuts = Math.max(60, Math.ceil(idealChars / 41));
+      feedback += `\n★직전 대본이 ${cuts}컷 / ${chars}자(컷당 평균 ${perCut}자)로 ${dir}했다. 목표는 ${idealChars}자다.
 다시 쓸 때는 총합을 어림하지 말고 **컷 ${needCuts}개, 한 컷 38~44자**로 맞춰라(${needCuts} × 41 ≈ ${needCuts * 41}자).
 다 쓴 뒤 컷을 하나씩 세어 범위 밖인 것만 고쳐라. ${
         chars > MAX_CHARS
           ? "지금은 곁가지가 많다 — 핵심 줄기만 남겨라."
-          : "지금은 문장이 토막나 있다 — 각 컷을 주어와 근거가 있는 온전한 문장으로 채우고, 증거 검토와 가설 비교를 한 겹 더 파라. 같은 말 반복으로 늘리면 실패다."
+          : "지금은 문장이 토막나 있다 — 각 컷을 주어와 근거가 있는 온전한 문장으로 채우고, 증거 검토와 가설 비교를 한 겹 더 파라. ★원문에 정말 그만한 사실이 없으면 억지로 채우지 마라 — 같은 말 반복이나 지어낸 디테일로 늘리면 실패다."
       }`;
     }
   }
