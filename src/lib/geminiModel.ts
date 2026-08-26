@@ -31,5 +31,11 @@ export async function persistGeminiModel(model: string): Promise<void> {
   if (cached === model) return; // 이미 이 모델로 기록돼 있으면 커밋 낭비 안 함
   cached = model;
   await fs.mkdir(path.dirname(STATE_FILE), { recursive: true });
-  await fs.writeFile(STATE_FILE, `${model}\n`);
+  // 제자리 writeFile 은 쓰는 도중 죽으면 잘린 파일을 남긴다. 이 파일은 쇼츠·롱폼
+  // 워크플로가 history.json 과 함께 커밋하는데(위 주석 10행), commitPostHistory.mts
+  // 의 합성 저장은 STATE_FILES 를 '있으면 그대로 스냅샷 → 다시 씀'만 하고 내용
+  // 검증은 안 해서 잘린 파일도 그대로 커밋될 수 있다 — tmp+rename 으로 원자화.
+  const tmp = `${STATE_FILE}.tmp-${process.pid}`;
+  await fs.writeFile(tmp, `${model}\n`);
+  await fs.rename(tmp, STATE_FILE);
 }

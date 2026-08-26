@@ -2,6 +2,51 @@ import fs from "node:fs/promises";
 import { config } from "../config.js";
 import type { StoryIdea, ReelMetadata, LongformScript } from "../types.js";
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * 일시 장애에 강한 fetch — 네트워크 오류(fetch failed 류)와 429/5xx 만 재시도한다.
+ *
+ * 렌더에 40분을 쓴 뒤 업로드가 502 한 번에 죽으면 그날 게시가 통째로 날아간다
+ * (재실행하면 대본부터 전부 다시 만든다). 유튜브 업로드는 resumable 프로토콜이라
+ * **같은 세션 URL 로 다시 PUT 해도 중복 영상이 생기지 않는다** — 같은 세션은
+ * 같은 영상 하나로 귀결되므로 재시도가 안전하다. 세션 생성(init)과 토큰 발급도
+ * 영상이 만들어지기 전 단계라 재시도로 중복이 생길 수 없다.
+ * 4xx(429 제외)는 재시도해도 같은 답이라 즉시 반환해 호출부가 처리하게 둔다.
+ */
+async function fetchRetry(
+  url: string,
+  init: RequestInit,
+  label: string,
+  attempts = 4,
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url, init);
+      if (res.status === 429 || res.status >= 500) {
+        if (i < attempts - 1) {
+          const wait = 3000 * 3 ** i;
+          console.warn(`   ⚠️ ${label} HTTP ${res.status} — ${wait / 1000}s 후 재시도 (${i + 1}/${attempts})`);
+          await sleep(wait);
+          continue;
+        }
+      }
+      return res;
+    } catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) {
+        const wait = 3000 * 3 ** i;
+        console.warn(
+          `   ⚠️ ${label} 네트워크 오류 — ${wait / 1000}s 후 재시도 (${i + 1}/${attempts}): ${e instanceof Error ? e.message : e}`,
+        );
+        await sleep(wait);
+      }
+    }
+  }
+  throw lastErr ?? new Error(`${label}: ${attempts}회 시도 모두 실패`);
+}
+
 /**
  * YouTube 업로드 어시스트 (YouTube Data API v3, 무료).
  * 세로 1080x1920 · 60초 안팎이라 자동으로 Shorts 로 분류됩니다.
@@ -37,7 +82,7 @@ export async function publishYouTube(
   };
 
   // 1) resumable 업로드 세션 시작
-  const initRes = await fetch(
+  const initRes = await fetchRetry(
     "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
     {
       method: "POST",
@@ -49,6 +94,7 @@ export async function publishYouTube(
       },
       body: JSON.stringify({ snippet, status }),
     },
+    "업로드 세션 생성",
   );
   if (!initRes.ok) {
     throw new Error(`YouTube 업로드 세션 생성 실패: ${await initRes.text()}`);
@@ -57,11 +103,15 @@ export async function publishYouTube(
   if (!uploadUrl) throw new Error("YouTube 업로드 URL(Location 헤더)을 못 받았습니다.");
 
   // 2) 영상 바이트 업로드
-  const upRes = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": "video/mp4", "Content-Length": String(bytes.byteLength) },
-    body: new Uint8Array(bytes),
-  });
+  const upRes = await fetchRetry(
+    uploadUrl,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "video/mp4", "Content-Length": String(bytes.byteLength) },
+      body: new Uint8Array(bytes),
+    },
+    "영상 바이트 업로드",
+  );
   const json = (await upRes.json()) as { id?: string; error?: unknown };
   if (!upRes.ok || !json.id) {
     throw new Error(`YouTube 업로드 실패: ${JSON.stringify(json).slice(0, 400)}`);
@@ -115,7 +165,7 @@ export async function publishLongform(
     selfDeclaredMadeForKids: false,
   };
 
-  const initRes = await fetch(
+  const initRes = await fetchRetry(
     "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
     {
       method: "POST",
@@ -127,16 +177,21 @@ export async function publishLongform(
       },
       body: JSON.stringify({ snippet, status }),
     },
+    "업로드 세션 생성",
   );
   if (!initRes.ok) throw new Error(`YouTube 롱폼 업로드 세션 생성 실패: ${await initRes.text()}`);
   const uploadUrl = initRes.headers.get("location");
   if (!uploadUrl) throw new Error("YouTube 업로드 URL(Location 헤더)을 못 받았습니다.");
 
-  const upRes = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": "video/mp4", "Content-Length": String(bytes.byteLength) },
-    body: new Uint8Array(bytes),
-  });
+  const upRes = await fetchRetry(
+    uploadUrl,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "video/mp4", "Content-Length": String(bytes.byteLength) },
+      body: new Uint8Array(bytes),
+    },
+    "영상 바이트 업로드",
+  );
   const json = (await upRes.json()) as { id?: string };
   if (!upRes.ok || !json.id) {
     throw new Error(`YouTube 롱폼 업로드 실패: ${JSON.stringify(json).slice(0, 400)}`);
@@ -271,12 +326,26 @@ async function getAccessToken(): Promise<string> {
     refresh_token: config.youtube.refreshToken,
     grant_type: "refresh_token",
   });
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params,
-  });
-  const json = (await res.json()) as { access_token?: string; error?: string; error_description?: string };
+  const res = await fetchRetry(
+    "https://oauth2.googleapis.com/token",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params,
+    },
+    "액세스 토큰 발급",
+  );
+  // fetchRetry 는 429/5xx 를 재시도하지만, 그 재시도가 다 소진된 뒤(또는 4xx)
+  // 응답 바디가 JSON 이 아닐 수 있다(예: 프록시의 502 HTML 페이지) — res.json()
+  // 을 바로 부르면 SyntaxError 로 죽어 아래 invalid_grant 진단 로직에 닿지도
+  // 못한다. 텍스트로 먼저 받아 파싱을 시도한다.
+  const bodyText = await res.text();
+  let json: { access_token?: string; error?: string; error_description?: string };
+  try {
+    json = JSON.parse(bodyText) as typeof json;
+  } catch {
+    throw new Error(`YouTube 액세스 토큰 발급 실패: HTTP ${res.status} (JSON 아님): ${bodyText.slice(0, 300)}`);
+  }
   if (!res.ok || !json.access_token) {
     // refresh_token 은 access_token 과 달리 자동 재발급이 불가능하다(사람이
     // OAuth 동의를 다시 거쳐야 함). invalid_grant 는 원인이 여러 갈래라

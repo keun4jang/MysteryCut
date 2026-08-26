@@ -81,6 +81,17 @@ async function main() {
     if (tries === 3) break;
     probe = await proposeCase(args.seed, avoid, planOpts);
   }
+  // ★루프가 '마지막 시도(tries===3)도 중복'으로 끝난 경우를 반드시 걸러야 한다.
+  // 예전엔 sources.length 만 봐서, 중복이라 gatherSources 를 아예 안 부른 경우와
+  // '중복은 아니지만 원문을 못 찾은' 경우를 구분 못 했다 — 전자를 통과시키면
+  // 안전 모드 경고만 찍고 이미 게시한 사건을 다시 대본화·게시한다(롱폼은
+  // longform.ts 가 sources 없으면 throw 해서 우연히 막혀 있었는데 쇼츠만 뚫려
+  // 있었다, 감사에서 확인). 중복 게시보다 그날 게시 실패(알림)가 낫다.
+  if (isDuplicate(history, probe.caseKey)) {
+    throw new Error(
+      `사건 선정 4회 시도 모두 중복 소재로 귀결(마지막 후보: ${probe.caseKey}) — 중복 게시 방지를 위해 중단합니다.`,
+    );
+  }
   if (!sources.length) {
     console.warn("   ⚠️ 원문 없이 진행 — 안전 모드(구체적 수치·인용 자제)로 대본을 만듭니다.");
   }

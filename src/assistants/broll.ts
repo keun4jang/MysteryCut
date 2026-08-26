@@ -63,7 +63,12 @@ async function downloadOne(
     const url =
       `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}` +
       `&orientation=${orientation}&per_page=1&size=large`;
-    const res = await fetch(url, { headers: { Authorization: config.pexels.apiKey } });
+    // 타임아웃 없으면 Pexels 가 매달릴 때 장면 수만큼(10회+) 5분씩 샌다.
+    // 실패는 그라디언트 폴백이 받으므로 빨리 포기하는 쪽이 낫다.
+    const res = await fetch(url, {
+      headers: { Authorization: config.pexels.apiKey },
+      signal: AbortSignal.timeout(20_000),
+    });
     if (!res.ok) return { ok: false };
     const json = (await res.json()) as {
       photos?: Array<{
@@ -76,7 +81,7 @@ async function downloadOne(
     const imgUrl = src?.large2x ?? src?.large ?? src?.portrait;
     if (!imgUrl) return { ok: false };
 
-    const img = await fetch(imgUrl);
+    const img = await fetch(imgUrl, { signal: AbortSignal.timeout(45_000) });
     if (!img.ok) return { ok: false };
     await fs.writeFile(absPath, Buffer.from(await img.arrayBuffer()));
     return { ok: true, avgColor: photo?.avg_color };

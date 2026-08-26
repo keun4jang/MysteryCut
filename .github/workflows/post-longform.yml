@@ -107,16 +107,21 @@ jobs:
             npm run longform -- --seed="${{ github.event.inputs.seed }}"
           fi
 
+      # ★쇼츠 워크플로와 같은 브랜치에 푸시가 겹칠 수 있다 — 레이스 없는
+      # 합성 저장 스크립트를 쓴다 (사고 경위는 post-reel.yml 의 같은 스텝 주석 참고)
+      # always(): 게시 스텝이 실패해도 그 전까지 로컬에 쌓인 이력·모델 상태
+      # 파일(geminiModel.txt 등)은 커밋해야 한다 — 안 그러면 다음 실행이 매번
+      # 같은 시행착오(폐기된 모델 재탐색 등)를 반복한다(post-reel.yml 과
+      # 정책을 맞춤, 감사에서 지적).
       - name: Save post history
-        if: ${{ github.event.inputs.dry_run != 'true' }}
-        run: |
-          git config user.name "mystery-cut-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add data/history.json thumbnails/ data/geminiModel.txt 2>/dev/null || true
-          git diff --cached --quiet || git commit -m "chore: 롱폼 게시 이력 업데이트 [skip ci]"
-          git push || true
+        if: ${{ always() && github.event.inputs.dry_run != 'true' }}
+        run: npx tsx scripts/commitPostHistory.mts "${{ github.ref_name }}" "chore: 롱폼 게시 이력 업데이트 [skip ci]"
 
+      # 실패 실행(디버깅에 out/ 이 가장 필요한 순간)은 기본적으로 업로드되지
+      # 않고, 매번 성공하는 정상 실행만 불필요하게 큰 산출물을 올리던 문제를
+      # post-reel.yml 과 같은 정책으로 맞춘다(감사에서 지적).
       - name: Upload artifacts
+        if: ${{ failure() || github.event.inputs.dry_run == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: longform-output

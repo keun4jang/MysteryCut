@@ -258,16 +258,23 @@ async function synthesizeEdge(
   absPath: string,
   ov?: VoiceOverride,
 ): Promise<void> {
-  await execFileAsync("edge-tts", [
-    "--voice",
-    ov?.voice ?? config.tts.voice,
-    `--rate=${ov?.rate ?? config.tts.rate}`,
-    `--pitch=${ov?.pitch ?? config.tts.pitch}`,
-    "--text",
-    text,
-    "--write-media",
-    absPath,
-  ]);
+  await execFileAsync(
+    "edge-tts",
+    [
+      "--voice",
+      ov?.voice ?? config.tts.voice,
+      `--rate=${ov?.rate ?? config.tts.rate}`,
+      `--pitch=${ov?.pitch ?? config.tts.pitch}`,
+      "--text",
+      text,
+      "--write-media",
+      absPath,
+    ],
+    // 문장 하나(≤40자)는 정상일 때 몇 초면 끝난다. 타임아웃이 없으면 서버가
+    // 응답을 안 주는 채로 매달릴 때 잡 전체(180분)를 소모한다 — 90초면 죽이고
+    // 재시도 루프(synthesizeEdgeResilient)가 받는 편이 낫다.
+    { timeout: 90_000 },
+  );
 }
 
 /**
@@ -364,6 +371,7 @@ async function fetchGttsChunk(text: string, dst: string): Promise<void> {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
     },
+    signal: AbortSignal.timeout(30_000), // 매달림 방지 — 짧은 문장 TTS 가 30초를 넘길 이유가 없다
   });
   if (!res.ok) throw new Error(`대체 TTS 요청 실패: HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
@@ -382,9 +390,21 @@ async function concatMp3(files: string[], dst: string): Promise<void> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * edge-tts 설치 여부만 확인한다.
+ *
+ * ★예전엔 `--list-voices` 로 확인했는데, 이건 설치 확인이 아니라 실제 네트워크
+ * 호출이다(edge_tts/voices.py 가 MS 음성 목록 엔드포인트에 GET, 재시도·타임아웃
+ * 없음). 이 preflight 는 narrate()/narrateLongform() 맨 앞, 아래에 애써 만든
+ * synthesizeEdgeResilient(재시도 3회 + 구글번역 TTS 폴백)가 한 번도 실행되기 전에
+ * 돈다 — MS 엔드포인트가 잠깐만 삐끗해도 전체 리질리언스 체계를 건너뛰고
+ * 그날 TTS/게시가 통째로 죽는다(감사에서 확인된 high 등급 결함). `--version`
+ * 은 로컬 패키지 메타데이터만 읽어 네트워크를 타지 않는다 — 설치 여부 확인
+ * 목적에는 그걸로 충분하다.
+ */
 async function ensureEdgeTts(): Promise<void> {
   try {
-    await execFileAsync("edge-tts", ["--list-voices"]);
+    await execFileAsync("edge-tts", ["--version"], { timeout: 15_000 });
   } catch {
     throw new Error(
       "edge-tts 가 설치되어 있지 않습니다. `pipx install edge-tts` (또는 `pip install edge-tts`) 후 다시 실행하세요.",

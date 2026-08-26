@@ -135,8 +135,13 @@ async function api(
   params: Record<string, string>,
 ): Promise<unknown> {
   const qs = new URLSearchParams({ format: "json", origin: "*", ...params });
+  // 타임아웃을 안 걸면 Node fetch 기본 대기가 300초라, 검색어 하나가 매달릴
+  // 때마다 5분씩 샌다(프로젝트 3 × 언어 2 × 검색어 4 = 최악 24회). 위키미디어
+  // API 는 정상일 때 1~2초면 답하므로 15초면 충분히 관대하다. 실패는 호출부의
+  // 검색어별 try/catch 가 받아서 다음 후보로 넘어간다.
   const res = await fetch(`https://${lang}.${PROJECT_DOMAIN[project]}/w/api.php?${qs}`, {
     headers: { "User-Agent": UA },
+    signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) throw new Error(`${project} ${lang} HTTP ${res.status}`);
   return res.json();

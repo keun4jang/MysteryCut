@@ -31,21 +31,73 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function statusOf(err: unknown): number | undefined {
   return (err as { status?: number; code?: number })?.status ?? (err as { code?: number })?.code;
 }
+
+/**
+ * 오류 메시지를 cause 사슬까지 합쳐서 본다.
+ *
+ * Node fetch 는 네트워크 오류를 겉면 "TypeError: fetch failed" 하나로 감싸고
+ * 진짜 원인(HeadersTimeoutError, ECONNRESET …)을 err.cause 에 숨긴다.
+ * 겉면 메시지만 보면 모든 네트워크 장애가 '기타'로 분류돼 즉시 포기하게 된다
+ * — 2026-08-24·08-26 롱폼 게시가 정확히 이걸로 두 번 죽었다.
+ */
+function fullMessage(err: unknown): string {
+  const parts: string[] = [];
+  let cur: unknown = err;
+  for (let depth = 0; cur && depth < 5; depth++) {
+    const e = cur as { message?: unknown; code?: unknown; cause?: unknown };
+    if (e.message) parts.push(String(e.message));
+    if (e.code) parts.push(String(e.code));
+    cur = e.cause;
+  }
+  return parts.length ? parts.join(" | ") : String(err);
+}
+
+/**
+ * ★fullMessage() 가 cause 사슬의 err.code 까지 합치면서 생긴 오탐:
+ * DNS 실패 코드 "ENOTFOUND" 가 /not[_ ]?found/i 에 걸려 '모델 없음(404)' 으로
+ * 오분류됐다(실측 확인, 감사에서 발견). 네트워크 계층 오류면 모델 존재 여부를
+ * 판단할 수 없으니 절대 모델없음으로 보지 않는다 — 이게 최우선 가드다.
+ */
 function isModelMissing(err: unknown): boolean {
-  const msg = String((err as { message?: unknown })?.message ?? err);
-  return statusOf(err) === 404 || /not[_ ]?found|no longer available|not supported/i.test(msg);
+  if (isNetworkError(err)) return false;
+  return (
+    statusOf(err) === 404 ||
+    /\bnot[_ ]?found\b|no longer available|not supported for generateContent/i.test(fullMessage(err))
+  );
 }
+/**
+ * ★/rate/i 는 'generateContent' 같은 정상 문구에도 걸린다(gene-RATE-Content).
+ * 403 PERMISSION_DENIED 같은 치명적 오류가 '한도 초과' 로 오분류돼 4라운드
+ * 전체를 헛되이 재시도하는 사고가 감사에서 확인됐다 — 패턴을 한도 관련
+ * 표현으로 좁힌다.
+ */
 function isRateLimited(err: unknown): boolean {
-  const msg = String((err as { message?: unknown })?.message ?? err);
-  return statusOf(err) === 429 || /rate|quota|RESOURCE_EXHAUSTED/i.test(msg);
+  return statusOf(err) === 429 || /RESOURCE_EXHAUSTED|\bquota\b|\brate.?limit/i.test(fullMessage(err));
 }
-/** 일시적 서버 혼잡(503 UNAVAILABLE / 500). 잠시 후 또는 다른 모델로 재시도 가능. */
+/**
+ * 네트워크 계층 장애 — 서버가 아니라 전송이 죽은 경우.
+ *
+ * 대표: undici HeadersTimeoutError(UND_ERR_HEADERS_TIMEOUT). Node fetch 는
+ * 응답 헤더를 300초 안에 못 받으면 끊는데, 긴 롱폼 대본은 Gemini 가 생각에
+ * 5분을 넘기는 회차가 실제로 있다(실측: 실패 두 건 모두 정확히 5분 0초에
+ * 사망, 직후 재실행은 성공). 그래서 이 부류는 반드시 재시도 대상이다.
+ */
+function isNetworkError(err: unknown): boolean {
+  return /fetch failed|UND_ERR|HeadersTimeout|BodyTimeout|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|EAI_AGAIN|ENOTFOUND|socket hang up|network|terminated|aborted/i.test(
+    fullMessage(err),
+  );
+}
+/** 일시적 서버 혼잡(503 UNAVAILABLE / 500) 또는 네트워크 장애. 잠시 후 또는 다른 모델로 재시도 가능. */
 function isTransient(err: unknown): boolean {
   const s = statusOf(err);
-  const msg = String((err as { message?: unknown })?.message ?? err);
-  return s === 503 || s === 500 || /UNAVAILABLE|high demand|overloaded|internal error/i.test(msg);
+  return (
+    s === 503 ||
+    s === 500 ||
+    /UNAVAILABLE|high demand|overloaded|internal error/i.test(fullMessage(err)) ||
+    isNetworkError(err)
+  );
 }
-/** 재시도해볼 가치가 있는 오류(한도·혼잡·모델없음) — 인증 오류 등은 즉시 실패 */
+/** 재시도해볼 가치가 있는 오류(한도·혼잡·네트워크·모델없음) — 인증 오류 등은 즉시 실패 */
 function isRetryable(err: unknown): boolean {
   return isRateLimited(err) || isTransient(err) || isModelMissing(err);
 }
@@ -64,6 +116,17 @@ const ROUND_BACKOFF_MS = [0, 8000, 25000, 50000];
  */
 const MAX_OUTPUT_TOKENS = 65536;
 const FALLBACK_OUTPUT_TOKENS = 16384;
+
+/**
+ * generateContent 호출당 상한. undici 기본(헤더 300초)에만 맡기면 '정상인데
+ * 느린' 롱폼 응답(실측 5분대)과 '진짜 멈춘' 응답을 구분 못 해 애매하게 죽는다.
+ * isNetworkError 재시도가 이미 붙어 있으니, 여기서는 실제로 죽은 요청만 끊기게
+ * 정상 소요시간보다 넉넉히 잡는다(짧게 잡으면 '항상 이 시간에 죽고 항상
+ * 재시도'하는 낭비 루프가 된다). 호출마다 새로 만든다 — cfg 에 박아두면
+ * 라운드 사이 대기(최대 83초)·이전 시도 소요시간까지 하나의 데드라인을
+ * 공유해 뒤 라운드가 억울하게 끊긴다.
+ */
+const GEMINI_CALL_TIMEOUT_MS = 9 * 60_000;
 
 /** 모델이 상한 자체를 거부하는가 (구형 모델은 8k 고정) */
 function isTokenLimitRejection(err: unknown): boolean {
@@ -113,14 +176,22 @@ async function generateText(
       try {
         let res;
         try {
-          res = await getAI().models.generateContent({ model, contents: user, config: cfg });
+          res = await getAI().models.generateContent({
+            model,
+            contents: user,
+            config: { ...cfg, abortSignal: AbortSignal.timeout(GEMINI_CALL_TIMEOUT_MS) },
+          });
         } catch (e) {
           if (!isTokenLimitRejection(e)) throw e;
           // 이 모델은 큰 상한을 못 받는다 — 낮춰서 한 번 더
           res = await getAI().models.generateContent({
             model,
             contents: user,
-            config: { ...cfg, maxOutputTokens: FALLBACK_OUTPUT_TOKENS },
+            config: {
+              ...cfg,
+              maxOutputTokens: FALLBACK_OUTPUT_TOKENS,
+              abortSignal: AbortSignal.timeout(GEMINI_CALL_TIMEOUT_MS),
+            },
           });
         }
         if (workingModel !== model) {
@@ -128,10 +199,18 @@ async function generateText(
           console.log(`  🤖 Gemini 모델: ${model}`);
         }
         await persistGeminiModel(model).catch(() => {});
-        // 잘려서 돌아오면 JSON 파싱 실패로만 드러나 원인을 알 수 없다 — 여기서 밝힌다
+        // 잘리거나(MAX_TOKENS) 차단된(SAFETY 등) 응답을 성공으로 반환하면
+        // JSON.parse 단계에서야 실패가 드러나 원인을 알 수 없고, generateStructured
+        // 가 '똑같은 요청'을 최대 3번 반복해 무료 일일 한도만 태운다(실측: 감사에서
+        // 확인). 이 부류는 같은 요청이면 거의 결정론적으로 재실패하므로 재시도할
+        // 가치가 없다 — 원인을 담아 즉시 실패시킨다(다른 모델·라운드로도 안 넘어감).
+        const blockReason = res.promptFeedback?.blockReason;
+        if (blockReason) {
+          throw new Error(`Gemini 프롬프트 차단 (blockReason=${blockReason}, 모델=${model})`);
+        }
         const reason = res.candidates?.[0]?.finishReason;
         if (reason && String(reason) !== "STOP") {
-          console.warn(`  ⚠️ Gemini 응답이 정상 종료되지 않음 (finishReason=${reason})`);
+          throw new Error(`Gemini 응답이 정상 종료되지 않음 (finishReason=${reason}, 모델=${model})`);
         }
         return res.text ?? "";
       } catch (e) {
@@ -143,12 +222,12 @@ async function generateText(
           ? "모델 없음"
           : isRateLimited(e)
             ? "한도 초과"
-            : isTransient(e)
-              ? "일시적 오류"
-              : "기타";
-        console.log(
-          `  ⏭️  ${model} 실패(${reason}): ${String((e as { message?: unknown })?.message ?? e).slice(0, 150)}`,
-        );
+            : isNetworkError(e)
+              ? "네트워크"
+              : isTransient(e)
+                ? "일시적 오류"
+                : "기타";
+        console.log(`  ⏭️  ${model} 실패(${reason}): ${fullMessage(e).slice(0, 200)}`);
         if (isModelMissing(e)) {
           dead.add(model); // 존재하지 않는 모델 — 재시도 안 함
           if (workingModel === model) workingModel = null;
@@ -170,7 +249,11 @@ async function generateText(
   for (const discovered of await discoverFlashModel()) {
     if (dead.has(discovered)) continue;
     try {
-      const res = await getAI().models.generateContent({ model: discovered, contents: user, config: cfg });
+      const res = await getAI().models.generateContent({
+        model: discovered,
+        contents: user,
+        config: { ...cfg, abortSignal: AbortSignal.timeout(GEMINI_CALL_TIMEOUT_MS) },
+      });
       workingModel = discovered;
       console.log(`  🤖 Gemini 모델(자동탐색): ${discovered}`);
       await persistGeminiModel(discovered).catch(() => {});
@@ -192,7 +275,9 @@ async function generateText(
  */
 async function discoverFlashModel(): Promise<string[]> {
   try {
-    const pager = await getAI().models.list();
+    const pager = await getAI().models.list({
+      config: { abortSignal: AbortSignal.timeout(20_000) },
+    });
     const names: string[] = [];
     for await (const m of pager) {
       const name = (m.name ?? "").replace(/^models\//, "");
@@ -212,7 +297,11 @@ async function discoverFlashModel(): Promise<string[]> {
       `  🔎 사용 가능한 flash 계열: ${names.join(", ")} → 시도 순서: ${ranked.slice(0, 6).join(", ")}${ranked.length > 6 ? " …" : ""}`,
     );
     return ranked;
-  } catch {
+  } catch (e) {
+    // 이 함수는 전 후보 실패 후의 마지막 자가 복구 수단이다(208행) — 조용히
+    // 빈 배열을 돌려주면 '탐색이 실패했다'와 '탐색할 게 없었다'를 구분할 수 없어
+    // 재실행하면 성공하는 원인 불명 장애로 보인다(감사에서 확인). 최소한 로그는 남긴다.
+    console.warn(`  ⚠️ models.list() 실패 — 자동탐색 불가: ${fullMessage(e)}`);
     return [];
   }
 }

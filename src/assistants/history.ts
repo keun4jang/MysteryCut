@@ -28,13 +28,27 @@ export function normalizeKey(key: string): string {
 }
 
 export async function loadHistory(): Promise<HistoryFile> {
+  let raw: string;
   try {
-    const raw = await fs.readFile(HISTORY_PATH, "utf8");
-    const parsed = JSON.parse(raw) as Partial<HistoryFile>;
-    return { posts: Array.isArray(parsed.posts) ? parsed.posts : [] };
-  } catch {
-    return { posts: [] }; // 파일 없음/깨짐 → 빈 이력
+    raw = await fs.readFile(HISTORY_PATH, "utf8");
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return { posts: [] }; // 파일 없음 → 정상적인 빈 이력
+    throw e; // 그 외(권한 등)는 '빈 이력'으로 위장하지 않고 그대로 실패시킨다
   }
+  // ★파일은 있는데 JSON 이 깨졌으면(잘린 쓰기, 수기 편집 실수) 절대 '빈 이력'으로
+  // 위장하지 않는다 — 위장하면 그 실행의 중복 회피가 통째로 사라지고, 이어서
+  // appendPost 가 빈 이력에 새 항목 1건만 써서 commitPostHistory 가 그걸 원격에
+  // 그대로 push 해 90여 건의 게시 이력을 1건짜리로 영구 대체할 수 있다(감사에서
+  // 확인된 연쇄 파괴 경로). 손상은 파이프라인을 죽여서 사람이 알아채게 한다.
+  let parsed: Partial<HistoryFile>;
+  try {
+    parsed = JSON.parse(raw) as Partial<HistoryFile>;
+  } catch (e) {
+    throw new Error(
+      `data/history.json 파싱 실패 — 파일이 손상된 것으로 보입니다(빈 이력으로 위장하지 않고 중단합니다): ${e instanceof Error ? e.message : e}`,
+    );
+  }
+  return { posts: Array.isArray(parsed.posts) ? parsed.posts : [] };
 }
 
 /** 이미 게시된 사건 식별자 집합 (정규화됨) */
@@ -133,6 +147,11 @@ export async function appendPost(idea: StoryIdea, hashtags?: string[]): Promise<
     hashtags,
   });
   await fs.mkdir(path.dirname(HISTORY_PATH), { recursive: true });
-  await fs.writeFile(HISTORY_PATH, `${JSON.stringify(hist, null, 2)}\n`, "utf8");
+  // 제자리 writeFile 은 쓰는 도중 크래시하면 잘린 JSON을 남긴다(위 loadHistory 의
+  // '손상→중단' 가드가 바로 이 상황을 겨냥한 것) — tmp 파일 + rename 으로 원자화해
+  // 애초에 잘린 파일이 남을 수 없게 한다.
+  const tmp = `${HISTORY_PATH}.tmp-${process.pid}`;
+  await fs.writeFile(tmp, `${JSON.stringify(hist, null, 2)}\n`, "utf8");
+  await fs.rename(tmp, HISTORY_PATH);
   console.log(`  🗂️  이력 저장: ${idea.caseKey} (총 ${hist.posts.length}건)`);
 }
