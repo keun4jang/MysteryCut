@@ -16,6 +16,7 @@ const SOURCES: SourceDoc[] = [
     title: "니오스호 참사",
     url: "",
     lang: "ko",
+    project: "wikipedia",
     references: [],
     extract:
       "1986년 8월 21일 카메룬 니오스호에서 다량의 이산화탄소가 분출했다. " +

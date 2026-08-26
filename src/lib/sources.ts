@@ -1,5 +1,5 @@
 /**
- * 사실 검증용 원문 수집 — 위키백과 API (무료·무제한, 키 불필요).
+ * 사실 검증용 원문 수집 — 위키미디어 자매 프로젝트 API (무료·무제한, 키 불필요).
  *
  * 지금까지는 소재 발굴부터 대본까지 LLM 한 번의 호출로 만들었다. 실존 사건·
  * 판결·사망을 다루면서 출처 대조가 0회였다는 뜻이고, 실제로 "이거 사기라고
@@ -11,14 +11,39 @@
  * 완벽한 1차 사료는 아니지만, 연도·인명·지명·결말이 통째로 지어내진 것을
  * 막는 것만으로도 신뢰도가 크게 오른다. 문서에 걸린 외부 링크를 함께 모아
  * 설명란 참고자료로 노출해 '독자적 조사'의 근거도 남긴다.
+ *
+ * ★위키백과만으로는 소재가 마른다(2026-08-25 실측: 후보 4개 중 3개가 원문
+ * 미달로 탈락). 그래서 같은 라이선스(CC BY, 상업적 재사용 허용)·같은 API
+ * 형태를 쓰는 자매 프로젝트도 함께 뒤진다:
+ *   위키뉴스 — 사건 당시 보도 기사. 짧지만 위키백과에 아직 문서가 없는
+ *              사건(특히 미제사건)의 유일한 원문인 경우가 있다.
+ *   위키문헌 — 조선왕조실록 국역본 등 원문 그대로의 1차 사료.
+ * 검증(2026-08-25): en.wikinews.org 검색으로 "Television appeal for 1984
+ * murder in Bath, England" 같은 실제 미제사건 기사를 확인했고, 세 프로젝트
+ * 모두 같은 TextExtracts 확장(prop=extracts)이 켜져 있어 기존 fetchDoc 로직을
+ * 그대로 재사용할 수 있다.
  */
 
 const UA = "MysteryCutBot/1.0 (https://github.com/keun4jang/MysteryCut; educational mystery documentary channel)";
+
+/** 위키미디어 자매 프로젝트 — 전부 같은 api.php 형태, 같은 CC BY 라이선스 */
+export type WikiProject = "wikipedia" | "wikinews" | "wikisource";
+const PROJECT_DOMAIN: Record<WikiProject, string> = {
+  wikipedia: "wikipedia.org",
+  wikinews: "wikinews.org",
+  wikisource: "wikisource.org",
+};
+const PROJECT_LABEL_KO: Record<WikiProject, string> = {
+  wikipedia: "위키백과",
+  wikinews: "위키뉴스",
+  wikisource: "위키문헌",
+};
 
 export interface SourceDoc {
   title: string;
   url: string;
   lang: "ko" | "en";
+  project: WikiProject;
   /** 문서 본문(평문). 프롬프트에 넣기 위해 길이를 자른다 */
   extract: string;
   /** 문서에 걸린 외부 참고 링크 (설명란 인용용) */
@@ -104,18 +129,27 @@ function isRelevant(
   return best;
 }
 
-async function api(lang: string, params: Record<string, string>): Promise<unknown> {
+async function api(
+  project: WikiProject,
+  lang: string,
+  params: Record<string, string>,
+): Promise<unknown> {
   const qs = new URLSearchParams({ format: "json", origin: "*", ...params });
-  const res = await fetch(`https://${lang}.wikipedia.org/w/api.php?${qs}`, {
+  const res = await fetch(`https://${lang}.${PROJECT_DOMAIN[project]}/w/api.php?${qs}`, {
     headers: { "User-Agent": UA },
   });
-  if (!res.ok) throw new Error(`위키백과 ${lang} HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`${project} ${lang} HTTP ${res.status}`);
   return res.json();
 }
 
 /** 검색어로 문서 제목 후보를 찾는다 */
-async function searchTitles(lang: string, query: string, limit = 2): Promise<string[]> {
-  const json = (await api(lang, {
+async function searchTitles(
+  project: WikiProject,
+  lang: string,
+  query: string,
+  limit = 2,
+): Promise<string[]> {
+  const json = (await api(project, lang, {
     action: "query",
     list: "search",
     srsearch: query,
@@ -125,8 +159,12 @@ async function searchTitles(lang: string, query: string, limit = 2): Promise<str
 }
 
 /** 문서 본문(평문)과 외부 링크를 받는다 */
-async function fetchDoc(lang: "ko" | "en", title: string): Promise<SourceDoc | null> {
-  const json = (await api(lang, {
+async function fetchDoc(
+  project: WikiProject,
+  lang: "ko" | "en",
+  title: string,
+): Promise<SourceDoc | null> {
+  const json = (await api(project, lang, {
     action: "query",
     prop: "extracts|extlinks",
     explaintext: "1",
@@ -152,52 +190,121 @@ async function fetchDoc(lang: "ko" | "en", title: string): Promise<SourceDoc | n
     .filter((u) => !/wikimedia|wikidata|wikipedia|archive\.org\/wayback|doi\.org\/10\.\d+\/zenodo/i.test(u))
     .slice(0, 4);
 
+  const domain = PROJECT_DOMAIN[project];
   return {
     title: page?.title ?? title,
-    url: `https://${lang}.wikipedia.org/wiki/${encodeURIComponent((page?.title ?? title).replace(/ /g, "_"))}`,
+    url: `https://${lang}.${domain}/wiki/${encodeURIComponent((page?.title ?? title).replace(/ /g, "_"))}`,
     lang,
+    project,
     extract: extract.slice(0, MAX_EXTRACT),
     references,
   };
 }
 
+/** 원문 탐색 순서 — 위키백과가 가장 신뢰도 높은 1차 후보, 나머지는 보충용 */
+const SEARCH_ORDER: WikiProject[] = ["wikipedia", "wikinews", "wikisource"];
+
 /**
- * 검색어 목록으로 원문을 모은다. 한국어 문서를 먼저 찾고, 없거나 짧으면 영어로.
+ * 검색어 목록으로 원문을 모은다. 위키백과 → 위키뉴스 → 위키문헌 순으로,
+ * 각 프로젝트 안에서는 한국어 문서를 먼저 찾고 없거나 짧으면 영어로.
  * 실패는 조용히 넘긴다 — 출처가 하나도 없으면 호출부가 다른 사건을 고르게 한다.
  */
 export async function gatherSources(terms: string[]): Promise<SourceDoc[]> {
   const out: SourceDoc[] = [];
   const seen = new Set<string>();
   let total = 0;
+  const done = () => total >= MAX_TOTAL || out.length >= 3;
 
-  for (const lang of ["ko", "en"] as const) {
-    for (const term of terms) {
-      if (total >= MAX_TOTAL || out.length >= 3) break;
-      const q = term.trim();
-      if (!q) continue;
-      try {
-        const titles = await searchTitles(lang, q);
-        for (const t of titles) {
-          const key = `${lang}:${t}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          const doc = await fetchDoc(lang, t);
-          if (!doc) continue;
-          const { ok, score } = isRelevant(terms, doc.title, doc.extract);
-          if (!ok) {
-            console.log(`  ↩︎ 무관한 문서 제외: "${doc.title}" (검색어 "${q}", 점수 ${score})`);
-            continue;
+  for (const project of SEARCH_ORDER) {
+    if (done()) break;
+    for (const lang of ["ko", "en"] as const) {
+      if (done()) break;
+      for (const term of terms) {
+        if (done()) break;
+        const q = term.trim();
+        if (!q) continue;
+        try {
+          const titles = await searchTitles(project, lang, q);
+          for (const t of titles) {
+            const key = `${project}:${lang}:${t}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const doc = await fetchDoc(project, lang, t);
+            if (!doc) continue;
+            const { ok, score } = isRelevant(terms, doc.title, doc.extract);
+            if (!ok) {
+              console.log(
+                `  ↩︎ 무관한 문서 제외: "${doc.title}" (${project}/${lang}, 검색어 "${q}", 점수 ${score})`,
+              );
+              continue;
+            }
+            out.push(doc);
+            total += doc.extract.length;
+            break; // 검색어당 문서 1건이면 충분
           }
-          out.push(doc);
-          total += doc.extract.length;
-          break; // 검색어당 문서 1건이면 충분
+        } catch (e) {
+          console.warn(
+            `  ⚠️ ${project} 조회 실패(${lang}/${q}): ${e instanceof Error ? e.message : e}`,
+          );
         }
-      } catch (e) {
-        console.warn(`  ⚠️ 위키백과 조회 실패(${lang}/${q}): ${e instanceof Error ? e.message : e}`);
       }
     }
   }
   return out;
+}
+
+/**
+ * 소재 발굴 그라운딩용 검색어 — 장르별로 나눠 편중을 피한다.
+ * '사건', '미스터리' 같은 범용어만 넣으면 위키백과 자체 안내문서(분류·목록
+ * 문서)만 걸리므로, 실제 개별 사건 문서가 잘 걸리는 조합으로 골랐다.
+ */
+const DISCOVERY_QUERIES: Array<{ lang: "ko" | "en"; q: string }> = [
+  { lang: "ko", q: "미제 사건" },
+  { lang: "ko", q: "실종 사건" },
+  { lang: "ko", q: "판결 논란" },
+  { lang: "ko", q: "괴담" },
+  { lang: "ko", q: "의문사" },
+  { lang: "ko", q: "재심 무죄" },
+  { lang: "en", q: "unsolved murder" },
+  { lang: "en", q: "unexplained disappearance" },
+  { lang: "en", q: "wrongful conviction" },
+  { lang: "en", q: "cold case" },
+  { lang: "en", q: "unsolved mystery" },
+];
+
+/** 목록·분류 안내문서처럼 사건 자체가 아닌 문서를 걸러낸다 */
+function looksLikeIndexPage(title: string): boolean {
+  return /^(목록|분류|List of|Category:|Timeline of)/i.test(title);
+}
+
+/**
+ * 실제로 위키백과(자매 프로젝트 포함)에 문서가 있는 소재 후보를 검색으로 뽑는다.
+ *
+ * LLM 이 기억만으로 사건명을 지어내면 나중에 gatherSources 단계에서 대부분
+ * 버려진다(실측 2026-08-25: 롱폼 후보 4개 중 3개가 원문 미달로 탈락 — 물괴
+ * 소동 2,975자, 저주 미스터리 1,348자, 경석 0건). 대본을 쓰기 전이 아니라
+ * **소재를 고르기 전**에 실존 문서 목록을 프롬프트에 실어주면, 모델이 그중
+ * 하나를 고를 때 원문 확보 성공률이 크게 오른다. 다만 목록은 참고용이지
+ * 강제가 아니다 — 모델이 더 적합한 사건을 알고 있으면 그걸 써도 된다.
+ *
+ * 매 호출마다 검색어를 무작위로 몇 개만 골라서 써서(고정된 첫 페이지만
+ * 반복해서 보여주지 않도록), 회차마다 다른 후보군이 보이게 한다.
+ */
+export async function discoverCandidateTitles(limit = 24): Promise<string[]> {
+  const picks = [...DISCOVERY_QUERIES].sort(() => Math.random() - 0.5).slice(0, 4);
+  const titles = new Set<string>();
+  for (const { lang, q } of picks) {
+    try {
+      const found = await searchTitles("wikipedia", lang, q, 8);
+      for (const t of found) {
+        if (!looksLikeIndexPage(t)) titles.add(t);
+      }
+    } catch (e) {
+      console.warn(`  ⚠️ 소재 후보 검색 실패(${lang}/${q}): ${e instanceof Error ? e.message : e}`);
+    }
+    if (titles.size >= limit) break;
+  }
+  return [...titles].slice(0, limit);
 }
 
 /** 프롬프트에 붙일 원문 블록 */
@@ -206,7 +313,7 @@ export function sourcesPromptBlock(docs: SourceDoc[]): string {
   const body = docs
     .map(
       (d, i) =>
-        `[출처 ${i + 1}] ${d.title} (${d.lang === "ko" ? "한국어 위키백과" : "영문 위키백과"})\n${d.extract}`,
+        `[출처 ${i + 1}] ${d.title} (${d.lang === "ko" ? "한국어" : "영문"} ${PROJECT_LABEL_KO[d.project]})\n${d.extract}`,
     )
     .join("\n\n---\n\n");
   return [

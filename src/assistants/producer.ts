@@ -2,7 +2,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { generateStructured } from "../lib/llm.js";
 import { findSensitiveTerms, softenText } from "../lib/safeText.js";
-import { sourcesPromptBlock, type SourceDoc } from "../lib/sources.js";
+import { sourcesPromptBlock, discoverCandidateTitles, type SourceDoc } from "../lib/sources.js";
 import {
   StoryIdeaSchema,
   ReelScriptSchema,
@@ -78,6 +78,13 @@ export async function proposeCase(
   avoid?: AvoidList,
   opts?: PlanOptions,
 ): Promise<CaseProbe> {
+  // 실제로 위키백과(자매 프로젝트 포함)에 문서가 있는 후보를 미리 찾아 보여준다.
+  // LLM 이 기억만으로 지어낸 사건명은 원문 미달로 버려지는 비율이 높았다
+  // (실측 2026-08-25). 검색 실패해도 후보 없이 그냥 진행한다 — 필수 아님.
+  const candidates = await discoverCandidateTitles().catch(() => [] as string[]);
+  const avoidTitlesLower = new Set((avoid?.titles ?? []).map((t) => t.toLowerCase()));
+  const freshCandidates = candidates.filter((t) => !avoidTitlesLower.has(t.toLowerCase()));
+
   const system = [
     `너는 ${config.channel.language} 미스터리 콘텐츠의 소재 발굴 담당이다.`,
     "이번 회차에 다룰 사건을 '하나만' 고르고, 그 사건의 원문을 찾을 검색어를 준다. 대본은 쓰지 않는다.",
@@ -87,6 +94,15 @@ export async function proposeCase(
     "원문을 못 찾으면 그 사건은 버려지고 다시 고르게 되므로, 애매하게 떠도는 인터넷 괴담이 아니라",
     "문서로 정리돼 있는 사건·인물·현상을 골라야 한다.",
     "",
+    freshCandidates.length
+      ? [
+          "[참고 — 지금 검색해보니 실제로 문서가 있는 후보들이다. 강제는 아니지만,",
+          " 이 안에서 고르면 원문을 못 찾아 버려질 확률이 훨씬 낮다.",
+          " 더 잘 맞는 사건을 알고 있으면 이 목록 밖에서 골라도 된다.]",
+          freshCandidates.map((t) => `  · ${t}`).join("\n"),
+          "",
+        ].join("\n")
+      : "",
     "- caseKey: 영어 소문자 슬러그. 대표 명칭 + 연도. 예: 'dyatlov-pass-1959', 'helen-brach-1977'.",
     "- title: 한국어 사건명 (자극적 제목이 아니라 사건을 특정하는 이름).",
     "- premise: 이 사건이 왜 기묘한지 2~3문장.",
