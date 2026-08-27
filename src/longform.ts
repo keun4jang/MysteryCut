@@ -8,6 +8,7 @@ import { attachChapterBroll, fetchThumbBg } from "./assistants/broll.js";
 import { renderLongform, renderLongformThumb } from "./render.js";
 import { publishLongform } from "./assistants/youtubePublisher.js";
 import { loadHistory, recentAvoidList, isDuplicate, appendPost } from "./assistants/history.js";
+import { persistLatestLongform } from "./lib/latestLongform.js";
 import { gatherSources, sourcesCitation, type SourceDoc } from "./lib/sources.js";
 import { longformSrt } from "./lib/captions.js";
 import { dropUnreadableVisuals } from "./lib/visual/normalize.js";
@@ -165,6 +166,14 @@ async function main() {
   const srtEn = longformSrt(chapters, 30, "en");
   const { videoId } = await publishLongform(videoPath, script, citation, thumbPath, srt, srtEn);
   console.log(`   ✅ 롱폼 게시 완료: https://youtu.be/${videoId}`);
+
+  // 쇼츠 설명란이 이 정보로 "전체 분석은 롱폼에서" 링크를 건다(youtubePublisher.ts
+  // buildDescription 참고) — 실패해도 게시 자체엔 영향 없으니 링크만 못 붙는다.
+  await persistLatestLongform({
+    videoId,
+    title: script.title,
+    publishedAt: new Date().toISOString().slice(0, 10),
+  }).catch(() => {});
 
   // 이력에 기록 — 쇼츠와 같은 history.json 을 써서 소재가 겹치지 않게 한다
   const idea: StoryIdea = {

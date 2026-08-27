@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import { config } from "../config.js";
+import { loadLatestLongform } from "../lib/latestLongform.js";
 import type { StoryIdea, ReelMetadata, LongformScript } from "../types.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -109,7 +110,7 @@ export async function publishYouTube(
 
   const snippet = {
     title: buildTitle(idea),
-    description: buildDescription(metadata),
+    description: await buildDescription(metadata),
     categoryId: config.youtube.categoryId,
     tags: metadata.hashtags.map((t) => t.replace(/^#/, "")).slice(0, 15),
   };
@@ -446,11 +447,21 @@ function buildTitle(idea: StoryIdea): string {
  * 해시태그 없음(키워드는 본문에 녹아 있음). 검색용 키워드는 snippet.tags 로만.
  * 세로 1080x1920·3분 미만이라 #Shorts 없이도 쇼츠로 자동 분류됨.
  */
-function buildDescription(m: ReelMetadata): string {
+async function buildDescription(m: ReelMetadata): Promise<string> {
   const body = m.captionEn?.trim()
     ? `${m.caption}\n\n———\n\n${m.captionEn}`
     : m.caption;
   // 참고자료는 유튜브 설명란에만 붙인다(인스타는 링크가 클릭되지 않아 노이즈만 된다).
   // 시청자 신뢰뿐 아니라, 수익창출 심사에서 '조사에 근거한 콘텐츠'임을 보이는 근거가 된다.
-  return m.sourcesCitation?.trim() ? `${body}\n\n———\n\n${m.sourcesCitation}` : body;
+  let out = m.sourcesCitation?.trim() ? `${body}\n\n———\n\n${m.sourcesCitation}` : body;
+  // ★쇼츠 시청자를 롱폼(수익창출 시청시간이 산입되는 유일한 포맷)으로 데려오는
+  // 유일한 장치. Analytics 실측(2026-08-27): 채널 조회의 96%가 쇼츠 피드
+  // 자체에서만 나고, 이 링크가 생기기 전엔 쇼츠에서 롱폼으로 넘어갈 경로가
+  // 전혀 없어 롱폼 90일 시청시간이 18분에 그쳤다. 최신 롱폼을 가리키므로
+  // 매번(주 3회) 자동으로 최신 것으로 바뀐다.
+  const longform = await loadLatestLongform();
+  if (longform) {
+    out += `\n\n———\n\n🎬 더 깊이 파고든 사건 분석 다큐: "${longform.title}"\nhttps://youtu.be/${longform.videoId}`;
+  }
+  return out;
 }
