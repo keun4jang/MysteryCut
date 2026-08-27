@@ -2,6 +2,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { generateStructured } from "../lib/llm.js";
 import { findSensitiveTerms, softenText } from "../lib/safeText.js";
+import { isSameCase } from "./history.js";
 import { sourcesPromptBlock, discoverCandidateTitles, type SourceDoc } from "../lib/sources.js";
 import {
   StoryIdeaSchema,
@@ -338,15 +339,30 @@ export async function writeReelPlan(
     const chars = plan.script.segments.reduce((n, s) => n + s.text.length, 0);
     // 연령제한 유발 표현이 남아 있으면 분량과 무관하게 재생성 (도달 손실이 더 크다)
     const flagged = findSensitive(plan);
+    // ★1단계에서 확정·중복검사·원문수집까지 끝낸 사건(forcedCase)을 모델이
+    // 프롬프트 지시만 믿고 다른 사건으로 새는 경우가 있다(감사에서 발견,
+    // temperature 1.15). 코드로 검증하지 않으면: ①중복 검사가 probe 에 대해서만
+    // 이뤄졌으므로 다른(이미 게시한) 사건으로 새면 중복 검사가 무력화되고,
+    // ②probe 용으로 모아둔 원문 인용이 무관한 사건 설명란에 붙어 '원문에 없는
+    // 사실'을 실은 것과 같은 결과가 된다. 분량·표현이 멀쩡해도 이 경우는
+    // 채택하지 않는다.
+    const forced = opts?.forcedCase;
+    const caseMismatch = !!forced && !isSameCase(plan.idea.caseKey, forced.caseKey);
     const gap = Math.abs(chars - IDEAL_CHARS);
-    if (gap < bestGap) {
+    if (gap < bestGap && !caseMismatch) {
       best = plan;
       bestChars = chars;
       bestGap = gap;
     }
-    if (!flagged.length && chars >= MIN_CHARS && chars <= MAX_CHARS) return plan;
+    if (!flagged.length && !caseMismatch && chars >= MIN_CHARS && chars <= MAX_CHARS) return plan;
 
     feedback = "";
+    if (caseMismatch && forced) {
+      console.warn(
+        `   ⚠️ 확정 사건과 다른 caseKey 로 생성됨(확정: ${forced.caseKey}, 생성: ${plan.idea.caseKey}) — 재생성 (${attempt + 1}/3)`,
+      );
+      feedback += `\n★직전 시도가 확정된 사건(caseKey: ${forced.caseKey}, 사건: ${forced.title})이 아니라 다른 사건으로 생성됐다. idea.caseKey 는 반드시 "${forced.caseKey}" 그대로 써야 하고, 대본 내용도 아래 원문에 근거해 오직 "${forced.title}" 사건만 다뤄야 한다. 다른 사건으로 절대 바꾸지 마라.`;
+    }
     if (flagged.length) {
       console.warn(`   ⚠️ 연령제한 위험 표현 발견(${flagged.join(", ")}) — 재생성 (${attempt + 1}/3)`);
       feedback += `\n★직전 시도에 플랫폼 연령제한을 유발하는 표현(${flagged.join(", ")})이 들어 있었다. 사건 사실은 유지하되 그 단어를 절대 쓰지 말고 중립 표현('타살 혐의점을 찾지 못했다', 'found no evidence of foul play' 등)으로 다시 써라.`;
@@ -367,6 +383,15 @@ export async function writeReelPlan(
           : "지금은 문장이 너무 짧다 — 물을 타지 말고 '새로운 사실'로 채워라. 사건 디테일을 한 겹 더 파거나 중간 반전을 하나 더 넣어라."
       }`;
     }
+  }
+  // ★forcedCase 가 있는데 3회 모두 다른 사건으로 샜다면 best 가 비어 있다.
+  // 분량·표현 문제(아래)와 달리 이건 '순화'로 못 고친다 — 원문·중복검사가
+  // 다른 사건 것이라 그대로 게시하면 사실관계·중복회피가 둘 다 깨진다.
+  // 하루 게시 실패가 그보다 낫다.
+  if (!best) {
+    throw new Error(
+      `확정 사건(${opts?.forcedCase?.caseKey})으로 3회 재생성해도 다른 사건으로 계속 생성됨 — 안전을 위해 중단합니다.`,
+    );
   }
   // 3회 재생성에도 남으면 기계적으로 중립화 (게시 자체를 막기보다 표현만 순화)
   const leftover = findSensitive(best!);

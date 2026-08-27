@@ -38,8 +38,15 @@ on:
 
 # 실제 게시끼리는 직렬(중복 게시 방지)이되, 드라이런(검증용 렌더)은 별도 그룹으로
 # 분리해 정기 게시의 랜덤 지연 뒤에서 몇 시간씩 대기하지 않게 한다.
+# ★'publish' 그룹은 post-longform.yml 과 이름을 공유한다 — 롱폼(월·수·금
+# 09:00 UTC)과 쇼츠(매일 10:00 UTC + 0~90분 랜덤)가 겹치는 날, 두 워크플로가
+# 서로 다른 체크아웃 시점의 history.json 으로 각자 소재를 골라 같은 사건이
+# 같은 날 두 번 게시될 수 있었다(감사에서 발견). 같은 그룹을 쓰면 뒤에 시작한
+# 쪽이 대기열에서 기다렸다가 앞선 실행의 이력 커밋이 끝난 뒤 시작해 레이스가
+# 원천적으로 사라진다(대기는 runner 시간을 소모하지 않아 180분 타임아웃과
+# 무관하다).
 concurrency:
-  group: post-reel-${{ github.event.inputs.dry_run == 'true' && 'dryrun' || 'publish' }}
+  group: post-reel-${{ github.event.inputs.dry_run == 'true' && 'dryrun' || 'mystery-cut-publish' }}
   cancel-in-progress: false
 
 # 인스타 업로드용 임시 공개 호스팅(릴리스 생성/삭제)에 필요

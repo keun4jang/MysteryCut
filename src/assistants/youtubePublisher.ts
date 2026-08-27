@@ -48,6 +48,43 @@ async function fetchRetry(
 }
 
 /**
+ * '게시됐지만 기록 안 됨' 창을 닫는 안전망.
+ *
+ * 영상 바이트 PUT 이 유튜브 서버에는 완전히 도착해 videoId 가 발급됐는데,
+ * 그 응답을 받는 도중 네트워크가 끊기면(파싱 실패로 드러남) 호출부는 실패로
+ * 처리해 이력에 아무것도 안 남는다 — 실제로는 영상이 라이브인데 다음 실행이
+ * 같은 사건을 다시 골라 같은 영상을 또 올릴 수 있다(감사에서 발견). PUT 자체가
+ * fetchRetry 를 통과했다면(=서버 응답을 아예 못 받았거나 이해 못한 상태) 최근
+ * 업로드 목록에서 방금 만든 제목을 찾아 videoId 를 복구한다 — 실패로 단정하기
+ * 전 마지막으로 확인하는 것뿐이라, 이 조회 자체가 실패해도(스코프 부족 등)
+ * 조용히 포기하고 원래 오류로 넘어간다.
+ */
+async function reconcileRecentUpload(accessToken: string, title: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(
+      "https://www.googleapis.com/youtube/v3/search?part=snippet&forMine=true&type=video&order=date&maxResults=5",
+      { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15_000) },
+    );
+    if (!res.ok) return undefined;
+    const json = (await res.json()) as {
+      items?: Array<{ id?: { videoId?: string }; snippet?: { title?: string; publishedAt?: string } }>;
+    };
+    const now = Date.now();
+    for (const item of json.items ?? []) {
+      const videoId = item.id?.videoId;
+      const publishedAt = item.snippet?.publishedAt ? Date.parse(item.snippet.publishedAt) : NaN;
+      // 방금 이 실행에서 시도한 업로드인지: 제목 완전 일치 + 10분 이내 게시
+      if (videoId && item.snippet?.title === title && !Number.isNaN(publishedAt) && now - publishedAt < 10 * 60_000) {
+        return videoId;
+      }
+    }
+  } catch {
+    /* 복구 시도 자체의 실패는 무시 — 호출부가 원래 오류로 실패 처리한다 */
+  }
+  return undefined;
+}
+
+/**
  * YouTube 업로드 어시스트 (YouTube Data API v3, 무료).
  * 세로 1080x1920 · 60초 안팎이라 자동으로 Shorts 로 분류됩니다.
  *
@@ -112,9 +149,26 @@ export async function publishYouTube(
     },
     "영상 바이트 업로드",
   );
-  const json = (await upRes.json()) as { id?: string; error?: unknown };
-  if (!upRes.ok || !json.id) {
-    throw new Error(`YouTube 업로드 실패: ${JSON.stringify(json).slice(0, 400)}`);
+  let json: { id?: string; error?: unknown } = {};
+  let parsed = true;
+  try {
+    json = (await upRes.json()) as { id?: string; error?: unknown };
+  } catch {
+    parsed = false;
+  }
+  if (!parsed || !upRes.ok || !json.id) {
+    // 응답을 못 받았거나(파싱 실패) 서버 오류(5xx)면, PUT 자체는 도착해
+    // 실제로는 성공했을 가능성이 있다 — 실패로 단정하기 전에 확인한다.
+    if (!parsed || upRes.status >= 500) {
+      const recovered = await reconcileRecentUpload(accessToken, snippet.title);
+      if (recovered) {
+        console.warn(`   ⚠️ 업로드 응답을 못 받았지만 최근 업로드 목록에서 videoId 복구: ${recovered}`);
+        json = { id: recovered };
+      }
+    }
+    if (!json.id) {
+      throw new Error(`YouTube 업로드 실패: ${JSON.stringify(json).slice(0, 400)}`);
+    }
   }
 
   // 3) 커스텀 썸네일 지정 (실패해도 게시 자체는 성공으로 처리)
@@ -192,9 +246,24 @@ export async function publishLongform(
     },
     "영상 바이트 업로드",
   );
-  const json = (await upRes.json()) as { id?: string };
-  if (!upRes.ok || !json.id) {
-    throw new Error(`YouTube 롱폼 업로드 실패: ${JSON.stringify(json).slice(0, 400)}`);
+  let json: { id?: string } = {};
+  let parsed = true;
+  try {
+    json = (await upRes.json()) as { id?: string };
+  } catch {
+    parsed = false;
+  }
+  if (!parsed || !upRes.ok || !json.id) {
+    if (!parsed || upRes.status >= 500) {
+      const recovered = await reconcileRecentUpload(accessToken, snippet.title);
+      if (recovered) {
+        console.warn(`   ⚠️ 업로드 응답을 못 받았지만 최근 업로드 목록에서 videoId 복구: ${recovered}`);
+        json = { id: recovered };
+      }
+    }
+    if (!json.id) {
+      throw new Error(`YouTube 롱폼 업로드 실패: ${JSON.stringify(json).slice(0, 400)}`);
+    }
   }
 
   if (thumbPath) await setThumbnail(json.id, thumbPath, accessToken);

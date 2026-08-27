@@ -35,8 +35,11 @@ on:
         required: false
         default: false
 
+# ★'publish' 그룹은 post-reel.yml 과 이름을 공유한다 — 두 워크플로가 겹치는
+# 날 서로 다른 소재를 동시에 골라 같은 사건이 두 번 게시되는 레이스를 막는다
+# (자세한 사고 시나리오는 post-reel.yml 의 같은 블록 주석 참고).
 concurrency:
-  group: post-longform-${{ github.event.inputs.dry_run == 'true' && 'dryrun' || 'publish' }}
+  group: post-longform-${{ github.event.inputs.dry_run == 'true' && 'dryrun' || 'mystery-cut-publish' }}
   cancel-in-progress: false
 
 permissions:

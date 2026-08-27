@@ -36,7 +36,10 @@ async function graphFetch(
   let version = await currentVersion();
   const startedAt = version;
   for (let attempt = 0; attempt <= MAX_VERSION_BUMPS; attempt++) {
-    const res = await fetch(urlFor(version), init);
+    // 타임아웃 없으면 undici 기본 300초에 의존한다 — waitUntilFinished 는 이
+    // 호출을 최대 45회 반복하므로, 한 번이라도 느리게 매달리면 3분 폴링
+    // 예산이 통째로 그 한 번에 잡아먹힌다.
+    const res = await fetch(urlFor(version), { ...init, signal: AbortSignal.timeout(30_000) });
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (res.ok) {
       if (version !== startedAt) {
@@ -158,6 +161,13 @@ async function hostVideoPublicly(
   return { videoUrl: asset.browser_download_url, cleanup };
 }
 
+/**
+ * 임시 호스팅 릴리스·태그 삭제. 호출부는 실패해도 무시하고 넘어가지만(정리
+ * 실패로 게시 자체를 되돌릴 이유는 없다), 실패가 흔적도 없이 사라지면 영상
+ * mp4 가 공개 릴리스로 저장소에 영구히 남아도 아무도 모른다(감사에서 발견) —
+ * 최소한 로그는 남겨 나중에 사람이 media-* 릴리스 목록을 보고 원인을 찾을
+ * 수 있게 한다.
+ */
 async function deleteRelease(
   api: string,
   owner: string,
@@ -166,14 +176,20 @@ async function deleteRelease(
   tag: string,
   headers: Record<string, string>,
 ): Promise<void> {
-  await fetch(`${api}/repos/${owner}/${name}/releases/${releaseId}`, {
+  const relRes = await fetch(`${api}/repos/${owner}/${name}/releases/${releaseId}`, {
     method: "DELETE",
     headers,
   });
-  await fetch(`${api}/repos/${owner}/${name}/git/refs/tags/${tag}`, {
+  if (!relRes.ok && relRes.status !== 404) {
+    console.warn(`  ⚠️ 임시 릴리스 삭제 실패(${tag}, HTTP ${relRes.status}) — 수동 정리 필요할 수 있음`);
+  }
+  const tagRes = await fetch(`${api}/repos/${owner}/${name}/git/refs/tags/${tag}`, {
     method: "DELETE",
     headers,
   });
+  if (!tagRes.ok && tagRes.status !== 404) {
+    console.warn(`  ⚠️ 임시 태그 삭제 실패(${tag}, HTTP ${tagRes.status}) — 수동 정리 필요할 수 있음`);
+  }
 }
 
 async function createContainer(caption: string, videoUrl: string): Promise<string> {
@@ -192,12 +208,34 @@ async function createContainer(caption: string, videoUrl: string): Promise<strin
   return id;
 }
 
+/**
+ * 인스타가 영상을 처리 완료(FINISHED)할 때까지 최대 45회(4초 간격, 3분) 폴링.
+ *
+ * ★폴링 도중 graphFetch 가 일시 오류(네트워크 블립, graph.instagram.com 의
+ * 순간 5xx)를 한 번만 던져도 예전엔 그 자리에서 전체 게시가 실패했다 — 3분
+ * 안에 40회 넘는 호출 중 단 1회의 흔들림도 허용하지 않은 셈이다. 실제로는
+ * 컨테이너가 그 뒤 정상적으로 FINISHED 됐을 수 있는데 폴링을 포기해버린다
+ * (감사에서 발견). 연속 실패가 일정 횟수를 넘을 때만 진짜 장애로 본다.
+ */
 async function waitUntilFinished(containerId: string): Promise<void> {
+  const MAX_CONSECUTIVE_FAILURES = 5; // 20초 연속 불통이면 진짜 장애로 본다
+  let consecutiveFailures = 0;
   for (let attempt = 0; attempt < 45; attempt++) {
     await sleep(4000);
-    const json = await graphFetch(
-      (v) => `${BASE}/${v}/${containerId}?fields=status_code,status&access_token=${config.instagram.accessToken}`,
-    );
+    let json: Record<string, unknown>;
+    try {
+      json = await graphFetch(
+        (v) => `${BASE}/${v}/${containerId}?fields=status_code,status&access_token=${config.instagram.accessToken}`,
+      );
+      consecutiveFailures = 0;
+    } catch (e) {
+      consecutiveFailures++;
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) throw e;
+      console.warn(
+        `  ⚠️ 처리 상태 조회 실패(${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}, 계속 폴링): ${e instanceof Error ? e.message : e}`,
+      );
+      continue;
+    }
     if (json.status_code === "FINISHED") return;
     if (json.status_code === "ERROR") {
       throw new Error(`영상 처리 실패: ${JSON.stringify(json)}`);
