@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import { config } from "../config.js";
 import { loadLatestLongform } from "../lib/latestLongform.js";
+import { loadLongformPlaylistId, persistLongformPlaylistId } from "../lib/longformPlaylist.js";
 import type { StoryIdea, ReelMetadata, LongformScript } from "../types.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -269,6 +270,11 @@ export async function publishLongform(
 
   if (thumbPath) await setThumbnail(json.id, thumbPath, accessToken);
 
+  // 롱폼 전체 재생목록에 추가 (쇼츠 설명란이 이 재생목록을 링크한다 —
+  // buildDescription 참고). 실패해도 게시 자체는 이미 완료된 상태라 계속한다.
+  const playlistId = await ensureLongformPlaylist(accessToken);
+  if (playlistId) await addToLongformPlaylist(playlistId, json.id, accessToken);
+
   // 정확한 한국어 자막 트랙 등록 (ASR 오인식 대체용 — 겹침 문제는 화면 배치로 푼다)
   if (srt) await uploadCaptionTrack(json.id, srt, accessToken, "한국어");
   // 영어 트랙 — 화면에 깔리는 작은 영어 자막과 같은 문장이지만, CC 로 켜면
@@ -388,6 +394,92 @@ async function setThumbnail(
   }
 }
 
+const LONGFORM_PLAYLIST_TITLE = "사건 분석 다큐 (롱폼 전체보기)";
+
+/**
+ * 롱폼 전체 재생목록을 확보한다(상태 파일에 있으면 재사용, 없으면 동명
+ * 재생목록이 이미 있는지 찾아보고, 그마저 없으면 새로 만든다).
+ *
+ * playlists.insert/playlistItems.insert 는 youtube/youtubepartner/
+ * youtube.force-ssl 세 스코프 중 하나가 필요하다(공식 문서 확인) — 이
+ * 파이프라인은 자막 트랙 등록에 이미 youtube.force-ssl 을 쓰므로 스코프가
+ * 있으면 대개 같이 딸려 있다. 없으면(스코프 부족 등) 조용히 실패시키고
+ * undefined 를 돌려준다 — 썸네일·자막과 같은 원칙으로, 재생목록 실패가
+ * 영상 게시 자체를 막으면 안 된다.
+ */
+async function ensureLongformPlaylist(accessToken: string): Promise<string | undefined> {
+  const existing = await loadLongformPlaylistId();
+  if (existing) return existing;
+
+  const H = { Authorization: `Bearer ${accessToken}` };
+  try {
+    // 예전에 수동으로(또는 상태 파일 유실 후 이전 실행이) 만든 동명 재생목록이
+    // 있으면 그걸 재사용한다 — 매번 새로 만들면 재생목록이 여러 개로 쪼개진다.
+    const listRes = await fetch(
+      "https://www.googleapis.com/youtube/v3/playlists?part=snippet&mine=true&maxResults=50",
+      { headers: H, signal: AbortSignal.timeout(15_000) },
+    );
+    if (listRes.ok) {
+      const listJson = (await listRes.json()) as {
+        items?: Array<{ id: string; snippet?: { title?: string } }>;
+      };
+      const found = listJson.items?.find((p) => p.snippet?.title === LONGFORM_PLAYLIST_TITLE);
+      if (found) {
+        await persistLongformPlaylistId(found.id);
+        console.log(`   📃 기존 롱폼 재생목록 재사용: ${found.id}`);
+        return found.id;
+      }
+    }
+
+    const createRes = await fetch("https://www.googleapis.com/youtube/v3/playlists?part=snippet,status", {
+      method: "POST",
+      headers: { ...H, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify({
+        snippet: {
+          title: LONGFORM_PLAYLIST_TITLE,
+          description: "위키백과 등 공개 출처에 근거한 실제 사건 분석 다큐 모음.",
+        },
+        status: { privacyStatus: config.youtube.privacyStatus },
+      }),
+    });
+    const createJson = (await createRes.json()) as { id?: string; error?: unknown };
+    if (!createRes.ok || !createJson.id) {
+      console.warn(
+        `   ⚠️ 롱폼 재생목록 생성 실패(쇼츠 링크는 최신 영상 1개로 폴백): ${JSON.stringify(createJson).slice(0, 300)}`,
+      );
+      return undefined;
+    }
+    await persistLongformPlaylistId(createJson.id);
+    console.log(`   📃 롱폼 재생목록 신규 생성: ${createJson.id}`);
+    return createJson.id;
+  } catch (e) {
+    console.warn(`   ⚠️ 롱폼 재생목록 확보 실패: ${e instanceof Error ? e.message : e}`);
+    return undefined;
+  }
+}
+
+/** 방금 게시한 롱폼을 재생목록 맨 위(position 0)에 추가 — 최신이 항상 먼저 보이게 */
+async function addToLongformPlaylist(playlistId: string, videoId: string, accessToken: string): Promise<void> {
+  try {
+    const res = await fetch("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify({
+        snippet: { playlistId, position: 0, resourceId: { kind: "youtube#video", videoId } },
+      }),
+    });
+    if (res.ok) {
+      console.log("   📃 재생목록에 추가 완료");
+      return;
+    }
+    console.warn(`   ⚠️ 재생목록 추가 실패(게시는 완료됨): HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
+  } catch (e) {
+    console.warn(`   ⚠️ 재생목록 추가 실패(게시는 완료됨): ${e instanceof Error ? e.message : e}`);
+  }
+}
+
 /** 리프레시 토큰으로 새 액세스 토큰 발급 */
 async function getAccessToken(): Promise<string> {
   const params = new URLSearchParams({
@@ -457,11 +549,20 @@ async function buildDescription(m: ReelMetadata): Promise<string> {
   // ★쇼츠 시청자를 롱폼(수익창출 시청시간이 산입되는 유일한 포맷)으로 데려오는
   // 유일한 장치. Analytics 실측(2026-08-27): 채널 조회의 96%가 쇼츠 피드
   // 자체에서만 나고, 이 링크가 생기기 전엔 쇼츠에서 롱폼으로 넘어갈 경로가
-  // 전혀 없어 롱폼 90일 시청시간이 18분에 그쳤다. 최신 롱폼을 가리키므로
-  // 매번(주 3회) 자동으로 최신 것으로 바뀐다.
-  const longform = await loadLatestLongform();
-  if (longform) {
-    out += `\n\n———\n\n🎬 더 깊이 파고든 사건 분석 다큐: "${longform.title}"\nhttps://youtu.be/${longform.videoId}`;
+  // 전혀 없어 롱폼 90일 시청시간이 18분에 그쳤다.
+  // 재생목록을 우선한다 — '최신 영상 1개' 링크는 시간이 지나면 낡고 롱폼이
+  // 뜸한 주엔 오래된 영상만 계속 가리키지만, 재생목록은 매번 최신 항목이
+  // 맨 위로 올라가면서도 과거 전체 카탈로그로의 접근이 유지된다. 재생목록이
+  // 아직 없으면(막 붙인 기능이라 첫 롱폼 게시 전이거나 생성이 실패한 경우)
+  // 예전 방식인 '최신 영상 1개' 링크로 자연스럽게 대체한다.
+  const playlistId = await loadLongformPlaylistId();
+  if (playlistId) {
+    out += `\n\n———\n\n🎬 사건 분석 다큐(롱폼) 전체보기: https://www.youtube.com/playlist?list=${playlistId}`;
+  } else {
+    const longform = await loadLatestLongform();
+    if (longform) {
+      out += `\n\n———\n\n🎬 더 깊이 파고든 사건 분석 다큐: "${longform.title}"\nhttps://youtu.be/${longform.videoId}`;
+    }
   }
   return out;
 }

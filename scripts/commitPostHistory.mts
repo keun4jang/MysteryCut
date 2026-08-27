@@ -38,7 +38,12 @@ const git = (...args: string[]): string =>
 
 const HISTORY = "data/history.json";
 /** 이력 외에 파이프라인이 갱신할 수 있는 상태 파일 (있을 때만 커밋) */
-const STATE_FILES = ["data/geminiModel.txt", "data/igGraphVersion.txt", "data/latestLongform.json"];
+const STATE_FILES = [
+  "data/geminiModel.txt",
+  "data/igGraphVersion.txt",
+  "data/latestLongform.json",
+  "data/longformPlaylist.json",
+];
 
 interface Post {
   caseKey: string;
