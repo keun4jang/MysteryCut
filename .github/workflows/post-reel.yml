@@ -168,7 +168,13 @@ jobs:
       # 원격 최신 위에 이력을 데이터 수준으로 합성해 레이스가 원천적으로 없다.
       - name: Save post history
         if: ${{ always() && github.event.inputs.dry_run != 'true' }}
-        run: npx tsx scripts/commitPostHistory.mts "${{ github.ref_name }}" "chore: 게시 이력·썸네일·API 버전 정보 업데이트 [skip ci]"
+        # ★플레인 스칼라(따옴표 없는 한 줄)로 두면 커밋 메시지 안의 "chore: " 처럼
+        # 콜론+공백이 있는 문자열에서 YAML 이 그걸 새 매핑 키로 오해해 파일 전체가
+        # 파싱 실패한다("mapping values are not allowed here") — 실측: 이 문장을
+        # 넣은 두 커밋 모두 push 직후 워크플로가 즉시 실패로 떴다(로그 없이,
+        # 0개 잡). 블록 스칼라(|)는 콜론이 있어도 그대로 리터럴로 읽는다.
+        run: |
+          npx tsx scripts/commitPostHistory.mts "${{ github.ref_name }}" "chore: 게시 이력·썸네일·API 버전 정보 업데이트 [skip ci]"
 
       # 드라이런이거나 실패 시 산출물(영상/JSON) 업로드해서 확인
       - name: Upload artifacts

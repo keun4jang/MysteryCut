@@ -118,7 +118,11 @@ jobs:
       # 정책을 맞춤, 감사에서 지적).
       - name: Save post history
         if: ${{ always() && github.event.inputs.dry_run != 'true' }}
-        run: npx tsx scripts/commitPostHistory.mts "${{ github.ref_name }}" "chore: 롱폼 게시 이력 업데이트 [skip ci]"
+        # ★플레인 스칼라로 두면 커밋 메시지 안의 "chore: " 콜론+공백을 YAML 이
+        # 새 매핑 키로 오해해 파일 전체 파싱이 깨진다(실측: post-reel.yml 의
+        # 같은 스텝 주석 참고). 블록 스칼라(|)로 감싼다.
+        run: |
+          npx tsx scripts/commitPostHistory.mts "${{ github.ref_name }}" "chore: 롱폼 게시 이력 업데이트 [skip ci]"
 
       # 실패 실행(디버깅에 out/ 이 가장 필요한 순간)은 기본적으로 업로드되지
       # 않고, 매번 성공하는 정상 실행만 불필요하게 큰 산출물을 올리던 문제를
