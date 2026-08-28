@@ -322,11 +322,16 @@ const Caption: React.FC<{
   const boxCss: React.CSSProperties =
     boxStyle === "minimal"
       ? {
-          // 배경 없음 — 강한 그림자만으로 가독성 확보
+          // 배경 없음 — 그림자만으로는 밝은 사진 위에서 대비가 무너진다(실측: 흰
+          // 배경 사진에서 흰 글자 대비 1.0~1.45:1, WCAG AA 4.5:1 기준 크게 미달).
+          // 텍스트 자체에 검은 외곽선을 둘러 배경 밝기와 무관하게 대비를 보장한다
+          // (연구 기준 아웃라인 처리 ~12:1 — 그림자 단독보다 훨씬 안전).
           // 폭을 우측 릴스 버튼 열(하트/댓글) 앞에서 끊는다 — 길면 균형 2줄로 줄바꿈
           maxWidth: "82%",
           padding: "10px 8px",
           filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.95))",
+          WebkitTextStroke: "3px rgba(0,0,0,0.9)",
+          paintOrder: "stroke fill",
         }
       : boxStyle === "bar"
         ? {
@@ -342,7 +347,12 @@ const Caption: React.FC<{
             maxWidth: "84%",
             padding: "22px 42px 26px 46px",
             borderRadius: 10,
-            background: "rgba(10,11,15,0.68)",
+            // 0.68→0.85: 밝은 사진 위에서 reveal 강조색(#e85454 등 채도 높은
+            // 빨강 계열)이 WCAG AA(4.5:1) 에 못 미쳤다(실측: 흰 배경 사진에서
+            // 2.9:1). 흰 글자는 이미 충분했지만 강조색은 루미넌스가 낮아 더
+            // 어두운 패널이 필요하다 — 롱폼 카드 패널도 같은 이유로 0.80→0.86
+            // 올린 전례가 있다(LongformDoc.tsx). 실측 재렌더로 4.5:1 이상 확인.
+            background: "rgba(10,11,15,0.90)",
             border: "1px solid rgba(255,255,255,0.12)",
             borderLeft: `4px solid ${accent}`,
             boxShadow: "0 10px 30px rgba(0,0,0,0.45)",
