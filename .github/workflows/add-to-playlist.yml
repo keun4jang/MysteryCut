@@ -2,8 +2,9 @@ name: "📃 재생목록에 영상 추가"
 
 # 사용법: Actions 탭 → "📃 재생목록에 영상 추가" → Run workflow
 #        → 재생목록 ID 와 영상 ID 입력.
-# 자동 파이프라인의 playlistItems.insert 가 일시 오류로 실패했을 때
-# 수동으로 채워 넣는 용도. (무료, 쿼터 ~50유닛)
+# 자동 파이프라인의 playlistItems.insert 가 일시 오류로 실패했을 때 수동으로
+# 채워 넣거나, 재생목록 도입 이전에 게시된 영상을 소급 추가할 때 쓴다.
+# (무료, 쿼터 ~50유닛)
 on:
   workflow_dispatch:
     inputs:
@@ -13,6 +14,10 @@ on:
       video_id:
         description: "유튜브 영상 ID (youtu.be/ 뒤 11자)"
         required: true
+      position:
+        description: "재생목록 내 위치(0=맨 위). 비우면 맨 끝에 추가(과거 영상 소급용)"
+        required: false
+        default: ""
 
 jobs:
   add:
@@ -30,4 +35,4 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
-        run: npx tsx scripts/addToPlaylist.mts "${{ github.event.inputs.playlist_id }}" "${{ github.event.inputs.video_id }}"
+        run: npx tsx scripts/addToPlaylist.mts "${{ github.event.inputs.playlist_id }}" "${{ github.event.inputs.video_id }}" "${{ github.event.inputs.position }}"
