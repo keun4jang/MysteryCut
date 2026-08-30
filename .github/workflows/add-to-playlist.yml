@@ -1,0 +1,33 @@
+name: "📃 재생목록에 영상 추가"
+
+# 사용법: Actions 탭 → "📃 재생목록에 영상 추가" → Run workflow
+#        → 재생목록 ID 와 영상 ID 입력.
+# 자동 파이프라인의 playlistItems.insert 가 일시 오류로 실패했을 때
+# 수동으로 채워 넣는 용도. (무료, 쿼터 ~50유닛)
+on:
+  workflow_dispatch:
+    inputs:
+      playlist_id:
+        description: "유튜브 재생목록 ID (data/longformPlaylist.json 참고)"
+        required: true
+      video_id:
+        description: "유튜브 영상 ID (youtu.be/ 뒤 11자)"
+        required: true
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 재생목록에 추가
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: npx tsx scripts/addToPlaylist.mts "${{ github.event.inputs.playlist_id }}" "${{ github.event.inputs.video_id }}"
