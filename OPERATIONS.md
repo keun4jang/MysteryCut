@@ -280,9 +280,14 @@ OAuth Playground 는 리디렉션 URI 등록이 필요해서 **웹 애플리케�
 `youtube.force-ssl`(자막 트랙 등록에 이미 쓰는 스코프) 로 동작합니다 —
 실패해도 영상 게시 자체는 막지 않습니다.
 
-고정 댓글은 검토했으나 YouTube Data API v3 에 pin 기능이 없어(공식 문서
-확인, `comments`/`commentThreads` 리소스에 관련 필드·메서드 없음) 자동화가
-불가능합니다 — 유튜브 Studio 앱에서 사람이 직접 눌러야 하는 UI 전용 기능.
+**댓글 자동 작성(2026-08-30 추가)**: "고정"은 YouTube Data API v3 에 없지만
+(공식 문서 확인, `comments`/`commentThreads` 리소스에 관련 필드·메서드 없음)
+"작성"은 `commentThreads.insert` 로 됩니다. `publishYouTube()`가 쇼츠 게시
+마지막 단계에서 `postPromoComment()`를 호출해 롱폼(재생목록 우선, 없으면
+최신 영상) 링크 댓글을 자동으로 답니다 — `youtube.force-ssl` 스코프(자막
+등록에 이미 씀)로 동작하고, 실패해도 게시 자체는 막지 않습니다. 다만 이
+댓글을 화면 상단에 고정하는 건 여전히 Studio 에서 사람이 한 번 눌러야 합니다
+— "작성"은 매번 자동, "고정"만 수동으로 남습니다.
 
 ### 쇼츠의 "관련 동영상" 카드 (수동 — API로 자동화 불가, 2026-08-27 조사)
 
@@ -303,6 +308,14 @@ https://support.google.com/youtube/answer/14075157). 다만 YouTube Data API
 완전 무인 원칙엔 어긋나지만, 일주일에 한 번 정도 최근 쇼츠 몇 개에 몰아서
 걸어주는 정도면 부담이 크지 않습니다. 설명란/재생목록 링크(자동)와 함께
 쓰면 가장 효과적입니다.
+
+**커뮤니티 탭 게시물도 같은 이유로 완전 수동입니다** — YouTube Data API v3 에
+커뮤니티 탭 리소스 자체가 없습니다(Activities/Captions/Channels/Comments/
+CommentThreads/PlaylistItems 뿐, 2026-08-30 재확인). 구독자에게 직접 도달하는
+무료 채널이니 롱폼 신작이 나올 때 Studio에서 수동으로 올리는 걸 권장합니다.
+
+정리하면 남은 수동 작업은 세 가지뿐입니다: 관련 동영상 카드 설정, 커뮤니티
+탭 게시, 댓글 고정(작성 자체는 위 `postPromoComment()`가 자동으로 함).
 
 효과는 몇 주 뒤 `analyticsDiag.mts`의 ⑤번 표(`videoOnDemand` 시청시간)로
 확인하세요. 그래도 안 늘면 롱폼 자체의 발견성(썸네일·제목·검색 키워드) 쪽을

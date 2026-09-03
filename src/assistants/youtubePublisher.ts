@@ -180,6 +180,9 @@ export async function publishYouTube(
   if (srt) await uploadCaptionTrack(json.id, srt, accessToken, "한국어");
   if (srtEn) await uploadCaptionTrack(json.id, srtEn, accessToken, "English", "en");
 
+  // 5) 롱폼 유도 댓글 자동 작성 (고정은 Studio 에서 수동 — postPromoComment 참고)
+  await postPromoComment(json.id, accessToken);
+
   return { videoId: json.id };
 }
 
@@ -477,6 +480,47 @@ async function addToLongformPlaylist(playlistId: string, videoId: string, access
     console.warn(`   ⚠️ 재생목록 추가 실패(게시는 완료됨): HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
   } catch (e) {
     console.warn(`   ⚠️ 재생목록 추가 실패(게시는 완료됨): ${e instanceof Error ? e.message : e}`);
+  }
+}
+
+/**
+ * 방금 올린 쇼츠에 롱폼 유도 댓글을 자동으로 단다.
+ *
+ * "관련 동영상" 카드·커뮤니티 탭 게시물은 YouTube Data API 어디에도 엔드포인트가
+ * 없어(공식 문서·리소스 목록 전체 확인, 2026-08-30) 100% 수동이지만, 댓글
+ * "작성"은 commentThreads.insert 로 된다(자막 등록에 이미 쓰는 youtube.force-ssl
+ * 스코프로 동작). 다만 "고정"은 API에 없다 — 이 댓글이 올라간 뒤 사람이
+ * Studio 에서 한 번 눌러 고정해야 효과가 난다(작성까지는 매번 자동, 고정만 수동).
+ *
+ * 롱폼(재생목록/최신 영상)이 아직 하나도 없으면 홍보할 대상이 없으므로 조용히
+ * 건너뛴다. 실패해도 게시 자체는 이미 끝난 상태라 계속한다.
+ */
+async function postPromoComment(videoId: string, accessToken: string): Promise<void> {
+  const playlistId = await loadLongformPlaylistId();
+  let text: string;
+  if (playlistId) {
+    text = `🎬 이 사건, 더 깊이 파고든 다큐도 있어요\n전체보기: https://www.youtube.com/playlist?list=${playlistId}`;
+  } else {
+    const longform = await loadLatestLongform();
+    if (!longform) return;
+    text = `🎬 더 깊이 파고든 사건 분석 다큐: "${longform.title}"\nhttps://youtu.be/${longform.videoId}`;
+  }
+  try {
+    const res = await fetch("https://www.googleapis.com/youtube/v3/commentThreads?part=snippet", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify({
+        snippet: { videoId, topLevelComment: { snippet: { textOriginal: text } } },
+      }),
+    });
+    if (res.ok) {
+      console.log("   💬 롱폼 유도 댓글 작성 완료 (Studio 에서 고정은 수동으로)");
+      return;
+    }
+    console.warn(`   ⚠️ 롱폼 유도 댓글 작성 실패(게시는 완료됨): HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
+  } catch (e) {
+    console.warn(`   ⚠️ 롱폼 유도 댓글 작성 실패(게시는 완료됨): ${e instanceof Error ? e.message : e}`);
   }
 }
 
