@@ -76,9 +76,24 @@ const readPosts = (file: string): Post[] => {
 
 // ── ① 스냅샷 ────────────────────────────────────────────────────────────
 const localPosts = readPosts(HISTORY);
+// ★이번 실행이 실제로 건드린 상태 파일만 골라낸다. 예전엔 STATE_FILES 전부를
+// 무조건 스냅샷→재기록했는데, 이 파일들은 쇼츠/롱폼 파이프라인 중 한쪽만
+// 갱신하는 게 대부분이다(예: latestLongform.json 은 롱폼만 씀). 안 건드린
+// 파이프라인의 체크아웃 시점 값(=커밋 전 오래된 값)이 그대로 재기록되면서,
+// 몇 시간 전에 다른 워크플로가 origin 에 올린 더 새 값을 되돌리는 사고가
+// 실측됐다(2026-09-11: 롱폼이 최신 영상으로 갱신한 latestLongform.json 을
+// 1시간 뒤 쇼츠 실행이 자기 체크아웃 시점의 옛 값으로 덮어씀). git status 로
+// '체크아웃 이후 실제로 바뀐 파일'만 추려 그것만 재기록 대상으로 삼는다 —
+// 안 바뀐 파일은 리셋 직후의 origin 최신값을 그대로 두면 된다.
+const changedStateFiles = new Set(
+  git("status", "--porcelain", "--", ...STATE_FILES)
+    .split("\n")
+    .map((l) => l.slice(3).trim())
+    .filter(Boolean),
+);
 const stateSnapshot = new Map<string, string>();
 for (const f of STATE_FILES) {
-  if (fs.existsSync(f)) stateSnapshot.set(f, fs.readFileSync(f, "utf8"));
+  if (changedStateFiles.has(f) && fs.existsSync(f)) stateSnapshot.set(f, fs.readFileSync(f, "utf8"));
 }
 // 새로 생기거나 바뀐 썸네일 — 리셋하면 트래킹 여부와 무관하게 사라질 수 있어 복사해 둔다.
 // -uall: 폴더가 통째로 새것이면 porcelain 이 "?? thumbnails/" 한 줄로 뭉뚱그리는데,
