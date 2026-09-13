@@ -8,9 +8,11 @@
  * 필요 스코프: https://www.googleapis.com/auth/yt-analytics.readonly
  *   (없으면 403 — OAuth Playground 재인증 필요. 이 스크립트가 그 사실을 알려준다)
  *
- * 사용: npx tsx scripts/analyticsDiag.mts
+ * 사용: npx tsx scripts/analyticsDiag.mts [롱폼videoId]
+ *   videoId 를 생략하면 data/latestLongform.json 의 최신 롱폼을 본다.
  */
 import { getYoutubeAccessToken } from "../src/assistants/youtubePublisher.js";
+import { loadLatestLongform } from "../src/lib/latestLongform.js";
 
 const token = await getYoutubeAccessToken();
 const H = { Authorization: `Bearer ${token}` };
@@ -171,6 +173,35 @@ table(
   }),
   40,
 );
+
+// ── ⑨ 롱폼 시청 지속률 곡선 (몇 % 지점에서 이탈하는가) ──
+// ★평균 시청 완료율(⑤번, 예: 19.2%) 하나만으로는 "초반 이탈"인지 "끝까지
+// 골고루 새는지"를 구분할 수 없다 — 대응이 완전히 다르다(콜드오픈 문제 vs
+// 본문 밀도 문제). elapsedVideoTimeRatio 로 10%씩 끊어 실제 이탈 지점을 본다.
+const targetVideoId = process.argv[2] ?? (await loadLatestLongform())?.videoId;
+if (targetVideoId) {
+  const retention = await report(`retentionCurve:${targetVideoId}`, {
+    startDate: ALL,
+    endDate: TODAY,
+    metrics: "audienceWatchRatio,relativeRetentionPerformance",
+    dimensions: "elapsedVideoTimeRatio",
+    filters: `video==${targetVideoId}`,
+  });
+  if (retention) {
+    // 100개 포인트(1%~100%)는 로그가 너무 기니 10%p 단위로만 추린다.
+    const decile = {
+      headers: retention.headers,
+      rows: retention.rows.filter((_, i) => (i + 1) % 10 === 0),
+    };
+    table(`⑩ 롱폼 ${targetVideoId} 시청 지속률 곡선 (10%p 단위)`, decile, 10);
+    console.log(
+      "   audienceWatchRatio=이 지점까지 본 비율, relativeRetentionPerformance=같은 길이 다른 영상 대비(1.0=평균).",
+    );
+    console.log("   앞쪽(10~30%)에서 이미 크게 꺾이면 콜드오픈 문제, 뒤로 갈수록 완만히 새면 본문 밀도 문제.");
+  }
+} else {
+  console.log("\n⑩ 롱폼 시청 지속률 곡선 — 스킵(아직 게시된 롱폼 없음, data/latestLongform.json 비어있음)");
+}
 
 console.log("\n※ ①번 표가 핵심입니다. SUBSCRIBED 조회수가 전체의 5% 미만이면");
 console.log("   15,100명은 사실상 비활성이고, 롱폼 초기 추진력을 기대할 수 없습니다.");
