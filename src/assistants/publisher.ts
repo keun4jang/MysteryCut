@@ -82,7 +82,7 @@ export async function publishReel(
     // 2) video_url 로 미디어 컨테이너 생성
     const containerId = await createContainer(caption, videoUrl);
     // 3) 인스타가 영상을 내려받아 처리 완료할 때까지 대기
-    await waitUntilFinished(containerId);
+    await waitUntilFinished(containerId, videoUrl);
     // 4) 게시
     const mediaId = await publish(containerId);
     return { mediaId };
@@ -156,9 +156,47 @@ async function hostVideoPublicly(
     await deleteRelease(api, owner, name, releaseId, tag, ghHeaders);
     throw new Error(`릴리스 에셋 업로드 실패: ${JSON.stringify(asset).slice(0, 300)}`);
   }
+  console.log(`  📦 업로드 영상 크기: ${(bytes.length / 1024 / 1024).toFixed(1)}MB`);
 
   const cleanup = () => deleteRelease(api, owner, name, releaseId, tag, ghHeaders);
+  // ★업로드 API 가 200 을 줘도 릴리스 에셋이 전세계 CDN 에 곧바로 전파된다는
+  // 보장은 없다(실측은 못 했지만 CI 도구들 사이에서 흔히 보고되는 패턴).
+  // 인스타가 우리 video_url 을 못 받아오면 그 이유는 절대 우리에게 안 알려주고
+  // status_code=ERROR 만 돌아온다(2026-09 두 차례 원인불명 실패의 근본 원인
+  // 후보) — 그래서 인스타에 넘기기 전에 우리가 먼저 실제로 받아지는지 확인한다.
+  try {
+    await ensurePubliclyFetchable(asset.browser_download_url);
+  } catch (e) {
+    await cleanup().catch(() => {});
+    throw e;
+  }
   return { videoUrl: asset.browser_download_url, cleanup };
+}
+
+/** video_url 을 인스타에 넘기기 전, 실제로 공개 다운로드가 되는지 직접 확인. */
+async function ensurePubliclyFetchable(url: string): Promise<void> {
+  const attempts = 5;
+  for (let i = 1; i <= attempts; i++) {
+    const probe = await probeVideoUrl(url);
+    if (probe.reachable) return;
+    console.warn(`  ⚠️ 공개 URL 아직 안 내려받아짐(${i}/${attempts}, ${probe.detail}) — 재확인`);
+    if (i < attempts) await sleep(i * 2000);
+  }
+  throw new Error(`인스타 업로드용 공개 URL 이 ${attempts}회 재시도에도 내려받아지지 않습니다: ${url}`);
+}
+
+/** Range 요청 1바이트만 받아 URL 이 실제로 살아있는지 가볍게 확인. */
+async function probeVideoUrl(url: string): Promise<{ reachable: boolean; detail: string }> {
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Range: "bytes=0-0" },
+      signal: AbortSignal.timeout(15_000),
+    });
+    return { reachable: res.ok || res.status === 206, detail: `HTTP ${res.status}` };
+  } catch (e) {
+    return { reachable: false, detail: `요청 실패: ${e instanceof Error ? e.message : e}` };
+  }
 }
 
 /**
@@ -217,7 +255,7 @@ async function createContainer(caption: string, videoUrl: string): Promise<strin
  * 컨테이너가 그 뒤 정상적으로 FINISHED 됐을 수 있는데 폴링을 포기해버린다
  * (감사에서 발견). 연속 실패가 일정 횟수를 넘을 때만 진짜 장애로 본다.
  */
-async function waitUntilFinished(containerId: string): Promise<void> {
+async function waitUntilFinished(containerId: string, videoUrl: string): Promise<void> {
   const MAX_CONSECUTIVE_FAILURES = 5; // 20초 연속 불통이면 진짜 장애로 본다
   let consecutiveFailures = 0;
   for (let attempt = 0; attempt < 45; attempt++) {
@@ -238,7 +276,16 @@ async function waitUntilFinished(containerId: string): Promise<void> {
     }
     if (json.status_code === "FINISHED") return;
     if (json.status_code === "ERROR") {
-      throw new Error(`영상 처리 실패: ${JSON.stringify(json)}`);
+      // ★인스타가 주는 정보는 이게 전부다(status_code/status 둘 다 "ERROR").
+      // 실패 순간 video_url 이 아직 살아있는지 우리가 직접 찔러봐서, 최소한
+      // "GitHub 쪽 호스팅 문제였는지"와 "인스타가 받고 나서 거부한 건지"는
+      // 구분되는 단서를 로그에 남긴다 — 다음 실패 때는 추측이 아니라 근거로 시작하려고.
+      const probe = await probeVideoUrl(videoUrl);
+      throw new Error(
+        `영상 처리 실패: ${JSON.stringify(json)} — 실패 시점 video_url 상태: ${probe.detail}(${
+          probe.reachable ? "접근 가능=인스타 쪽 거부로 추정" : "접근 불가=호스팅 문제로 추정"
+        }), 폴링 ${attempt + 1}회차(약 ${(attempt + 1) * 4}s) 경과`,
+      );
     }
     console.log(`  ⏳ 처리 중... (${json.status_code ?? "IN_PROGRESS"})`);
   }
