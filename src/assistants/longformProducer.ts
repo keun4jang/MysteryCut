@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { config } from "../config.js";
 import { generateStructured } from "../lib/llm.js";
 import { findSensitiveTerms, softenText } from "../lib/safeText.js";
@@ -43,8 +44,8 @@ const MAX_CHARS = 6000;
 /** 원문 1자당 목표 대본 글자수. 위키 서술을 다 옮기지 않고도 다큐로 재구성하니 1보다 작게 잡는다 */
 const CHARS_PER_SOURCE_CHAR = 0.8;
 
-function idealCharsFor(sourceVolume: number): number {
-  return Math.min(MAX_CHARS, Math.max(MIN_CHARS, Math.round(sourceVolume * CHARS_PER_SOURCE_CHAR)));
+function idealCharsFor(sourceVolume: number, min = MIN_CHARS, max = MAX_CHARS): number {
+  return Math.min(max, Math.max(min, Math.round(sourceVolume * CHARS_PER_SOURCE_CHAR)));
 }
 
 export interface LongformOptions {
@@ -54,11 +55,18 @@ export interface LongformOptions {
   sources: SourceDoc[];
   /** 이미 다룬 사건(중복 회피 안내용) */
   avoidTitles?: string[];
+  /**
+   * 기본 MIN/MAX_CHARS 대신 쓸 글자수 범위. 몰아보기(여러 사건 모음) 롱폼처럼
+   * 한 편에 여러 사건을 담을 때, 사건당 분량을 줄여야 총 러닝타임이 적당해진다.
+   */
+  charLimits?: { min: number; max: number };
 }
 
 export async function writeLongform(opts: LongformOptions): Promise<LongformScript> {
+  const minChars = opts.charLimits?.min ?? MIN_CHARS;
+  const maxChars = opts.charLimits?.max ?? MAX_CHARS;
   const sourceVolume = opts.sources.reduce((n, d) => n + d.extract.length, 0);
-  const idealChars = idealCharsFor(sourceVolume);
+  const idealChars = idealCharsFor(sourceVolume, minChars, maxChars);
   const idealMinutes = Math.round((idealChars / 7.08 / 60) * 10) / 10;
   // 챕터 5~12개, 컷 34자 평균으로 역산 — 챕터당 14~20컷 사이가 되도록 챕터 수를 고른다.
   const targetCuts = Math.max(60, Math.round(idealChars / 34));
@@ -182,7 +190,7 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "정보만 쏟아진다. 첫 챕터와 마지막 챕터는 frame 이 아예 없어도 된다.",
     "",
     "[★분량]",
-    `- 모든 segments 의 text 글자수 합계가 공백 포함 ${MIN_CHARS}~${MAX_CHARS}자(이번 회차 목표 ${idealChars}자).`,
+    `- 모든 segments 의 text 글자수 합계가 공백 포함 ${minChars}~${maxChars}자(이번 회차 목표 ${idealChars}자).`,
     `- ★총합을 어림하지 말고 이렇게 맞춰라: **챕터 ${chapterCount}개 × 문장 ${cutsPerChapter}개 안팎 × 한 문장 28~34자**`,
     `  (${chapterCount} × ${cutsPerChapter} × 34 ≈ ${chapterCount * cutsPerChapter * 34}자).`,
     "  ★단, 이 계산은 배분 계획일 뿐이다 — 챕터마다 원문이 뒷받침하는 사실 수가 다르면",
@@ -308,7 +316,7 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
       `   📝 롱폼 대본 ${chars}자 / 챕터 ${script.chapters.length}개 / 컷 ${countSegments(script)}개`,
     );
     console.log(`   🖼️  썸네일 문구 "${script.thumbTitle.replace(/\n/g, " / ")}" (${script.thumbBadge})`);
-    if (!flagged.length && !thumbIssues.length && chars >= MIN_CHARS && chars <= MAX_CHARS) {
+    if (!flagged.length && !thumbIssues.length && chars >= minChars && chars <= maxChars) {
       applyVisualGates(script, opts.sources, opts.forcedCase.title);
       return script;
     }
@@ -323,8 +331,8 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
       feedback += `\n★직전 thumbTitle "${script.thumbTitle.replace(/\n/g, "\\n")}"에 문제가 있었다: ${thumbIssues.join(" / ")}.
 thumbTitle 규칙을 다시 읽고 고쳐라. 대본 내용은 그대로 둬도 된다.`;
     }
-    if (chars < MIN_CHARS || chars > MAX_CHARS) {
-      const dir = chars < MIN_CHARS ? "부족" : "초과";
+    if (chars < minChars || chars > maxChars) {
+      const dir = chars < minChars ? "부족" : "초과";
       console.warn(`   ⚠️ 분량 ${dir}(${chars}자) — 재생성`);
       const cuts = countSegments(script);
       const perCut = cuts ? Math.round(chars / cuts) : 0;
@@ -332,7 +340,7 @@ thumbTitle 규칙을 다시 읽고 고쳐라. 대본 내용은 그대로 둬도 
       feedback += `\n★직전 대본이 ${cuts}컷 / ${chars}자(컷당 평균 ${perCut}자)로 ${dir}했다. 목표는 ${idealChars}자다.
 다시 쓸 때는 총합을 어림하지 말고 **컷 ${needCuts}개, 한 컷 38~44자**로 맞춰라(${needCuts} × 41 ≈ ${needCuts * 41}자).
 다 쓴 뒤 컷을 하나씩 세어 범위 밖인 것만 고쳐라. ${
-        chars > MAX_CHARS
+        chars > maxChars
           ? "지금은 곁가지가 많다 — 핵심 줄기만 남겨라."
           : "지금은 문장이 토막나 있다 — 각 컷을 주어와 근거가 있는 온전한 문장으로 채우고, 증거 검토와 가설 비교를 한 겹 더 파라. ★원문에 정말 그만한 사실이 없으면 억지로 채우지 마라 — 같은 말 반복이나 지어낸 디테일로 늘리면 실패다."
       }`;
@@ -535,4 +543,67 @@ function sanitize(s: LongformScript): void {
       }
     }
   }
+}
+
+/** 몰아보기(여러 사건 모음) 롱폼의 종합 메타데이터 */
+const CompilationMetaSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  tags: z.array(z.string()),
+});
+export type CompilationMeta = z.infer<typeof CompilationMetaSchema>;
+
+/**
+ * 몰아보기(여러 사건 모음) 롱폼 — 영상 전체를 아우르는 title/description/tags 를 짓는다.
+ *
+ * thumbTitle/thumbBadge/thumbQuery 는 여기서 새로 짓지 않고 1번째 사건 것을 그대로
+ * 쓴다(longform.ts 참고) — 이미 thumbTitleIssues() 검증·재시도를 거쳐 통과한
+ * 결과라 여기서 또 처음부터 같은 검증 루프를 만들 필요가 없고, 애초에 썸네일은
+ * '가장 강한 훅 하나'가 국룰이라 여러 사건을 다 욱여넣으면 오히려 약해진다.
+ */
+export async function writeCompilationMeta(
+  cases: Array<{ title: string; centralQuestion: string; description: string }>,
+): Promise<CompilationMeta> {
+  const system = [
+    `너는 ${config.channel.language} 시사·사건 다큐멘터리 채널의 편성 담당자다.`,
+    `이번 영상은 서로 다른 실제 사건 ${cases.length}개를 한 편에 묶은 '모음' 영상이다.`,
+    "",
+    "[title] 38~60자. '여러 사건을 모았다'는 게 드러나야 한다 — '모음'/'몰아보기' 류 표현은",
+    "국내 실화 미스터리 채널에서 이미 자리잡은 관습이라 자연스럽게 써도 된다.",
+    "다만 사건을 단순 나열('A, B, C 사건')하지 말고 공통된 결로 묶어라 — 이 사건들을",
+    "관통하는 감상(예: 다들 사소한 단서 하나로 뒤집혔다, 전부 판결까지 수년이 걸렸다)이",
+    "있으면 그걸 앞세우고, 없으면 가장 강한 사건 하나를 앞세운 뒤 나머지를 자연스럽게 이어라.",
+    "★금지어: 충격, 경악, 소름, 역대급, 실화냐, 미친, 대반전, 무서운, 레전드.",
+    "",
+    "[description] 이번 영상에 들어간 사건을 순서대로 한 줄씩 소개(제목 반복이 아니라",
+    "그 사건이 뭔지 한 문장 요약). 해시태그(#) 금지.",
+    "마지막 줄: '※ 실제 사건 기록을 바탕으로 재구성했습니다. 영상 속 이미지는 자료 이미지입니다.'",
+    "",
+    "[tags] # 없이 검색 키워드 10~15개. 개별 사건 키워드 + '미스터리모음' 류 컬렉션 키워드 혼합.",
+  ].join("\n");
+
+  const user = cases
+    .map(
+      (c, i) => `${i + 1}. ${c.title}\n   핵심 질문: ${c.centralQuestion}\n   요약: ${c.description}`,
+    )
+    .join("\n\n");
+
+  const meta = (await generateStructured({
+    schema: CompilationMetaSchema,
+    system,
+    user: `아래 ${cases.length}개 사건을 묶은 모음 영상의 title/description/tags 를 만들어줘.\n\n${user}`,
+    temperature: 0.9,
+  })) as CompilationMeta;
+
+  // 줄바꿈 정리(쇼츠·단일 롱폼과 동일 문제 — LLM 이 개행을 '\n' 두 글자로 뱉는다)
+  meta.title = meta.title.replace(/\\+n/g, " ").replace(/\s*\n\s*/g, " ").trim();
+  meta.description = meta.description.replace(/\\+n/g, "\n").trim();
+  meta.tags = (meta.tags ?? []).map((t) => t.replace(/^#/, "").trim());
+
+  // 위험 표현 순화 — 단일 사건 대본과 동일한 안전장치
+  if (findSensitiveTerms([meta.title, meta.description]).length) {
+    meta.title = softenText(meta.title);
+    meta.description = softenText(meta.description);
+  }
+  return meta;
 }

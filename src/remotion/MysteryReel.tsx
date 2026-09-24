@@ -11,7 +11,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import type { NarratedSegment, ReelInputProps, ReelTheme } from "../types.js";
-import { breathFramesAfter, THUMB_FRAMES } from "./timing.js";
+import { breathFramesAfter, THUMB_FRAMES, totalDurationInFrames } from "./timing.js";
 import { ensureFonts, FONT_FAMILY } from "./fonts.js";
 
 // 기본 테마 (theme 미지정 시)
@@ -66,6 +66,10 @@ export const MysteryReel: React.FC<ReelInputProps> = ({
       f += len;
     });
   }
+  // 롱폼 유도 배지 노출 구간 — 대본 프롬프트가 정의하는 "마무리 구간"(마지막 3
+  // 세그먼트)과 정확히 맞춘다. 결말이 밝혀진 뒤부터만 뜨므로 본문 이탈을 유발하지 않는다.
+  const totalFrames = totalDurationInFrames(segments, fps, Boolean(thumbTitle));
+  const ctaStart = startFrames[Math.max(0, segments.length - 3)] ?? 0;
 
   // 장면(비주얼 챕터) 판별 — sceneIndex 가 없는 구버전 데이터는 컷=장면(디졸브 없음)
   const sceneOf = (i: number) => segments[i].sceneIndex ?? i;
@@ -134,6 +138,16 @@ export const MysteryReel: React.FC<ReelInputProps> = ({
 
       {bgmSrc ? <Audio src={staticFile(bgmSrc)} volume={bgmVolume} loop /> : null}
       <Watermark />
+      {/* ★쇼츠→롱폼 교차유도(2026-08-27)가 설명란·댓글 텍스트뿐이라 사실상 안 읽힌다
+          (실측 2026-09-13: 재생목록 90일 유입 7회). 유사 채널 리서치 결론과 일치 —
+          텍스트 링크보다 영상 안의 시각적 신호가 실제 전환을 만든다. 나레이션 대본의
+          엔딩(마지막 3세그먼트)은 리텐션·루프 재생을 위해 이미 정교하게 튜닝돼 있어
+          그대로 두고, 순수 시각 오버레이만 그 구간에 겹쳐 얹는다 — 이야기 본문 시청엔
+          전혀 끼어들지 않고, 시청자가 결말을 다 보고 "다음엔 뭐 볼까" 하는 바로 그
+          타이밍에만 뜬다. */}
+      <Sequence from={ctaStart} durationInFrames={Math.max(1, totalFrames - ctaStart)}>
+        <LongformCTA />
+      </Sequence>
     </AbsoluteFill>
   );
 };
@@ -609,3 +623,42 @@ const Watermark: React.FC = () => (
     </div>
   </AbsoluteFill>
 );
+
+/**
+ * 롱폼 교차유도 배지 — 워터마크 바로 아래, 같은 안전지대(좌측 상단 안쪽)에 얹는다.
+ * 결말이 밝혀진 마무리 구간에만 뜨고(호출부에서 Sequence 로 구간 제한), 페이드인으로
+ * 조용히 등장해 본문 몰입을 방해하지 않는다. 특정 영상·재생목록을 가리키지 않는
+ * 고정 문구라 렌더 파이프라인에 새 데이터를 끌어올 필요가 없다 — 실제 링크는 이미
+ * 설명란·댓글·재생목록이 담당하고, 이 배지는 그쪽으로 눈을 돌리게 하는 역할만 한다.
+ */
+const LongformCTA: React.FC = () => {
+  const frame = useCurrentFrame();
+  const opacity = interpolate(frame, [0, 18], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  return (
+    <AbsoluteFill
+      style={{ justifyContent: "flex-start", alignItems: "flex-start", padding: "280px 0 0 52px" }}
+    >
+      <div
+        style={{
+          opacity,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "8px 14px",
+          borderRadius: 999,
+          backgroundColor: "rgba(0,0,0,0.45)",
+          color: "rgba(255,255,255,0.92)",
+          fontSize: 24,
+          fontWeight: 600,
+          letterSpacing: "-0.2px",
+          textShadow: "0 2px 10px rgba(0,0,0,0.85)",
+        }}
+      >
+        🎬 전체 이야기는 프로필에서
+      </div>
+    </AbsoluteFill>
+  );
+};
