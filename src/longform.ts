@@ -61,6 +61,7 @@ interface ProducedCase {
   script: LongformScript;
   chapters: NarratedChapter[];
   sources: SourceDoc[];
+  topicAngle: string;
 }
 
 async function main() {
@@ -69,9 +70,6 @@ async function main() {
   const history = await loadHistory();
   const avoid = recentAvoidList(history);
   console.log(`🗂️  게시 이력 ${history.posts.length}건 (중복 회피)`);
-
-  const pack = pickStylePack();
-  console.log(`   🧭 ${pack.topicAngle.split(" — ")[0]} | ${pack.regionAngle.split(" — ")[0]}`);
 
   // isDuplicate() 는 디스크 이력만 본다 — 이번 실행에서 이미 고른 사건은 아직
   // 디스크에 없으므로, 고를 때마다 이 사본에 곧바로 더해 같은 회차 안에서도
@@ -84,7 +82,6 @@ async function main() {
     const produced = await produceOneCase({
       seed: i === 0 ? args.seed : undefined,
       avoid,
-      pack,
       workingHistory,
       isFirst: i === 0,
     });
@@ -134,7 +131,7 @@ async function main() {
   // ③ 챕터 배경은 사건별로 이미 붙었다(produceOneCase 안에서) — 여기선 썸네일 배경만.
   const thumbBgSrc = await fetchThumbBg(cases[0].script.thumbQuery);
   // 장르 그레이드(색감·톤)는 영상 전체에 하나만 적용되는 값이라 1번째 사건 기준으로 고정한다.
-  const grade = deriveGrade(cases[0].probe.caseKey, cases[0].script.thumbBadge, pack.topicAngle);
+  const grade = deriveGrade(cases[0].probe.caseKey, cases[0].script.thumbBadge, cases[0].topicAngle);
   console.log(`   🎨 장르 그레이드: ${grade.genre} (1번째 사건 기준 — 영상 전체 톤)`);
 
   // 썸네일 문구(thumbTitle/thumbBadge)는 새로 짓지 않고 1번째 사건 것을 그대로 쓴다
@@ -240,11 +237,14 @@ async function main() {
 async function produceOneCase(opts: {
   seed: string | undefined;
   avoid: ReturnType<typeof recentAvoidList>;
-  pack: ReturnType<typeof pickStylePack>;
   workingHistory: { posts: HistoryPost[] };
   isFirst: boolean;
 }): Promise<ProducedCase | null> {
-  const { avoid, pack, workingHistory, isFirst } = opts;
+  const { avoid, workingHistory, isFirst } = opts;
+  // ★소재 각도는 사건마다 새로 뽑는다. 예전엔 영상당 한 번만 뽑아 5건 전부가
+  // 같은 각도·지역을 썼고, 9/25 편은 5건이 거의 같은 한국 상속 분쟁이 됐다.
+  const pack = pickStylePack();
+  console.log(`   🧭 ${pack.topicAngle.split(" — ")[0]} | ${pack.regionAngle.split(" — ")[0]}`);
   let probe = await proposeCase(opts.seed, avoid, {
     topicAngle: pack.topicAngle,
     regionAngle: pack.regionAngle,
@@ -307,7 +307,7 @@ async function produceOneCase(opts: {
     `   ⏱️ 대본 ${totalChars(script)}자 / ${countSegments(script)}컷 (전환 챕터 제외)`,
   );
 
-  return { probe, script, chapters, sources };
+  return { probe, script, chapters, sources, topicAngle: pack.topicAngle };
 }
 
 async function findBgm(): Promise<string | undefined> {
