@@ -199,6 +199,26 @@ if (targetVideoId) {
     );
     console.log("   앞쪽(10~30%)에서 이미 크게 꺾이면 콜드오픈 문제, 뒤로 갈수록 완만히 새면 본문 밀도 문제.");
   }
+  table(
+    `⑩-b 롱폼 ${targetVideoId} 누적 성적`,
+    await report(`latestTotals:${targetVideoId}`, {
+      startDate: ALL,
+      endDate: TODAY,
+      metrics: "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained",
+      filters: `video==${targetVideoId}`,
+    }),
+  );
+  table(
+    `⑩-c 롱폼 ${targetVideoId} 유입 경로 — 조회가 어디서 왔나`,
+    await report(`latestTraffic:${targetVideoId}`, {
+      startDate: ALL,
+      endDate: TODAY,
+      metrics: "views,estimatedMinutesWatched,averageViewDuration",
+      dimensions: "insightTrafficSourceType",
+      filters: `video==${targetVideoId}`,
+      sort: "-views",
+    }),
+  );
 } else {
   console.log("\n⑩ 롱폼 시청 지속률 곡선 — 스킵(아직 게시된 롱폼 없음, data/latestLongform.json 비어있음)");
 }
@@ -207,7 +227,8 @@ if (targetVideoId) {
 // YPP 조건은 "최근 365일 공개 롱폼 시청시간 4,000시간"이고 쇼츠 시청시간은 안 친다.
 // ⑤번(90일)만으로는 이 숫자를 알 수 없어 365일 기준을 따로 본다.
 const D365 = day(-365);
-const VOD = "creatorContentType==VIDEO_ON_DEMAND";
+// 값 표기는 응답과 같은 camelCase — "VIDEO_ON_DEMAND" 로 쓰면 400(실측 2026-09-28).
+const VOD = "creatorContentType==videoOnDemand";
 
 const ypp = await report("ypp365", {
   startDate: D365,
@@ -219,7 +240,7 @@ table("⑪ 최근 365일 콘텐츠 유형별 시청 (YPP 기준 기간)", ypp);
 if (ypp) {
   const iType = ypp.headers.indexOf("creatorContentType");
   const iMin = ypp.headers.indexOf("estimatedMinutesWatched");
-  const vod = ypp.rows.find((r) => String(r[iType]).toUpperCase() === "VIDEO_ON_DEMAND");
+  const vod = ypp.rows.find((r) => String(r[iType]) === "videoOnDemand");
   const hours = vod ? Number(vod[iMin]) / 60 : 0;
   console.log(
     `   → 롱폼 시청시간 ${hours.toFixed(1)}시간 / 4,000시간 (${((hours / 4000) * 100).toFixed(2)}%) — 쇼츠는 합산 안 됨.`,
