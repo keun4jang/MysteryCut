@@ -1,0 +1,32 @@
+name: "🔒 검증 안 된 영상 비공개 전환"
+
+# 사용법: Actions 탭 → "🔒 검증 안 된 영상 비공개 전환" → Run workflow.
+# data/unverifiedPosts.json 에 적힌 유튜브 영상을 비공개로 돌립니다. (무료)
+# 기본은 미리보기 — 어떤 영상이 잡히는지 로그로만 확인하고, apply 를 true 로 해야 실제 변경.
+# 되돌리기는 스튜디오에서 공개로 바꾸면 됩니다(삭제가 아니라 조회수·댓글이 남습니다).
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "실제로 비공개 전환 (false 면 미리보기만)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  privatize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 대상 확인/비공개 전환
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: npx tsx scripts/setPrivacy.mts ${{ github.event.inputs.apply == 'true' && '--apply' || '' }}
