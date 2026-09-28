@@ -2,6 +2,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { generateStructured } from "../lib/llm.js";
 import { findSensitiveTerms, softenText } from "../lib/safeText.js";
+import { numberInQuote } from "../lib/visual/gates.js";
 import { normalizeVisuals } from "../lib/visual/normalize.js";
 import { sourcesPromptBlock, type SourceDoc } from "../lib/sources.js";
 import { LongformScriptSchema, type LongformScript } from "../types.js";
@@ -253,11 +254,13 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "  좋다: '존재하지 않은\\n예방약' / '아무도 못 본\\n세 번째 손' — 마지막이 사물·인물이다.",
     "  나쁘다: '예방약을\\n나눠 주었다' — 마지막이 서술어라 남는 인상이 없다.",
     "- 다음 넷 중 **최소 하나**를 반드시 써라. 둘을 겹치면 더 좋다.",
-    "  ① 숫자 — '열두 명이\\n마신 것' / '37년 만에\\n나온 이름'",
-    "     (가장 강력하다. 사람 수·햇수·증거 번호처럼 원문에 있는 숫자를 그대로 써라)",
+    "  ① 숫자 — '○명이\\n마신 것' / '○년 만에\\n나온 이름' (○ 자리에 원문의 숫자)",
+    "     ★숫자는 위 원문에 **그 숫자 그대로** 있는 것만 써라(사람 수·햇수·증거 번호).",
+    "     원문에 없는 숫자는 자동으로 걸러져 다시 쓰게 된다. 쓸 숫자가 없으면 ②~④를 써라.",
     "  ② 모순 — '범인 없는\\n살인' / '죽은 사람의\\n지문' / '존재하지 않은\\n예방약'",
-    "  ③ 부정 — '끝내 안 열린\\n금고' / '돌아오지 못한\\n열두 명'",
+    "  ③ 부정 — '끝내 안 열린\\n금고' / '돌아오지 못한\\n아이들'",
     "  ④ 사물 하나 — '그가 남긴 것은\\n명함 한 장' / '찻잔에 남아 있던\\n가루'",
+    "  ★위 예시 문구를 그대로 베끼지 마라. 이 사건의 사실로 새로 지어라.",
     "- ★금지어: 충격, 경악, 소름, 역대급, 실화냐, 미친, 대반전, 무서운, 레전드.",
     "  이 채널 시청자는 45세 이상이 87%다. 이런 낱말은 유치해 보여 오히려 안 눌린다.",
     "  게다가 유튜브는 '오해를 부르는 메타데이터'를 수익창출 감점 사유로 든다.",
@@ -306,7 +309,10 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     sanitize(script);
     const chars = totalChars(script);
     const flagged = findSensitiveTerms(collectTexts(script));
-    const thumbIssues = thumbTitleIssues(script.thumbTitle);
+    const thumbIssues = thumbTitleIssues(
+      script.thumbTitle,
+      opts.sources.map((d) => d.extract).join("\n"),
+    );
     const gap = Math.abs(chars - idealChars);
     if (gap < bestGap) {
       best = script;
@@ -368,8 +374,11 @@ const THUMB_BANNED = /충격|경악|소름|역대급|실화냐|미친|대반전|
  *
  * 렌더 쪽 규칙(LongformDoc 의 THUMB_BOX_MAX=6)과 숫자를 맞춰야 한다 —
  * 마지막 줄이 6자를 넘으면 빨간 박스 강조가 풀린다.
+ *
+ * sourceText 를 주면 문구 속 숫자가 원문에 그 숫자로 있는지도 본다. 2026-09-28 실측:
+ * 개구리 소년(5명) 썸네일이 프롬프트 예시 '돌아오지 못한\n열두 명'을 그대로 베꼈다.
  */
-export function thumbTitleIssues(thumbTitle: string): string[] {
+export function thumbTitleIssues(thumbTitle: string, sourceText?: string): string[] {
   const lines = (thumbTitle ?? "")
     .replace(/\\n/g, "\n")
     .split("\n")
@@ -411,7 +420,34 @@ export function thumbTitleIssues(thumbTitle: string): string[] {
   if (!hasNumber && !hasContrast) {
     issues.push("숫자도 모순·부정 표현도 없다(둘 중 하나는 반드시 필요하다)");
   }
+  if (sourceText !== undefined) {
+    const unsourced = thumbNumbers(thumbTitle).filter((n) => !numberInQuote(n, undefined, sourceText));
+    if (unsourced.length) {
+      issues.push(
+        `숫자 ${unsourced.join(", ")}이(가) 원문에 없다(원문에 그 숫자로 있는 것만 쓰고, 없으면 숫자 대신 모순·부정·사물로 써라)`,
+      );
+    }
+  }
   return issues;
+}
+
+/** 썸네일 문구 속 숫자. 한글 수사는 단위를 달고 있을 때만 센다(위 hasNumber 와 같은 기준). */
+const KO_NUMERALS: Array<[string, number]> = [
+  ["열아홉", 19], ["열여덟", 18], ["열일곱", 17], ["열여섯", 16], ["열다섯", 15],
+  ["열네", 14], ["열세", 13], ["열두", 12], ["열한", 11], ["다섯", 5], ["여섯", 6],
+  ["일곱", 7], ["여덟", 8], ["아홉", 9], ["스물", 20], ["서른", 30], ["마흔", 40],
+  ["열", 10], ["한", 1], ["두", 2], ["세", 3], ["네", 4], ["백", 100], ["천", 1000], ["만", 10000],
+];
+function thumbNumbers(thumbTitle: string): number[] {
+  const out = new Set<number>();
+  for (const m of thumbTitle.matchAll(/[0-9]+/g)) out.add(Number(m[0]));
+  const COUNTER = "명|개|장|번|년|달|시간|구|통|건|줄|점|병|잔|자루|차례|번째|가지|사람|밤|살";
+  const words = KO_NUMERALS.map(([w]) => w).join("|");
+  // 앞 글자가 한글이면 낱말 중간('조용한 사람'의 '한')이라 수사가 아니다
+  for (const m of thumbTitle.matchAll(new RegExp(`(?<![가-힣])(${words})\\s*(?:${COUNTER})`, "g"))) {
+    out.add(KO_NUMERALS.find(([w]) => w === m[1])![1]);
+  }
+  return [...out];
 }
 
 /**
