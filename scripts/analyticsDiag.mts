@@ -199,9 +199,121 @@ if (targetVideoId) {
     );
     console.log("   앞쪽(10~30%)에서 이미 크게 꺾이면 콜드오픈 문제, 뒤로 갈수록 완만히 새면 본문 밀도 문제.");
   }
+  table(
+    `⑩-b 롱폼 ${targetVideoId} 누적 성적`,
+    await report(`latestTotals:${targetVideoId}`, {
+      startDate: ALL,
+      endDate: TODAY,
+      metrics: "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained",
+      filters: `video==${targetVideoId}`,
+    }),
+  );
+  table(
+    `⑩-c 롱폼 ${targetVideoId} 유입 경로 — 조회가 어디서 왔나`,
+    await report(`latestTraffic:${targetVideoId}`, {
+      startDate: ALL,
+      endDate: TODAY,
+      metrics: "views,estimatedMinutesWatched,averageViewDuration",
+      dimensions: "insightTrafficSourceType",
+      filters: `video==${targetVideoId}`,
+      sort: "-views",
+    }),
+  );
 } else {
   console.log("\n⑩ 롱폼 시청 지속률 곡선 — 스킵(아직 게시된 롱폼 없음, data/latestLongform.json 비어있음)");
 }
+
+// ── ⑪~⑭ 수익화(YPP) 판단용 ──
+// YPP 조건은 "최근 365일 공개 롱폼 시청시간 4,000시간"이고 쇼츠 시청시간은 안 친다.
+// ⑤번(90일)만으로는 이 숫자를 알 수 없어 365일 기준을 따로 본다.
+const D365 = day(-365);
+// 값 표기는 응답과 같은 camelCase — "VIDEO_ON_DEMAND" 로 쓰면 400(실측 2026-09-28).
+const VOD = "creatorContentType==videoOnDemand";
+
+const ypp = await report("ypp365", {
+  startDate: D365,
+  endDate: TODAY,
+  metrics: "views,estimatedMinutesWatched",
+  dimensions: "creatorContentType",
+});
+table("⑪ 최근 365일 콘텐츠 유형별 시청 (YPP 기준 기간)", ypp);
+if (ypp) {
+  const iType = ypp.headers.indexOf("creatorContentType");
+  const iMin = ypp.headers.indexOf("estimatedMinutesWatched");
+  const vod = ypp.rows.find((r) => String(r[iType]) === "videoOnDemand");
+  const hours = vod ? Number(vod[iMin]) / 60 : 0;
+  console.log(
+    `   → 롱폼 시청시간 ${hours.toFixed(1)}시간 / 4,000시간 (${((hours / 4000) * 100).toFixed(2)}%) — 쇼츠는 합산 안 됨.`,
+  );
+  console.log("     (스튜디오 '수익 창출' 탭 수치와 약간 다를 수 있다: 거기는 공개 영상만, 이 API 는 추정치)");
+}
+
+/** 영상 ID → 제목·길이(초). Data API 1회 호출(50개까지). */
+async function videoInfo(ids: string[]): Promise<Map<string, { title: string; seconds: number }>> {
+  const out = new Map<string, { title: string; seconds: number }>();
+  if (!ids.length) return out;
+  const res = await fetch(
+    `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${ids.slice(0, 50).join(",")}`,
+    { headers: H },
+  );
+  if (!res.ok) return out;
+  const json = (await res.json()) as {
+    items?: Array<{ id: string; snippet: { title: string }; contentDetails: { duration: string } }>;
+  };
+  for (const v of json.items ?? []) {
+    const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(v.contentDetails.duration);
+    const seconds = m ? Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0) : 0;
+    out.set(v.id, { title: v.snippet.title, seconds });
+  }
+  return out;
+}
+
+const perLong = await report("longformByVideo", {
+  startDate: D365,
+  endDate: TODAY,
+  metrics: "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained",
+  dimensions: "video",
+  filters: VOD,
+  sort: "-estimatedMinutesWatched",
+  maxResults: "40",
+});
+if (perLong) {
+  const info = await videoInfo(perLong.rows.map((r) => String(r[0])));
+  table(
+    "⑫ 최근 365일 롱폼 영상별 (시청시간 순) — 어떤 롱폼이 시간을 벌었나",
+    {
+      headers: ["길이", "제목", ...perLong.headers],
+      rows: perLong.rows.map((r) => {
+        const v = info.get(String(r[0]));
+        const len = v ? `${Math.floor(v.seconds / 60)}:${String(v.seconds % 60).padStart(2, "0")}` : "?";
+        return [len, (v?.title ?? "?").slice(0, 36), ...r];
+      }),
+    },
+    40,
+  );
+}
+
+table(
+  "⑬ 최근 28일 롱폼만 요약 (몰아보기 전환 이후 속도 확인용)",
+  await report("vod28", {
+    startDate: D28,
+    endDate: TODAY,
+    metrics: "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage",
+    filters: VOD,
+  }),
+);
+
+table(
+  "⑭ 최근 90일 롱폼 유입 경로 — 롱폼 시청자가 어디서 오나",
+  await report("vodTraffic", {
+    startDate: D90,
+    endDate: TODAY,
+    metrics: "views,estimatedMinutesWatched,averageViewDuration",
+    dimensions: "insightTrafficSourceType",
+    filters: VOD,
+    sort: "-views",
+  }),
+);
 
 console.log("\n※ ①번 표가 핵심입니다. SUBSCRIBED 조회수가 전체의 5% 미만이면");
 console.log("   15,100명은 사실상 비활성이고, 롱폼 초기 추진력을 기대할 수 없습니다.");
