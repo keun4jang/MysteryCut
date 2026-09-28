@@ -22,7 +22,7 @@ on:
         required: false
         default: ""
       angle:
-        description: "소재 각도 강제 지정(선택). 예: 불륜, 유산, 그 시절"
+        description: "소재 각도 강제 지정(선택). 예: 그 시절, 기묘한 인물, 기이한 장소"
         required: false
         default: ""
       dry_run:
