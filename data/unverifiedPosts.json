@@ -1,0 +1,26 @@
+{
+  "decidedAt": "2026-09-28",
+  "reason": "익명 '판결 기록' 소재(불륜·유산 각도, 소재 풀 C). 원문이 위키백과 법률 개념 문서뿐이라 실제 사건인지 검증할 수 없다. 9/25 몰아보기는 실행 로그(run 36147624139)로 지어낸 것이 확인됐고, 나머지는 같은 구조로 만들어져 의심 단계다. 비공개로 돌린다(scripts/setPrivacy.mts).",
+  "videos": [
+    { "caseKeys": ["korea-estate-dispute-1998"], "title": "사후 날인된 유언장과 수백억 유산 분쟁의 대법원 반전 판결" },
+    { "caseKeys": ["korea-double-life-forged-register-1995"], "title": "20년 비밀 딴살림과 법정을 뒤흔든 호적등본의 반전" },
+    { "caseKeys": ["korea-fake-son-diary-1991"], "title": "10년을 기획한 가짜 아들의 유산 상속 사기극" },
+    { "caseKeys": ["korea-mistress-insurance-2000"], "title": "5억 원의 보험금 수령인이 바뀐 비극과 대법원의 반전 판결" },
+    { "caseKeys": ["korea-fake-daughter-1983"], "title": "30년의 비밀이 폭로된 법정, 가짜 외동딸의 눈물" },
+    { "caseKeys": ["korea-ancestor-grave-dispute-1985"], "title": "조상 묘의 이장을 두고 벌어진 핏줄의 재산 다툼｜판결 기록" },
+    { "caseKeys": ["korea-fake-divorce-murder-1997"], "title": "위장 이혼 뒤 벌어진 치정 살인과 대법원의 판결" },
+    { "caseKeys": ["korea-fake-adoption-inheritance-1984"], "title": "호적에 기재된 가짜 친자와 거액의 상속 분쟁" },
+    { "caseKeys": ["korea-fake-will-inheritance-1985"], "title": "1985년 가짜 유언장으로 뒤집힌 거대 재산 상속 분쟁의 진실｜판결 기록" },
+    { "caseKeys": ["korea-inheritance-forgery-1988"], "title": "사망한 회장의 위조 유언장과 거액의 재산 다툼｜판결 기록" },
+    {
+      "caseKeys": [
+        "korea-bigamy-inheritance-1987",
+        "korea-bigamy-inheritance-dispute-1994",
+        "korea-fake-spouse-inheritance-1989",
+        "korea-fake-adoption-inheritance-1992",
+        "korea-adultery-fake-kidnapping-1995"
+      ],
+      "videoId": "TZS0XxjCkMU"
+    }
+  ]
+}
