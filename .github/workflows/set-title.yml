@@ -1,0 +1,41 @@
+name: "✏️ 영상 제목 변경"
+
+# 사용법: Actions 탭 → "✏️ 영상 제목 변경" → Run workflow.
+# 게시된 유튜브 영상 1개의 제목만 바꿉니다(설명·태그·언어 설정은 그대로). (무료)
+# 기본은 미리보기 — 바뀔 제목을 로그로 확인하고, apply 를 true 로 해야 실제 변경.
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "영상 ID (예: ZuJIDtypCTI)"
+        required: true
+      title:
+        description: "새 제목 (100자 이내)"
+        required: true
+      apply:
+        description: "실제로 변경 (false 면 미리보기만)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  set-title:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 제목 확인/변경
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          # 입력값은 run 줄에 직접 끼워 넣지 않고 환경변수로만 넘긴다(셸 주입 방지).
+          VIDEO_ID: ${{ github.event.inputs.video_id }}
+          NEW_TITLE: ${{ github.event.inputs.title }}
+          APPLY: ${{ github.event.inputs.apply }}
+        run: npx tsx scripts/setTitle.mts $([ "$APPLY" = "true" ] && echo --apply)
