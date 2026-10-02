@@ -253,12 +253,15 @@ async function keepDocsAboutCase(
     console.warn(`  ⚠️ 원문-사건 일치 확인 실패 — 원문을 쓰지 않음: ${e instanceof Error ? e.message : e}`);
     return [];
   }
-  return docs.filter((d, i) => {
+  const kept = docs.filter((d, i) => {
     const v = verdicts.find((x) => x.index === i);
     if (v?.about) return true;
     console.log(`  ↩︎ 사건과 무관한 원문 제외: "${d.title}" (${v?.reason ?? "판정 없음"})`);
     return false;
   });
+  // 통과만 하고 아무 로그가 없으면 이 판정이 실제로 돌았는지 로그로 확인할 수 없다(10/2 드라이런).
+  console.log(`  ✅ 원문-사건 일치 확인: ${docs.length}건 중 ${kept.length}건 통과`);
+  return kept;
 }
 
 export async function gatherSources(
