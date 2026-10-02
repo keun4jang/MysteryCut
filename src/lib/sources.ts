@@ -23,6 +23,8 @@
  * 모두 같은 TextExtracts 확장(prop=extracts)이 켜져 있어 기존 fetchDoc 로직을
  * 그대로 재사용할 수 있다.
  */
+import { z } from "zod";
+import { generateStructured } from "./llm.js";
 
 const UA = "MysteryCutBot/1.0 (https://github.com/keun4jang/MysteryCut; educational mystery documentary channel)";
 
@@ -99,9 +101,10 @@ function scoreOne(query: string, titleN: string, leadN: string): { ok: boolean; 
       score += 1;
     }
   }
-  // 제목 적중이 없으면 탈락. 검색어가 길면(3토큰 이상) 한 토큰만 우연히
-  // 걸린 경우를 배제하기 위해 근거를 더 요구한다.
-  const ok = titleHits >= 1 && (qt.length <= 2 || titleHits >= 2 || score >= 3);
+  // 검색어가 2토큰 이상이면 제목에도 2토큰 이상 걸려야 한다. 예전엔 2토큰
+  // 검색어는 1토큰 적중으로 통과시켜 "Julian Pearce" 검색에 'Julian Assange',
+  // "Adam Steyn" 검색에 크리켓 선수 'Dale Steyn' 문서가 원문으로 뚫렸다(2026-09-28·10-02 실측).
+  const ok = titleHits >= Math.min(2, qt.length);
   return { ok, score };
 }
 
@@ -113,11 +116,13 @@ function scoreOne(query: string, titleN: string, leadN: string): { ok: boolean; 
  * 없다는 이유로 탈락시켰다. 검색어 목록에는 한국어 표기도 함께 들어오므로
  * 그중 하나라도 제목에 걸리면 관련 문서로 본다.
  */
-function isRelevant(
+export function isRelevant(
   terms: string[],
   title: string,
   extract: string,
 ): { ok: boolean; score: number } {
+  // 목록 문서는 사건 문서가 아니다('대한민국의 철도 사고 목록', 'List of Japanese serial killers').
+  if (/^lists? of\b|목록$/i.test(title.trim())) return { ok: false, score: 0 };
   const titleN = norm(title);
   const leadN = norm(extract.slice(0, 1500));
   let best = { ok: false, score: 0 };
@@ -214,7 +219,57 @@ const SEARCH_ORDER: WikiProject[] = ["wikipedia", "wikinews", "wikisource"];
  * 각 프로젝트 안에서는 한국어 문서를 먼저 찾고 없거나 짧으면 영어로.
  * 실패는 조용히 넘긴다 — 출처가 하나도 없으면 호출부가 다른 사건을 고르게 한다.
  */
-export async function gatherSources(terms: string[]): Promise<SourceDoc[]> {
+/**
+ * 제목 토큰이 맞아도 사건 문서가 아닐 수 있다 — 'Macquarie Island'(섬 지리 문서)가
+ * '맥쿼리섬 탐험대 실종'의 원문으로, 'Edward Pakenham'(장군 전기)이 '파켄햄 가문의
+ * 숨겨진 혈통'의 원문으로 들어갔다(2026-09-28·30 실측). 토큰 규칙으로는 못 거르니
+ * 문서마다 "이 사건 자체를 다루는가"를 Gemini 에 한 번에 묻는다.
+ * 호출이 실패하면 원문을 쓰지 않는다 — 지어낸 사건을 내보내는 것보다 회차를 넘기는 게 낫다.
+ */
+const CaseMatchSchema = z.object({
+  verdicts: z.array(z.object({ index: z.number(), about: z.boolean(), reason: z.string() })),
+});
+
+async function keepDocsAboutCase(
+  docs: SourceDoc[],
+  caseInfo: { title: string; premise: string },
+): Promise<SourceDoc[]> {
+  if (!docs.length) return docs;
+  let verdicts: z.infer<typeof CaseMatchSchema>["verdicts"];
+  try {
+    ({ verdicts } = await generateStructured({
+      schema: CaseMatchSchema,
+      system:
+        "너는 사실 검증 담당이다. 각 문서가 주어진 사건(같은 인물·같은 장소·같은 시기의 바로 그 사건)을 직접 서술하는지만 판정한다. " +
+        "인물 전기·지리·개념·목록 문서이거나, 이름만 비슷한 다른 사람·다른 사건이면 about=false. 사건이 존재하는지 의심스러우면 about=false.",
+      user:
+        `[사건] ${caseInfo.title}\n[개요] ${caseInfo.premise}\n\n` +
+        docs.map((d, i) => `[문서 ${i}] 제목: ${d.title}\n도입부: ${d.extract.slice(0, 1200)}`).join("\n\n") +
+        `\n\n문서마다 {index, about, reason(한 문장)} 를 verdicts 로 답하라.`,
+      temperature: 0,
+      maxRetries: 2,
+    }));
+  } catch (e) {
+    console.warn(`  ⚠️ 원문-사건 일치 확인 실패 — 원문을 쓰지 않음: ${e instanceof Error ? e.message : e}`);
+    return [];
+  }
+  return docs.filter((d, i) => {
+    const v = verdicts.find((x) => x.index === i);
+    if (v?.about) return true;
+    console.log(`  ↩︎ 사건과 무관한 원문 제외: "${d.title}" (${v?.reason ?? "판정 없음"})`);
+    return false;
+  });
+}
+
+export async function gatherSources(
+  terms: string[],
+  caseInfo?: { title: string; premise: string },
+): Promise<SourceDoc[]> {
+  const docs = await collectSources(terms);
+  return caseInfo ? keepDocsAboutCase(docs, caseInfo) : docs;
+}
+
+async function collectSources(terms: string[]): Promise<SourceDoc[]> {
   const out: SourceDoc[] = [];
   const seen = new Set<string>();
   let total = 0;

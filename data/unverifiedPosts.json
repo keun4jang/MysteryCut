@@ -1,17 +1,67 @@
 {
   "decidedAt": "2026-09-28",
-  "reason": "익명 '판결 기록' 소재(불륜·유산 각도, 소재 풀 C). 원문이 위키백과 법률 개념 문서뿐이라 실제 사건인지 검증할 수 없다. 9/25 몰아보기는 실행 로그(run 36147624139)로 지어낸 것이 확인됐고, 나머지는 같은 구조로 만들어져 의심 단계다. 비공개로 돌린다(scripts/setPrivacy.mts).",
+  "reason": "익명 '판결 기록' 소재(불륜·유산 각도, 소재 풀 C). 원문이 위키백과 법률 개념 문서뿐이라 실제 사건인지 검증할 수 없다. 9/25 몰아보기는 실행 로그(run 36147624139)로 지어낸 것이 확인됐고, 나머지는 같은 구조로 만들어져 의심 단계다. 비공개로 돌린다(scripts/setPrivacy.mts). 2026-10-02: 9/28 수정 뒤 몰아보기 3편에서도 무관한 문서를 원문으로 잡은 사건이 확인돼(run 36456963637·36737515258·37027156199 로그) 추가했다.",
   "videos": [
-    { "caseKeys": ["korea-estate-dispute-1998"], "title": "사후 날인된 유언장과 수백억 유산 분쟁의 대법원 반전 판결" },
-    { "caseKeys": ["korea-double-life-forged-register-1995"], "title": "20년 비밀 딴살림과 법정을 뒤흔든 호적등본의 반전" },
-    { "caseKeys": ["korea-fake-son-diary-1991"], "title": "10년을 기획한 가짜 아들의 유산 상속 사기극" },
-    { "caseKeys": ["korea-mistress-insurance-2000"], "title": "5억 원의 보험금 수령인이 바뀐 비극과 대법원의 반전 판결" },
-    { "caseKeys": ["korea-fake-daughter-1983"], "title": "30년의 비밀이 폭로된 법정, 가짜 외동딸의 눈물" },
-    { "caseKeys": ["korea-ancestor-grave-dispute-1985"], "title": "조상 묘의 이장을 두고 벌어진 핏줄의 재산 다툼｜판결 기록" },
-    { "caseKeys": ["korea-fake-divorce-murder-1997"], "title": "위장 이혼 뒤 벌어진 치정 살인과 대법원의 판결" },
-    { "caseKeys": ["korea-fake-adoption-inheritance-1984"], "title": "호적에 기재된 가짜 친자와 거액의 상속 분쟁" },
-    { "caseKeys": ["korea-fake-will-inheritance-1985"], "title": "1985년 가짜 유언장으로 뒤집힌 거대 재산 상속 분쟁의 진실｜판결 기록" },
-    { "caseKeys": ["korea-inheritance-forgery-1988"], "title": "사망한 회장의 위조 유언장과 거액의 재산 다툼｜판결 기록" },
+    {
+      "caseKeys": [
+        "korea-estate-dispute-1998"
+      ],
+      "title": "사후 날인된 유언장과 수백억 유산 분쟁의 대법원 반전 판결"
+    },
+    {
+      "caseKeys": [
+        "korea-double-life-forged-register-1995"
+      ],
+      "title": "20년 비밀 딴살림과 법정을 뒤흔든 호적등본의 반전"
+    },
+    {
+      "caseKeys": [
+        "korea-fake-son-diary-1991"
+      ],
+      "title": "10년을 기획한 가짜 아들의 유산 상속 사기극"
+    },
+    {
+      "caseKeys": [
+        "korea-mistress-insurance-2000"
+      ],
+      "title": "5억 원의 보험금 수령인이 바뀐 비극과 대법원의 반전 판결"
+    },
+    {
+      "caseKeys": [
+        "korea-fake-daughter-1983"
+      ],
+      "title": "30년의 비밀이 폭로된 법정, 가짜 외동딸의 눈물"
+    },
+    {
+      "caseKeys": [
+        "korea-ancestor-grave-dispute-1985"
+      ],
+      "title": "조상 묘의 이장을 두고 벌어진 핏줄의 재산 다툼｜판결 기록"
+    },
+    {
+      "caseKeys": [
+        "korea-fake-divorce-murder-1997"
+      ],
+      "title": "위장 이혼 뒤 벌어진 치정 살인과 대법원의 판결"
+    },
+    {
+      "caseKeys": [
+        "korea-fake-adoption-inheritance-1984"
+      ],
+      "title": "호적에 기재된 가짜 친자와 거액의 상속 분쟁"
+    },
+    {
+      "caseKeys": [
+        "korea-fake-will-inheritance-1985"
+      ],
+      "title": "1985년 가짜 유언장으로 뒤집힌 거대 재산 상속 분쟁의 진실｜판결 기록"
+    },
+    {
+      "caseKeys": [
+        "korea-inheritance-forgery-1988"
+      ],
+      "title": "사망한 회장의 위조 유언장과 거액의 재산 다툼｜판결 기록"
+    },
     {
       "caseKeys": [
         "korea-bigamy-inheritance-1987",
@@ -21,6 +71,30 @@
         "korea-adultery-fake-kidnapping-1995"
       ],
       "videoId": "TZS0XxjCkMU"
+    },
+    {
+      "caseKeys": [
+        "julian-pearce-disappearance-1920",
+        "macquarrie-island-1911",
+        "cheon-an-gas-train-explosion-1977"
+      ],
+      "videoId": "JFwOXZBI63w",
+      "note": "2026-10-02 추가: 원문이 Julian Assange·Macquarie Island(지리)·철도 사고 목록"
+    },
+    {
+      "caseKeys": [
+        "affaire-du-canal-de-suez-1956",
+        "kitakumamoto-family-murder-1985"
+      ],
+      "videoId": "u8MW1e8s5WE",
+      "note": "2026-10-02 추가: 원문이 Edward Pakenham(전기)·Amagasaki 사건+연쇄살인범 목록"
+    },
+    {
+      "caseKeys": [
+        "adam-steyn-murder-1994"
+      ],
+      "videoId": "_mCK9OiF-V4",
+      "note": "2026-10-02 추가: 원문이 크리켓 선수 Dale Steyn·실종자 목록·럭비 대회"
     }
   ]
 }

@@ -69,7 +69,7 @@ async function main() {
       console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
     } else {
       console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);
-      sources = await gatherSources(probe.searchTerms);
+      sources = await gatherSources(probe.searchTerms, { title: probe.title, premise: probe.premise });
       if (sources.length) {
         console.log(`   📚 원문 ${sources.length}건 확보: ${sources.map((d) => d.title).join(", ")}`);
         break;
