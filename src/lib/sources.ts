@@ -402,5 +402,11 @@ export function sourcesCitation(docs: SourceDoc[]): string {
   }
   lines.push("");
   lines.push("영상 속 인물·장소 이미지는 실제 사건 자료가 아닌 내용 이해를 위한 자료 이미지입니다.");
+  // 위키미디어 문서는 CC BY-SA 4.0 이라 출처·라이선스·변경 사실을 밝혀야 한다.
+  // 합성 음성은 유튜브가 '시청자에게 알리길 기대'한다고 밝힌 부분이다(TeamYouTube FAQ).
+  lines.push(
+    "위 위키미디어 문서(CC BY-SA 4.0, https://creativecommons.org/licenses/by-sa/4.0/deed.ko)를 바탕으로 요약·재구성했습니다.",
+  );
+  lines.push("내레이션은 AI 합성 음성입니다.");
   return lines.join("\n");
 }
