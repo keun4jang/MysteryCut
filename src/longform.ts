@@ -255,7 +255,7 @@ async function produceOneCase(opts: {
       console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
     } else {
       console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);
-      sources = await gatherSources(probe.searchTerms);
+      sources = await gatherSources(probe.searchTerms, { title: probe.title, premise: probe.premise });
       const volume = sources.reduce((n, d) => n + d.extract.length, 0);
       // 원문이 짧으면 최소 러닝타임을 채울 정보가 없다 — 다른 사건으로 간다.
       // 몰아보기는 사건당 목표 분량이 낮아(CASE_CHAR_LIMITS.min) 단일 사건
