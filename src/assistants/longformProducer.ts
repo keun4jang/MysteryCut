@@ -2,7 +2,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { generateStructured } from "../lib/llm.js";
 import { findSensitiveTerms, softenText } from "../lib/safeText.js";
-import { numberInQuote } from "../lib/visual/gates.js";
+import { numbersInText, numberInSource } from "../lib/visual/gates.js";
 import { normalizeVisuals } from "../lib/visual/normalize.js";
 import { sourcesPromptBlock, type SourceDoc } from "../lib/sources.js";
 import { LongformScriptSchema, type LongformScript } from "../types.js";
@@ -421,7 +421,7 @@ export function thumbTitleIssues(thumbTitle: string, sourceText?: string): strin
     issues.push("숫자도 모순·부정 표현도 없다(둘 중 하나는 반드시 필요하다)");
   }
   if (sourceText !== undefined) {
-    const unsourced = thumbNumbers(thumbTitle).filter((n) => !numberInQuote(n, undefined, sourceText));
+    const unsourced = numbersInText(thumbTitle).filter((n) => !numberInSource(n, sourceText));
     if (unsourced.length) {
       issues.push(
         `숫자 ${unsourced.join(", ")}이(가) 원문에 없다(원문에 그 숫자로 있는 것만 쓰고, 없으면 숫자 대신 모순·부정·사물로 써라)`,
@@ -429,25 +429,6 @@ export function thumbTitleIssues(thumbTitle: string, sourceText?: string): strin
     }
   }
   return issues;
-}
-
-/** 썸네일 문구 속 숫자. 한글 수사는 단위를 달고 있을 때만 센다(위 hasNumber 와 같은 기준). */
-const KO_NUMERALS: Array<[string, number]> = [
-  ["열아홉", 19], ["열여덟", 18], ["열일곱", 17], ["열여섯", 16], ["열다섯", 15],
-  ["열네", 14], ["열세", 13], ["열두", 12], ["열한", 11], ["다섯", 5], ["여섯", 6],
-  ["일곱", 7], ["여덟", 8], ["아홉", 9], ["스물", 20], ["서른", 30], ["마흔", 40],
-  ["열", 10], ["한", 1], ["두", 2], ["세", 3], ["네", 4], ["백", 100], ["천", 1000], ["만", 10000],
-];
-function thumbNumbers(thumbTitle: string): number[] {
-  const out = new Set<number>();
-  for (const m of thumbTitle.matchAll(/[0-9]+/g)) out.add(Number(m[0]));
-  const COUNTER = "명|개|장|번|년|달|시간|구|통|건|줄|점|병|잔|자루|차례|번째|가지|사람|밤|살";
-  const words = KO_NUMERALS.map(([w]) => w).join("|");
-  // 앞 글자가 한글이면 낱말 중간('조용한 사람'의 '한')이라 수사가 아니다
-  for (const m of thumbTitle.matchAll(new RegExp(`(?<![가-힣])(${words})\\s*(?:${COUNTER})`, "g"))) {
-    out.add(KO_NUMERALS.find(([w]) => w === m[1])![1]);
-  }
-  return [...out];
 }
 
 /**

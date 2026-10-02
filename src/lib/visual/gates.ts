@@ -177,6 +177,46 @@ function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * 문구(제목·썸네일·훅) 속 숫자. 한글 수사는 단위를 달고 있을 때만 센다 —
+ * 낱말만 보면 '조용한 사람'의 '한'까지 숫자로 잡힌다. '1,000'은 1000, '3만'은 30000.
+ */
+const KO_NUMERALS: Array<[string, number]> = [
+  ["열아홉", 19], ["열여덟", 18], ["열일곱", 17], ["열여섯", 16], ["열다섯", 15],
+  ["열네", 14], ["열세", 13], ["열두", 12], ["열한", 11], ["다섯", 5], ["여섯", 6],
+  ["일곱", 7], ["여덟", 8], ["아홉", 9], ["스물", 20], ["서른", 30], ["마흔", 40],
+  ["열", 10], ["한", 1], ["두", 2], ["세", 3], ["네", 4], ["백", 100], ["천", 1000], ["만", 10000],
+];
+const KO_COUNTER = "명|개|장|번|년|달|시간|구|통|건|줄|점|병|잔|자루|차례|번째|가지|사람|밤|살|권|개월|마리";
+export function numbersInText(text: string): number[] {
+  const out = new Set<number>();
+  const t = text.replace(/([0-9]),(?=[0-9]{3})/g, "$1");
+  for (const m of t.matchAll(/([0-9]+)(\s*만)?/g)) out.add(Number(m[1]) * (m[2] ? 10000 : 1));
+  const words = KO_NUMERALS.map(([w]) => w).join("|");
+  // 앞 글자가 한글이면 낱말 중간, 숫자면 '3만 명'의 '만'이라 따로 세지 않는다
+  for (const m of t.matchAll(new RegExp(`(?<![가-힣0-9])(${words})\\s*(?:${KO_COUNTER})`, "g"))) {
+    out.add(KO_NUMERALS.find(([w]) => w === m[1])![1]);
+  }
+  return [...out];
+}
+
+/**
+ * 숫자가 수집한 원문 어딘가에 **그 숫자로** 있는가. 영문 원문은 'eleven members'처럼
+ * 영단어로 적는 경우가 많아 그것도 인정한다(2026-10-02 부라리 사건 원문이 영문).
+ */
+const EN_NUM: Record<number, string> = {
+  1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight",
+  9: "nine", 10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen", 14: "fourteen",
+  15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen", 19: "nineteen", 20: "twenty",
+  30: "thirty", 40: "forty", 50: "fifty", 100: "hundred", 1000: "thousand",
+};
+export function numberInSource(value: number, sourceText: string): boolean {
+  const t = sourceText.replace(/([0-9]),(?=[0-9]{3})/g, "$1");
+  if (numberInQuote(value, undefined, t)) return true;
+  const en = EN_NUM[value];
+  return !!en && new RegExp(`\\b${en}\\b`, "i").test(t);
+}
+
 /** Q5. 원문이 어림수라고 했으면 화면도 어림수여야 한다. '수십·수백'은 아예 못 쓴다 */
 export function approxRule(quote: string): { approx: boolean; discard: boolean } {
   if (/수십|수백|수천/.test(quote)) return { approx: false, discard: true };

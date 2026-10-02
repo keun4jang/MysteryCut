@@ -4,6 +4,7 @@ import { generateStructured } from "../lib/llm.js";
 import { findSensitiveTerms, softenText } from "../lib/safeText.js";
 import { isSameCase } from "./history.js";
 import { sourcesPromptBlock, discoverCandidateTitles, type SourceDoc } from "../lib/sources.js";
+import { numbersInText, numberInSource } from "../lib/visual/gates.js";
 import {
   StoryIdeaSchema,
   ReelScriptSchema,
@@ -328,6 +329,10 @@ export async function writeReelPlan(
   let bestChars = 0;
   let bestGap = Number.POSITIVE_INFINITY;
   let feedback = "";
+  // 제목·썸네일·훅의 숫자는 원문에 그 숫자로 있는 것만 쓴다. 프롬프트 규칙만으로는
+  // 확인이 안 된다(2026-10-02 드라이런 제목 '11명이 남긴 15권의 일기장…'이 아무 대조 없이
+  // 통과). 롱폼 썸네일(thumbTitleIssues)과 같은 기준. 원문이 없으면(안전 모드) 건너뛴다.
+  const sourceText = (opts?.sources ?? []).map((d) => d.extract).join("\n");
   for (let attempt = 0; attempt < 3; attempt++) {
     const plan = (await generateStructured({
       schema: ReelPlanSchema,
@@ -349,13 +354,16 @@ export async function writeReelPlan(
     // 채택하지 않는다.
     const forced = opts?.forcedCase;
     const caseMismatch = !!forced && !isSameCase(plan.idea.caseKey, forced.caseKey);
+    const unsourced = sourceText ? unsourcedHeadlineNumbers(plan, sourceText) : [];
     const gap = Math.abs(chars - IDEAL_CHARS);
-    if (gap < bestGap && !caseMismatch) {
+    if (gap < bestGap && !caseMismatch && !unsourced.length) {
       best = plan;
       bestChars = chars;
       bestGap = gap;
     }
-    if (!flagged.length && !caseMismatch && chars >= MIN_CHARS && chars <= MAX_CHARS) return plan;
+    if (!flagged.length && !caseMismatch && !unsourced.length && chars >= MIN_CHARS && chars <= MAX_CHARS) {
+      return plan;
+    }
 
     feedback = "";
     if (caseMismatch && forced) {
@@ -363,6 +371,10 @@ export async function writeReelPlan(
         `   ⚠️ 확정 사건과 다른 caseKey 로 생성됨(확정: ${forced.caseKey}, 생성: ${plan.idea.caseKey}) — 재생성 (${attempt + 1}/3)`,
       );
       feedback += `\n★직전 시도가 확정된 사건(caseKey: ${forced.caseKey}, 사건: ${forced.title})이 아니라 다른 사건으로 생성됐다. idea.caseKey 는 반드시 "${forced.caseKey}" 그대로 써야 하고, 대본 내용도 아래 원문에 근거해 오직 "${forced.title}" 사건만 다뤄야 한다. 다른 사건으로 절대 바꾸지 마라.`;
+    }
+    if (unsourced.length) {
+      console.warn(`   ⚠️ 제목·썸네일·훅에 원문에 없는 숫자(${unsourced.join(", ")}) — 재생성 (${attempt + 1}/3)`);
+      feedback += `\n★직전 시도의 제목(title)·썸네일 문구(thumbTitle)·훅(hook)에 원문에 없는 숫자(${unsourced.join(", ")})가 들어 있었다. 이 세 곳에는 아래 원문에 그 숫자 그대로 적힌 것만 써라. 계산하거나 어림한 숫자도 안 된다. 쓸 숫자가 없으면 숫자 없이 모순·부정·사물로 써라.`;
     }
     if (flagged.length) {
       console.warn(`   ⚠️ 연령제한 위험 표현 발견(${flagged.join(", ")}) — 재생성 (${attempt + 1}/3)`);
@@ -385,13 +397,12 @@ export async function writeReelPlan(
       }`;
     }
   }
-  // ★forcedCase 가 있는데 3회 모두 다른 사건으로 샜다면 best 가 비어 있다.
-  // 분량·표현 문제(아래)와 달리 이건 '순화'로 못 고친다 — 원문·중복검사가
-  // 다른 사건 것이라 그대로 게시하면 사실관계·중복회피가 둘 다 깨진다.
-  // 하루 게시 실패가 그보다 낫다.
+  // ★3회 모두 다른 사건으로 샜거나 제목·썸네일·훅에 원문에 없는 숫자가 남았다면
+  // best 가 비어 있다. 분량·표현 문제(아래)와 달리 이건 '순화'로 못 고친다 —
+  // 그대로 게시하면 사실관계(·중복회피)가 깨진다. 하루 게시 실패가 그보다 낫다.
   if (!best) {
     throw new Error(
-      `확정 사건(${opts?.forcedCase?.caseKey})으로 3회 재생성해도 다른 사건으로 계속 생성됨 — 안전을 위해 중단합니다.`,
+      `확정 사건(${opts?.forcedCase?.caseKey})으로 3회 재생성해도 쓸 수 있는 안이 없음(다른 사건으로 새거나 제목·썸네일·훅에 원문에 없는 숫자) — 안전을 위해 중단합니다.`,
     );
   }
   // 3회 재생성에도 남으면 기계적으로 중립화 (게시 자체를 막기보다 표현만 순화)
@@ -404,6 +415,14 @@ export async function writeReelPlan(
     console.warn(`   ⚠️ 재생성에도 분량 목표 미달 — 가장 근접한 안(${bestChars}자)으로 진행`);
   }
   return best!;
+}
+
+/** 제목·썸네일·훅에 쓴 숫자 중 원문에 그 숫자로 없는 것 */
+function unsourcedHeadlineNumbers(plan: ReelPlan, sourceText: string): number[] {
+  const i = plan.idea;
+  return numbersInText([i.title, i.thumbTitle, i.hook].filter(Boolean).join("\n")).filter(
+    (n) => !numberInSource(n, sourceText),
+  );
 }
 
 /** 계획 전체 텍스트에서 위험 표현을 찾아 매칭된 단어 목록 반환 */
