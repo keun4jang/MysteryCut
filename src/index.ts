@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "./config.js";
 import { writeReelPlan, proposeCase } from "./assistants/producer.js";
-import { gatherSources, sourcesCitation, type SourceDoc } from "./lib/sources.js";
+import { gatherSources, sourcesCitation, warmStoryControversy, type SourceDoc } from "./lib/sources.js";
 import { narrate } from "./assistants/narrator.js";
 import { attachBroll } from "./assistants/broll.js";
 import { renderReel } from "./render.js";
@@ -16,7 +16,7 @@ import {
   isDuplicate,
   appendPost,
 } from "./assistants/history.js";
-import { pickStylePack, isWarmStoryDay } from "./lib/variety.js";
+import { pickStylePack, isWarmStoryDay, isWarmAngle } from "./lib/variety.js";
 import { deriveGrade, gradeColors } from "./lib/grade.js";
 import { totalDurationInFrames } from "./remotion/timing.js";
 import { reelSrt } from "./lib/captions.js";
@@ -71,11 +71,21 @@ async function main() {
     } else {
       console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);
       sources = await gatherSources(probe.searchTerms, { title: probe.title, premise: probe.premise });
-      if (sources.length) {
+      // 감동 편은 주인공의 선행에 논란이 있으면 버린다(sources.ts warmStoryControversy)
+      const controversy =
+        sources.length && isWarmAngle(pack.topicAngle)
+          ? await warmStoryControversy(sources, { title: probe.title, premise: probe.premise })
+          : null;
+      if (sources.length && !controversy) {
         console.log(`   📚 원문 ${sources.length}건 확보: ${sources.map((d) => d.title).join(", ")}`);
         break;
       }
-      console.log(`   ↩︎ 원문을 못 찾음(${probe.searchTerms.join(", ")}) — 다른 사건으로`);
+      if (controversy) {
+        sources = [];
+        console.log(`   ↩︎ 감동 편에 쓰지 않음(${probe.title}) — 다른 사건으로`);
+      } else {
+        console.log(`   ↩︎ 원문을 못 찾음(${probe.searchTerms.join(", ")}) — 다른 사건으로`);
+      }
     }
     avoid.caseKeys.push(probe.caseKey);
     avoid.titles.push(probe.title);
@@ -94,6 +104,10 @@ async function main() {
     );
   }
   if (!sources.length) {
+    // 감동 편은 원문 없이 만들면 지어낸 미담이 나온다(이 장르의 가장 큰 위험) — 그날은 게시하지 않는다
+    if (isWarmAngle(pack.topicAngle)) {
+      throw new Error("감동 실화 편: 4회 시도 모두 원문을 못 찾았거나 논란이 있는 소재였음 — 원문 없는 미담을 내보내지 않으려고 중단합니다.");
+    }
     console.warn("   ⚠️ 원문 없이 진행 — 안전 모드(구체적 수치·인용 자제)로 대본을 만듭니다.");
   }
 

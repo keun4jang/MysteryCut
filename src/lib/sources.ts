@@ -264,6 +264,46 @@ async function keepDocsAboutCase(
   return kept;
 }
 
+const ControversySchema = z.object({ controversial: z.boolean(), reason: z.string() });
+
+/**
+ * 감동 실화 편 전용 — 주인공의 선행 자체에 논란이 있는 소재를 걸러낸다.
+ *
+ * 2026-10-03 드라이런에서 폴 루세사바기나('호텔 르완다' 실제 인물, 생존)가 뽑혔고 대본이
+ * 그를 영웅으로만 그렸다. 원문에는 생존자들의 반론과 테러 혐의 유죄 판결이 있는데,
+ * '논란이 있으면 함께 말하라'는 프롬프트 규칙만으로는 지켜지지 않았다. 감동 편은 미화가
+ * 곧 사실 왜곡이므로, 원문을 읽혀서 논란이 있으면 그 소재를 아예 쓰지 않는다.
+ * 판정이 실패해도 논란이 있는 것으로 본다(확인 못 한 영웅담을 내보내지 않는다).
+ *
+ * @returns 쓰면 안 되는 이유(문자열) — 문제없으면 null
+ */
+export async function warmStoryControversy(
+  docs: SourceDoc[],
+  caseInfo: { title: string; premise: string },
+): Promise<string | null> {
+  try {
+    const v = await generateStructured({
+      schema: ControversySchema,
+      system:
+        "너는 사실 검증 담당이다. '감동 실화' 영상으로 만들어도 되는지 원문만 보고 판정한다. " +
+        "다음 중 하나라도 원문에 있으면 controversial=true: (1) 주인공의 선행·영웅담 자체를 반박하거나 의심하는 증언·연구·논란, " +
+        "(2) 주인공의 유죄 판결·범죄 혐의·체포, (3) 주인공이 지금도 정치적 분쟁의 한쪽 당사자. " +
+        "주인공과 무관한 다른 사람의 악행(그 이야기의 악역)은 해당하지 않는다. 확신이 없으면 controversial=true.",
+      user:
+        `[소재] ${caseInfo.title}\n[개요] ${caseInfo.premise}\n\n` +
+        docs.map((d, i) => `[원문 ${i}] ${d.title}\n${d.extract.slice(0, 8000)}`).join("\n\n") +
+        "\n\n{controversial, reason(한 문장, 근거가 된 원문 내용)} 으로 답하라.",
+      temperature: 0,
+      maxRetries: 2,
+    });
+    console.log(`  ${v.controversial ? "↩︎" : "✅"} 감동 편 논란 확인: ${v.controversial ? "논란 있음" : "문제없음"} — ${v.reason}`);
+    return v.controversial ? v.reason : null;
+  } catch (e) {
+    console.warn(`  ⚠️ 감동 편 논란 확인 실패 — 이 소재를 쓰지 않음: ${e instanceof Error ? e.message : e}`);
+    return "논란 확인 실패";
+  }
+}
+
 export async function gatherSources(
   terms: string[],
   caseInfo?: { title: string; premise: string },
