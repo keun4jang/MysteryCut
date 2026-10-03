@@ -8,6 +8,7 @@
  */
 import fs from "node:fs/promises";
 import { getYoutubeAccessToken } from "../src/assistants/youtubePublisher.js";
+import { isLegacyVideo } from "./legacyGuard.mjs";
 
 interface Target {
   caseKeys: string[];
@@ -51,15 +52,17 @@ do {
 } while (pageToken);
 
 const norm = (s: string) => s.normalize("NFC").replace(/\s+/g, " ").trim();
-const videos = new Map<string, { title: string; status: Status }>();
+const videos = new Map<string, { title: string; publishedAt?: string; status: Status }>();
 for (let i = 0; i < ids.length; i += 50) {
   const res = (await (
     await fetch(
       `https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=${ids.slice(i, i + 50).join(",")}`,
       { headers: H },
     )
-  ).json()) as { items?: Array<{ id: string; snippet: { title: string }; status: Status }> };
-  for (const v of res.items ?? []) videos.set(v.id, { title: v.snippet.title, status: v.status });
+  ).json()) as { items?: Array<{ id: string; snippet: { title: string; publishedAt?: string }; status: Status }> };
+  for (const v of res.items ?? []) {
+    videos.set(v.id, { title: v.snippet.title, publishedAt: v.snippet.publishedAt, status: v.status });
+  }
 }
 console.log(`채널 영상 ${videos.size}개 조회 — 대상 ${targets.length}건${apply ? " (실제 변경 모드)" : " (미리보기 모드)"}`);
 
@@ -80,6 +83,10 @@ for (const t of targets) {
   for (const id of matches) {
     const v = videos.get(id)!;
     console.log(`\n• ${id} | 현재 ${v.status.privacyStatus} | ${v.title}\n  [${label}]`);
+    if (isLegacyVideo(v.publishedAt)) {
+      console.log(`  → 🛡️ 2026년 이전 옛 영상(${v.publishedAt ?? "게시일 모름"}) — 건드리지 않음`);
+      continue;
+    }
     if (!apply || v.status.privacyStatus === "private") continue;
 
     // part=status 업데이트는 status 객체를 통째로 덮는다 — 빠진 필드가 기본값으로

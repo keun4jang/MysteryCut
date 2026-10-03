@@ -8,6 +8,7 @@
  */
 import { getYoutubeAccessToken } from "../src/assistants/youtubePublisher.js";
 import { findSensitiveTerms, softenText } from "../src/lib/safeText.js";
+import { isLegacyVideo } from "./legacyGuard.mjs";
 
 const apply = process.argv.includes("--apply");
 const token = await getYoutubeAccessToken();
@@ -46,6 +47,7 @@ type Snippet = {
   tags?: string[];
   categoryId: string;
   defaultLanguage?: string;
+  publishedAt?: string;
 };
 let flaggedCount = 0;
 let fixedCount = 0;
@@ -61,6 +63,8 @@ for (let i = 0; i < videoIds.length; i += 50) {
 
   for (const v of res.items ?? []) {
     const s = v.snippet;
+    // 옛 '새미했다' 시절 영상은 검사 대상에서 아예 뺀다(scripts/legacyGuard.mts)
+    if (isLegacyVideo(s.publishedAt)) continue;
     const hits = findSensitiveTerms([s.title, s.description, ...(s.tags ?? [])]);
     if (!hits.length) continue;
     flaggedCount++;
