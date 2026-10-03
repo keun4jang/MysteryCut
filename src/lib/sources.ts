@@ -232,7 +232,7 @@ const CaseMatchSchema = z.object({
 
 async function keepDocsAboutCase(
   docs: SourceDoc[],
-  caseInfo: { title: string; premise: string },
+  caseInfo: CaseInfo,
 ): Promise<SourceDoc[]> {
   if (!docs.length) return docs;
   let verdicts: z.infer<typeof CaseMatchSchema>["verdicts"];
@@ -241,7 +241,11 @@ async function keepDocsAboutCase(
       schema: CaseMatchSchema,
       system:
         "너는 사실 검증 담당이다. 각 문서가 주어진 사건(같은 인물·같은 장소·같은 시기의 바로 그 사건)을 직접 서술하는지만 판정한다. " +
-        "인물 전기·지리·개념·목록 문서이거나, 이름만 비슷한 다른 사람·다른 사건이면 about=false. 사건이 존재하는지 의심스러우면 about=false.",
+        "인물 전기·지리·개념·목록 문서이거나, 이름만 비슷한 다른 사람·다른 사건이면 about=false. 사건이 존재하는지 의심스러우면 about=false." +
+        // 감동 편은 주인공의 행적 자체가 이야기라 본인 전기가 가장 맞는 원문이다(10/3 드라이런: 이태석 신부 문서가 '인물 전기'라 탈락)
+        (caseInfo.protagonistBioOk
+          ? " 단, 개요의 주인공 본인을 다룬 전기 문서이고 개요의 그 행적이 문서에 나오면 about=true. 이름만 같은 다른 사람(예: 같은 이름의 운동선수·정치인)은 여전히 false."
+          : ""),
       user:
         `[사건] ${caseInfo.title}\n[개요] ${caseInfo.premise}\n\n` +
         docs.map((d, i) => `[문서 ${i}] 제목: ${d.title}\n도입부: ${d.extract.slice(0, 1200)}`).join("\n\n") +
@@ -291,7 +295,8 @@ export async function warmStoryControversy(
         "주인공과 무관한 다른 사람의 악행(그 이야기의 악역)은 해당하지 않는다. 확신이 없으면 controversial=true.",
       user:
         `[소재] ${caseInfo.title}\n[개요] ${caseInfo.premise}\n\n` +
-        docs.map((d, i) => `[원문 ${i}] ${d.title}\n${d.extract.slice(0, 8000)}`).join("\n\n") +
+        // 논란 대목은 문서 뒷부분('평가'·'논란' 절)에 있기 쉬워 수집한 원문을 통째로 넘긴다(MAX_EXTRACT 상한)
+        docs.map((d, i) => `[원문 ${i}] ${d.title}\n${d.extract}`).join("\n\n") +
         "\n\n{controversial, reason(한 문장, 근거가 된 원문 내용)} 으로 답하라.",
       temperature: 0,
       maxRetries: 2,
@@ -304,9 +309,16 @@ export async function warmStoryControversy(
   }
 }
 
+interface CaseInfo {
+  title: string;
+  premise: string;
+  /** 감동 실화 편 — 주인공 본인 전기 문서를 원문으로 인정 */
+  protagonistBioOk?: boolean;
+}
+
 export async function gatherSources(
   terms: string[],
-  caseInfo?: { title: string; premise: string },
+  caseInfo?: CaseInfo,
 ): Promise<SourceDoc[]> {
   const docs = await collectSources(terms);
   return caseInfo ? keepDocsAboutCase(docs, caseInfo) : docs;

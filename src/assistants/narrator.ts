@@ -65,16 +65,11 @@ export async function narrate(
     const spoken = toSpeechText(seg.text);
     if (spoken !== seg.text) console.log(`     🗣️  발음 변환: ${spoken.slice(0, 60)}`);
 
-    if (provider === "google") await synthesizeGoogle(spoken, rawPath);
-    else await synthesizeEdgeResilient(spoken, rawPath, voiceOverride);
-
-    // 문장 앞뒤 무음(edge-tts 패딩) 제거 → 문장 사이 로봇 같은 공백 없앰.
+    // 문장 앞뒤 무음(edge-tts 패딩)은 synthesizeChecked 안에서 잘라낸다 → 문장 사이 로봇 같은 공백 없앰.
     // 사이 '숨'은 Remotion 타임라인에서 일정 간격으로 다시 넣는다(timing.ts).
-    await trimSilence(rawPath, absPath);
-
-    const bytes = await fs.readFile(absPath);
-    const meta = await parseBuffer(new Uint8Array(bytes), { mimeType: "audio/mpeg" });
-    const durationInSeconds = meta.format.duration ?? estimateDuration(seg.text);
+    const durationInSeconds = await synthesizeChecked(
+      provider, spoken, seg.text, rawPath, absPath, voiceOverride, `세그먼트 ${i + 1}`,
+    );
 
     result.push({
       text: seg.text,
@@ -143,18 +138,15 @@ export async function narrateLongform(
       const absPath = path.join(config.paths.audio, fileName);
 
       const spoken = toSpeechText(seg.text);
-      if (provider === "google") await synthesizeGoogle(spoken, rawPath);
-      else await synthesizeEdgeResilient(spoken, rawPath, voiceOverride);
-      await trimSilence(rawPath, absPath);
-
-      const bytes = await fs.readFile(absPath);
-      const meta = await parseBuffer(new Uint8Array(bytes), { mimeType: "audio/mpeg" });
+      const durationInSeconds = await synthesizeChecked(
+        provider, spoken, seg.text, rawPath, absPath, voiceOverride, `챕터 ${ci + 1} 문장 ${si + 1}`,
+      );
       segments.push({
         text: seg.text,
         textEn: seg.textEn,
         emphasis: seg.emphasis,
         audioSrc: `audio/${fileName}`,
-        durationInSeconds: meta.format.duration ?? estimateDuration(seg.text),
+        durationInSeconds,
         // 게이트를 통과한 visual 만 남아 있는 상태다 (normalizeVisuals 가 앞에서 걸렀다)
         frame: seg.frame as NarratedChapter["segments"][0]["frame"],
       });
@@ -172,6 +164,44 @@ export async function narrateLongform(
     );
   }
   return out;
+}
+
+/**
+ * 한 문장을 합성·트리밍하고 길이(초)를 돌려준다. 문장 길이에 비해 음성이 터무니없이 짧으면
+ * 다시 합성한다.
+ *
+ * edge-tts 는 가끔 오류 없이 잘린 음성을 준다(2026-10-03 드라이런: 마지막 마무리 문장이
+ * 35초 걸려 0.3초짜리로 돌아옴 — 자막은 뜨는데 소리가 없다). 예외가 안 나서 재시도·폴백이
+ * 돌지 않았다. 발화 속도로 말이 안 되게 짧으면 잘린 것으로 보고 edge-tts 로 한 번 더, 그래도
+ * 짧으면 구글 번역 TTS 로 바꾼다. 끝까지 짧으면 경고만 남기고 진행한다.
+ */
+async function synthesizeChecked(
+  provider: string,
+  spoken: string,
+  text: string,
+  rawPath: string,
+  absPath: string,
+  voiceOverride: VoiceOverride | undefined,
+  label: string,
+): Promise<number> {
+  // 실측 발화 속도는 6.5~8자/초(공백 제외). 그 절반 속도(20자/초)로도 못 미치면 잘린 음성이다.
+  // estimateDuration(최소 1.5초)을 기준으로 삼으면 '근데요.' 같은 짧은 문장을 멀쩡한데도 다시 합성한다.
+  const minSecs = Math.max(0.3, text.replace(/\s/g, "").length / 20);
+  let secs = 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (provider === "google") await synthesizeGoogle(spoken, rawPath);
+    else if (attempt < 2) await synthesizeEdgeResilient(spoken, rawPath, voiceOverride);
+    else await synthesizeGoogleTranslateTts(spoken, rawPath);
+    await trimSilence(rawPath, absPath);
+    const meta = await parseBuffer(new Uint8Array(await fs.readFile(absPath)), { mimeType: "audio/mpeg" });
+    secs = meta.format.duration ?? estimateDuration(text);
+    if (secs >= minSecs) return secs;
+    console.warn(
+      `  ⚠️ ${label} 음성이 문장에 비해 너무 짧음(${secs.toFixed(1)}s, 최소 ${minSecs.toFixed(1)}s) — 다시 합성 (${attempt + 1}/3)`,
+    );
+  }
+  console.warn(`  ⚠️ ${label} 재합성에도 음성이 짧음 — 그대로 진행`);
+  return secs;
 }
 
 /**
