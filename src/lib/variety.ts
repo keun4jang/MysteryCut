@@ -215,6 +215,59 @@ const REGION_ANGLES: Array<{ weight: number; pick: string }> = [
   { weight: 2, pick: "지역: '그 외 지역' — 아프리카·중동·오세아니아·극지·대양(선박·섬) 등 덜 다뤄진 지역." },
 ];
 
+/**
+ * 감동 실화(선과 악) — 2026-10-03 사장님 결정으로 쇼츠에서 4주 시험한다.
+ *
+ * 매주 일요일 쇼츠 1편만 이 각도로 만든다(isWarmStoryDay). 랜덤 각도 풀(TOPIC_ANGLES)에는
+ * 넣지 않는다 — 넣으면 롱폼 몰아보기에도 섞이고, 몇 편이 나갔는지도 들쭉날쭉해져
+ * 미스터리 쇼츠와 비교하기 어렵다. 사장님 관찰: 악역과 선한 사람이 나오는 이야기가
+ * 댓글·반응이 좋다.
+ *
+ * 감동 사연은 지어낸 이야기가 가장 많은 장르다(예: '테디 스토다드와 톰슨 선생님'은
+ * 소설로 밝혀짐). 9/28 비공개로 돌린 익명 '판결 기록'과 같은 구조가 되지 않게
+ * 위키백과에 실명 문서가 있는 실화만 쓴다. 원문-사건 일치 확인·숫자 대조는 그대로 적용된다.
+ */
+export const WARM_ANGLE = `소재 각도: '감동 실화(선과 악)' — 악한 사람·체제나 큰 위기에 맞서 누군가 옳은 일을 한 실제 이야기. 선과 악의 대비가 분명하고 끝에 뭉클함이 남는 사건.
+  예: 박해받던 사람들을 숨겨주거나 구해낸 사람, 부당한 권력·기업의 비리를 끝내 밝혀낸 사람, 모두가 포기한 상황에서 사람을 구해낸 구조, 기록으로 남은 충견·의인 이야기.
+  ★반드시 지킬 것:
+  ① 위키백과에 그 사건·인물 이름으로 된 문서가 있는 실화만. 인터넷에 떠도는 익명 감동 사연·미담 글은 금지(지어낸 것이 많다 — 예: '테디 스토다드와 톰슨 선생님'은 소설로 밝혀졌다).
+  ② '악역'을 실명으로 단정하는 건 판결이나 역사 기록으로 확정된 경우만(나치 정권, 유죄 판결이 난 범죄자·기업 등). 생존한 일반인을 악당으로 몰지 마라.
+  ③ 미화·과장 금지 — 원문에 있는 선행만 쓰고, 원문에 논란·반론이 있으면 함께 말하라.
+  ④ 공포·기괴 톤 금지. '소름' 대신 '이게 실화라고?' 하는 놀라움과 뭉클함으로. 썸네일 문구도 선과 악이 갈리는 결정적 장면으로(예: '모두 외면할 때\n문을 연 사람' — 그대로 베끼지 마라). '미제'라는 말은 쓰지 마라.`;
+
+const WARM_HOOK_STYLES: Array<{ weight: number; pick: string }> = [
+  { weight: 3, pick: "훅 방식: '결단의 순간형' — 주인공이 위험을 무릅쓰고 결정을 내리는 바로 그 장면으로 시작. 예: '명령서를 받은 그날 밤, 그는 정반대로 움직였어요.'" },
+  { weight: 3, pick: "훅 방식: '대비형' — 악의와 선의를 한 문장씩 부딪친다. 예: '모두가 문을 걸어 잠갔어요. 단 한 사람만 문을 열었죠.'" },
+  { weight: 2, pick: "훅 방식: '결말 먼저형' — 뭉클한 결말 장면을 먼저 보여주고 거슬러 올라간다. 예: '수십 년 뒤, 낯선 사람들이 그의 집 앞에 줄을 섰어요.'" },
+  { weight: 2, pick: "훅 방식: '기록 인용형' — 당시 편지·증언·기록에 남은 한 줄로 시작. 예: '그가 남긴 편지엔 단 한 문장이 적혀 있었어요.'" },
+];
+
+const WARM_SIGNOFF_STYLES = [
+  "마무리 멘트 방향: 여운형. 예: '이런 사람이 있었다는 걸 기억해 주세요. 좋아요로 응원해 주시고요.'",
+  "마무리 멘트 방향: 시청자 경험 요청형. 예: '비슷한 실화를 아는 분은 댓글로 알려주세요. 다음에 소개할게요.'",
+  "마무리 멘트 방향: 다음 편 예고형. 예: '다음에도 이런 실화 하나 가져올게요. 좋아요 눌러두면 놓치지 않아요.'",
+];
+
+/** 감동 실화 편의 지역 — 한국 문구만 미스터리용(전설·괴담·미제)과 다르다 */
+const WARM_REGION_ANGLES: Array<{ weight: number; pick: string }> = [
+  {
+    weight: 4,
+    pick: `지역: '한국' — 기록으로 남은 국내 실화를 골라라. 독립운동·6·25 전쟁·산업화 시기의 의인, 대형 재난 속 구조, 이산가족 상봉처럼 널리 알려진 공적 사건.
+  ★생존 일반인 실명 금지. 정치적으로 지금도 논쟁 중인 사건은 고르지 마라.`,
+  },
+  ...REGION_ANGLES.slice(1),
+];
+
+export function isWarmAngle(angle?: string): boolean {
+  return !!angle && angle.includes("감동 실화");
+}
+
+/** 오늘(한국 시간)이 감동 실화 쇼츠를 내는 날인가 — 일요일 */
+export function isWarmStoryDay(now = new Date()): boolean {
+  const kst = new Date(now.getTime() + 9 * 3600_000);
+  return kst.getUTCDay() === 0;
+}
+
 function weightedItem<T extends { weight: number }>(items: T[]): T {
   const total = items.reduce((a, i) => a + i.weight, 0);
   let r = Math.random() * total;
@@ -245,15 +298,22 @@ export interface StylePack {
   regionAngle: string;
 }
 
-export function pickStylePack(): StylePack {
+/**
+ * @param opts.warm 감동 실화 편으로 만든다(쇼츠 일요일). FORCE_ANGLE 이 있으면 그쪽이 우선.
+ */
+export function pickStylePack(opts?: { warm?: boolean }): StylePack {
   // FORCE_ANGLE 로 특정 소재 각도를 지정할 수 있다 (샘플·검증용. 미지정이면 평소대로 랜덤)
   const force = process.env.FORCE_ANGLE?.trim();
-  const forced = force ? TOPIC_ANGLES.find((t) => t.pick.includes(force)) : undefined;
+  const forced = force
+    ? [...TOPIC_ANGLES, { weight: 0, pick: WARM_ANGLE }].find((t) => t.pick.includes(force))
+    : undefined;
   if (force && !forced) {
     console.warn(`   ⚠️ FORCE_ANGLE="${force}" 와 일치하는 소재 각도가 없어 무시합니다.`);
   }
-  const topic = forced ?? weightedItem(TOPIC_ANGLES);
+  const warm = forced ? isWarmAngle(forced.pick) : !!opts?.warm;
+  const topic = forced ?? (warm ? { weight: 0, pick: WARM_ANGLE } : weightedItem(TOPIC_ANGLES));
   if (forced) console.log(`   📌 소재 각도 강제 지정: ${forced.pick.split(" — ")[0]}`);
+  else if (warm) console.log("   💛 일요일 — 감동 실화 편");
   return {
     voice: weightedPick(VOICES),
     theme: {
@@ -261,10 +321,10 @@ export function pickStylePack(): StylePack {
       boxStyle: weightedPick(BOX_STYLES),
       kenburns: pick(KENBURNS),
     },
-    hookStyle: weightedPick(HOOK_STYLES),
+    hookStyle: weightedPick(warm ? WARM_HOOK_STYLES : HOOK_STYLES),
     titleStyle: pick(TITLE_STYLES),
-    signoffStyle: pick(SIGNOFF_STYLES),
+    signoffStyle: pick(warm ? WARM_SIGNOFF_STYLES : SIGNOFF_STYLES),
     topicAngle: topic.pick,
-    regionAngle: weightedPick(REGION_ANGLES),
+    regionAngle: weightedPick(warm ? WARM_REGION_ANGLES : REGION_ANGLES),
   };
 }

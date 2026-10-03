@@ -16,7 +16,7 @@ import {
   isDuplicate,
   appendPost,
 } from "./assistants/history.js";
-import { pickStylePack } from "./lib/variety.js";
+import { pickStylePack, isWarmStoryDay } from "./lib/variety.js";
 import { deriveGrade, gradeColors } from "./lib/grade.js";
 import { totalDurationInFrames } from "./remotion/timing.js";
 import { reelSrt } from "./lib/captions.js";
@@ -41,7 +41,8 @@ async function main() {
   console.log(`🗂️  게시 이력 ${history.posts.length}건 (중복 회피)`);
 
   // 버라이어티 팩: 영상마다 목소리·비주얼·훅 구성을 랜덤 조합 (동일 템플릿 반복 방지)
-  const pack = pickStylePack();
+  // 일요일은 감동 실화 편(2026-10-03 부터 4주 시험 — variety.ts WARM_ANGLE)
+  const pack = pickStylePack({ warm: isWarmStoryDay() });
   console.log(
     `🎲 버라이어티: 보이스=${pack.voice.label} | 자막=${pack.theme.boxStyle} | 줌=${pack.theme.kenburns} | 긴장색=${pack.theme.colors.tension}`,
   );
@@ -146,7 +147,7 @@ async function main() {
     title: idea.title,
     segments,
     moodKeywords: idea.moodKeywords,
-    bgmSrc: await findBgm(),
+    bgmSrc: await findBgm(grade.genre === "warm"),
     theme: pack.theme,
     thumbTitle: idea.thumbTitle || idea.title,
     thumbBadge: idea.thumbBadge,
@@ -207,7 +208,7 @@ async function main() {
     }
 
     // 한 곳이라도 실제 게시됐으면 이력에 기록 (소재·해시태그 회피용)
-    if (anyPublished) await appendPost(idea, metadata.hashtags);
+    if (anyPublished) await appendPost(idea, metadata.hashtags, pack.topicAngle.split(" — ")[0].replace(/^소재 각도: /, ""));
 
     // 썸네일 카드를 저장소 thumbnails/ 폴더에 보관 — 유튜브가 쇼츠 썸네일
     // API 를 열기 전까지 수동 지정용 원본으로 사용 (워크플로가 커밋)
@@ -271,11 +272,14 @@ async function extractThumb(videoPath: string): Promise<string | undefined> {
   }
 }
 
-/** public/bgm/ 에 mp3 가 있으면 그 상대경로 반환 (없으면 undefined) */
-async function findBgm(): Promise<string | undefined> {
+/**
+ * public/bgm/ 에 mp3 가 있으면 그 상대경로 반환 (없으면 undefined)
+ * @param warm 감동 실화 편 — warm*.mp3 만 쓴다. 그 외엔 warm*.mp3 를 빼고 고른다(으스스한 사건에 잔잔한 곡이 깔리지 않게).
+ */
+async function findBgm(warm = false): Promise<string | undefined> {
   try {
-    const files = (await fs.readdir(config.paths.bgm)).filter((f) =>
-      f.toLowerCase().endsWith(".mp3"),
+    const files = (await fs.readdir(config.paths.bgm)).filter(
+      (f) => f.toLowerCase().endsWith(".mp3") && (f.startsWith("aaa-") || f.startsWith("warm") === warm),
     );
     // BGM_URL 오버라이드(aaa- 접두사)가 있으면 그것을 우선, 없으면 랜덤(영상마다 다른 분위기)
     const override = files.find((f) => f.startsWith("aaa-"));

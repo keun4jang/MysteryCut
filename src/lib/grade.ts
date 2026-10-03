@@ -53,12 +53,20 @@ const LOOKS: Record<ReelGenre, GenreLook> = {
     tintRgb: "22,66,58", tintAlpha: 0.14,
     accent: "#58b898", tension: "#7fd0b8", reveal: "#ff5f87",
   },
+  // 감동 실화(선과 악) — 해 질 녘 같은 따뜻한 호박색. 공포 톤의 빨강 강조는 쓰지 않는다.
+  warm: {
+    saturate: 0.92, brightness: 0.98, contrast: 1.03, hueRotate: -4, sepia: 0.12,
+    tintRgb: "128,84,36", tintAlpha: 0.12,
+    accent: "#f0b45e", tension: "#ffd08a", reveal: "#ffe2a8",
+  },
 };
 
 /** thumbBadge(소재 분류 문구)와 소재 각도에서 장르를 정한다 */
 export function detectGenre(thumbBadge?: string, topicAngle?: string): ReelGenre {
   const badge = thumbBadge ?? "";
   const angle = topicAngle ?? "";
+  // 감동 실화 편은 배지가 '역사'·'재판'이어도 따뜻한 룩으로 고정한다
+  if (/감동 실화/.test(angle)) return "warm";
   if (/법정|판결|재판|소송|유산|상속|분쟁/.test(badge)) return "court";
   if (/괴담|전설|민담|설화|귀신/.test(badge)) return "folklore";
   if (/역사|조선|고려|왕실|실록/.test(badge)) return "history";

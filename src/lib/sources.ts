@@ -335,6 +335,19 @@ const DISCOVERY_QUERIES: Array<{ lang: "ko" | "en"; q: string }> = [
   { lang: "en", q: "unsolved mystery" },
 ];
 
+/** 감동 실화(선과 악) 편용 — 의인·구조·내부고발처럼 문서로 남은 미담을 찾는 검색어 */
+const WARM_DISCOVERY_QUERIES: Array<{ lang: "ko" | "en"; q: string }> = [
+  { lang: "ko", q: "의인" },
+  { lang: "ko", q: "구조 작전" },
+  { lang: "ko", q: "이산가족" },
+  { lang: "ko", q: "독립운동가" },
+  { lang: "ko", q: "충견" },
+  { lang: "en", q: "Righteous Among the Nations" },
+  { lang: "en", q: "rescue operation" },
+  { lang: "en", q: "humanitarian rescue" },
+  { lang: "en", q: "survival story" },
+];
+
 /** 목록·분류 안내문서처럼 사건 자체가 아닌 문서를 걸러낸다 */
 function looksLikeIndexPage(title: string): boolean {
   return /^(목록|분류|List of|Category:|Timeline of)/i.test(title);
@@ -353,8 +366,9 @@ function looksLikeIndexPage(title: string): boolean {
  * 매 호출마다 검색어를 무작위로 몇 개만 골라서 써서(고정된 첫 페이지만
  * 반복해서 보여주지 않도록), 회차마다 다른 후보군이 보이게 한다.
  */
-export async function discoverCandidateTitles(limit = 24): Promise<string[]> {
-  const picks = [...DISCOVERY_QUERIES].sort(() => Math.random() - 0.5).slice(0, 4);
+export async function discoverCandidateTitles(limit = 24, warm = false): Promise<string[]> {
+  const pool = warm ? WARM_DISCOVERY_QUERIES : DISCOVERY_QUERIES;
+  const picks = [...pool].sort(() => Math.random() - 0.5).slice(0, 4);
   const titles = new Set<string>();
   for (const { lang, q } of picks) {
     try {

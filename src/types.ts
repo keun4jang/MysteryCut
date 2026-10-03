@@ -90,7 +90,7 @@ export interface NarratedSegment {
 }
 
 /** 장르 구분 — 색보정·강조색·썸네일 마커를 소재 성격에 맞춰 고정한다 */
-export type ReelGenre = "coldCase" | "court" | "history" | "folklore";
+export type ReelGenre = "coldCase" | "court" | "history" | "folklore" | "warm";
 
 /**
  * 장르 고정 색보정(그레이드) — Node 쪽(grade.ts)에서 결정해 props 로 내려보낸다.
