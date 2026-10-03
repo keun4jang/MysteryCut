@@ -355,7 +355,7 @@ export async function writeReelPlan(
     const forced = opts?.forcedCase;
     const caseMismatch = !!forced && !isSameCase(plan.idea.caseKey, forced.caseKey);
     const unsourced = sourceText ? unsourcedHeadlineNumbers(plan, sourceText) : [];
-    const gap = Math.abs(chars - IDEAL_CHARS);
+    const gap = lengthPenalty(chars, IDEAL_CHARS, MAX_CHARS);
     if (gap < bestGap && !caseMismatch && !unsourced.length) {
       best = plan;
       bestChars = chars;
@@ -412,9 +412,24 @@ export async function writeReelPlan(
     console.warn(`   ⚠️ 재생성에도 위험 표현 잔존(${leftover.join(", ")}) — 자동 중립화 적용`);
   }
   if (bestChars < MIN_CHARS || bestChars > MAX_CHARS) {
-    console.warn(`   ⚠️ 재생성에도 분량 목표 미달 — 가장 근접한 안(${bestChars}자)으로 진행`);
+    console.warn(
+      `   ⚠️ 재생성에도 분량 목표 미달 — ${bestChars > MAX_CHARS ? "모두 상한 초과라 가장 짧은" : "상한 안쪽에서 가장 근접한"} 안(${bestChars}자)으로 진행`,
+    );
   }
   return best!;
+}
+
+/**
+ * 재생성 3회가 모두 목표 밖일 때 고를 안의 벌점(낮을수록 좋다).
+ *
+ * 예전엔 목표(880자)와의 거리만 봐서 '짧은 안'보다 '긴 안'이 자주 뽑혔다. 모델이
+ * 짧게 → 길게 → 짧게 널뛰는데(2026-09-28~10-02 14회 중 6회가 3회 모두 실패),
+ * 그중 3회가 978~1,065자 안을 골라 116~123초가 됐다. 세 번 모두 상한 안쪽의 안이
+ * 있었다. 115초를 넘기는 쪽(인스타 도달 급락 구간)이 몇 초 짧은 쪽보다 나쁘므로
+ * 상한을 넘는 안은 상한 안쪽 안이 하나도 없을 때만 고르고, 그중에서도 가장 짧은 것을 고른다.
+ */
+export function lengthPenalty(chars: number, ideal: number, max: number): number {
+  return chars > max ? 10_000 + chars : Math.abs(chars - ideal);
 }
 
 /** 제목·썸네일·훅에 쓴 숫자 중 원문에 그 숫자로 없는 것 */
