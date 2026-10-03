@@ -17,6 +17,7 @@ on:
     # 2026-10-02 매일 → 주 4개: 커뮤니티 가이드 스팸 조항 'Automated or synthetic
     # mass-production'(경고·해지까지 가는 조항)에 걸릴 노출면을 줄인다. 쇼츠 시청은
     # YPP 시청시간에 안 들어가고, 쇼츠→롱폼 유입도 90일 9회뿐이라 잃는 게 거의 없다.
+    # 2026-10-03~ 일요일 회차는 '감동 실화(선과 악)' 편으로 4주 시험(src/lib/variety.ts WARM_ANGLE).
     - cron: "0 10 * * 0,2,4,6" # 저녁 창: 19:00 KST + 랜덤
   workflow_dispatch: # 수동 실행(테스트용) — 랜덤 지연 없이 바로 실행
     inputs:
@@ -25,7 +26,7 @@ on:
         required: false
         default: ""
       angle:
-        description: "소재 각도 강제 지정(선택). 예: 그 시절, 기묘한 인물, 기이한 장소"
+        description: "소재 각도 강제 지정(선택). 예: 그 시절, 기묘한 인물, 기이한 장소, 감동 실화"
         required: false
         default: ""
       dry_run:

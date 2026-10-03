@@ -5,6 +5,7 @@ import { findSensitiveTerms, softenText } from "../lib/safeText.js";
 import { isSameCase } from "./history.js";
 import { sourcesPromptBlock, discoverCandidateTitles, type SourceDoc } from "../lib/sources.js";
 import { numbersInText, numberInSource } from "../lib/visual/gates.js";
+import { isWarmAngle } from "../lib/variety.js";
 import {
   StoryIdeaSchema,
   ReelScriptSchema,
@@ -83,12 +84,15 @@ export async function proposeCase(
   // 실제로 위키백과(자매 프로젝트 포함)에 문서가 있는 후보를 미리 찾아 보여준다.
   // LLM 이 기억만으로 지어낸 사건명은 원문 미달로 버려지는 비율이 높았다
   // (실측 2026-08-25). 검색 실패해도 후보 없이 그냥 진행한다 — 필수 아님.
-  const candidates = await discoverCandidateTitles().catch(() => [] as string[]);
+  const warm = isWarmAngle(opts?.topicAngle);
+  const candidates = await discoverCandidateTitles(24, warm).catch(() => [] as string[]);
   const avoidTitlesLower = new Set((avoid?.titles ?? []).map((t) => t.toLowerCase()));
   const freshCandidates = candidates.filter((t) => !avoidTitlesLower.has(t.toLowerCase()));
 
   const system = [
-    `너는 ${config.channel.language} 미스터리 콘텐츠의 소재 발굴 담당이다.`,
+    warm
+      ? `너는 ${config.channel.language} 실화 스토리 콘텐츠의 소재 발굴 담당이다. 이번 회차는 '감동 실화(선과 악)' 편이다.`
+      : `너는 ${config.channel.language} 미스터리 콘텐츠의 소재 발굴 담당이다.`,
     "이번 회차에 다룰 사건을 '하나만' 고르고, 그 사건의 원문을 찾을 검색어를 준다. 대본은 쓰지 않는다.",
     "",
     "★가장 중요한 제약: 백과사전에 문서가 있을 만큼 '기록으로 남은 실제 사건'만 골라라.",
@@ -107,7 +111,9 @@ export async function proposeCase(
       : "",
     "- caseKey: 영어 소문자 슬러그. 대표 명칭 + 연도. 예: 'dyatlov-pass-1959', 'helen-brach-1977'.",
     "- title: 한국어 사건명 (자극적 제목이 아니라 사건을 특정하는 이름).",
-    "- premise: 이 사건이 왜 기묘한지 2~3문장.",
+    warm
+      ? "- premise: 누가 어떤 악·위기에 맞서 무엇을 했고 어떻게 끝났는지 2~3문장."
+      : "- premise: 이 사건이 왜 기묘한지 2~3문장.",
     "- searchTerms: 원문을 찾기 위한 검색어 2~4개. ★위키백과 '문서 제목'에 최대한 가깝게 써라.",
     "  관련성 검사가 '검색어가 문서 제목에 실제로 들어있는지'를 보므로, 설명형 문구가 아니라",
     "  사건의 고유 명칭이어야 한다.",
@@ -168,6 +174,7 @@ export async function writeReelPlan(
         "위 사건에 대해서만 써라. 아래 소재 각도·지역 지시는 이 사건을 '어떤 각도로 풀지'에만 적용한다.",
       ].join("\n")
     : "";
+  const warm = isWarmAngle(opts?.topicAngle);
   const sourcesBlock = sourcesPromptBlock(opts?.sources ?? []);
   // 원문을 못 구했을 때는 확인 불가능한 구체적 수치·인용을 자제시킨다
   const noSourceBlock =
@@ -300,11 +307,24 @@ export async function writeReelPlan(
     "- 'ruled it a suicide' → 'closed the case, finding no evidence of foul play'",
     "- 죽음의 구체적 방법·도구 묘사 금지. '어떻게 죽었는지'가 아니라 '왜 설명이 안 되는지'에 초점.",
     "이 규칙은 사건 선택보다 우선한다 — 소재는 그대로 쓰되 표현만 중립적으로.",
+    warm
+      ? [
+          "",
+          "[★★이번 회차는 '감동 실화(선과 악)' 편이다 — 위 지시보다 이 블록이 우선한다]",
+          "- 위에서 '미스터리·소름·기괴·미제'를 말하는 부분은 전부 '놀라움·뭉클함'으로 바꿔 적용하라. 공포·스릴러 톤 금지.",
+          "- 구성: (1) 악·위기의 실체를 구체적 기록으로 보여주고 (2) 주인공이 무릅쓴 위험과 결단 (3) 그 결과와 뒷이야기(구한 사람들·훗날의 평가)로 뭉클하게 끝낸다.",
+          "- thumbTitle 은 '가장 소름 끼치는 한 방' 대신 '선과 악이 갈리는 결정적 한 장면'. thumbBadge 는 '감동 실화'·'실화 미담'·'역사 속 의인'처럼 이 편의 성격으로.",
+          "- 엔딩 선택형 질문은 사건의 쟁점 대신 '그 자리에 나였다면' 같은 선택지로. 예: '여러분이라면 어떻게 했을까요? 1번 도왔다, 2번 못 했을 것 같다.'",
+          "- 악역의 실명은 판결·역사 기록으로 확정된 경우에만 쓰고, 선행도 원문에 있는 것만 써라. 미화·과장 금지.",
+        ].join("\n")
+      : "",
   ].join("\n");
 
   const user = seed
     ? `다음 조건/소재를 반영해서 만들어줘: ${seed}`
-    : "새로운 실제 미제사건이나 역사 속 미스터리로 하나 만들어줘. 기존과 겹치지 않는 신선한 소재로.";
+    : warm
+      ? "기록으로 남은 감동 실화(선과 악)로 하나 만들어줘. 기존과 겹치지 않는 신선한 소재로."
+      : "새로운 실제 미제사건이나 역사 속 미스터리로 하나 만들어줘. 기존과 겹치지 않는 신선한 소재로.";
 
   // 대본 분량 검증 — 목표 러닝타임 95~108초를 위해 한국어 790~900자.
   // 실측 3건 (호흡·썸네일 프레임 포함한 실효 속도):

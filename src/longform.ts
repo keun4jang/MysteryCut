@@ -312,8 +312,9 @@ async function produceOneCase(opts: {
 
 async function findBgm(): Promise<string | undefined> {
   try {
-    const files = (await fs.readdir(config.paths.bgm)).filter((f) =>
-      f.toLowerCase().endsWith(".mp3"),
+    // warm*.mp3 는 쇼츠 감동 실화 편 전용 — 롱폼 사건 다큐에는 깔지 않는다
+    const files = (await fs.readdir(config.paths.bgm)).filter(
+      (f) => f.toLowerCase().endsWith(".mp3") && !f.startsWith("warm"),
     );
     const mp3 = files[Math.floor(Math.random() * files.length)];
     if (mp3) {

@@ -11,6 +11,8 @@ export interface HistoryPost {
   at: string; // ISO 날짜 (YYYY-MM-DD)
   /** 이 게시물에 쓴 해시태그 (다음 게시에서 같은 세트 반복 방지) */
   hashtags?: string[];
+  /** 소재 각도 이름(예: '감동 실화(선과 악)') — 각도별 성과 비교용 */
+  angle?: string;
 }
 interface HistoryFile {
   posts: HistoryPost[];
@@ -136,7 +138,7 @@ export function isDuplicate(hist: HistoryFile, caseKey: string): boolean {
 }
 
 /** 이력에 1건 추가하고 파일 저장 (게시 성공 후 호출) */
-export async function appendPost(idea: StoryIdea, hashtags?: string[]): Promise<void> {
+export async function appendPost(idea: StoryIdea, hashtags?: string[], angle?: string): Promise<void> {
   const hist = await loadHistory();
   const at = new Date().toISOString().slice(0, 10);
   hist.posts.push({
@@ -145,6 +147,7 @@ export async function appendPost(idea: StoryIdea, hashtags?: string[]): Promise<
     premise: idea.premise,
     at,
     hashtags,
+    ...(angle ? { angle } : {}),
   });
   await fs.mkdir(path.dirname(HISTORY_PATH), { recursive: true });
   // 제자리 writeFile 은 쓰는 도중 크래시하면 잘린 JSON을 남긴다(위 loadHistory 의
