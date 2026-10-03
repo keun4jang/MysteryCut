@@ -6,6 +6,7 @@
  * 쿼터: videos.list 1 + videos.update 50.
  */
 import { getYoutubeAccessToken } from "../src/assistants/youtubePublisher.js";
+import { isLegacyVideo } from "./legacyGuard.mjs";
 
 const apply = process.argv.includes("--apply");
 const videoId = process.env.VIDEO_ID?.trim();
@@ -24,6 +25,7 @@ type Snippet = {
   categoryId: string;
   defaultLanguage?: string;
   defaultAudioLanguage?: string;
+  publishedAt?: string;
 };
 const res = (await (
   await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(videoId)}`, {
@@ -32,6 +34,9 @@ const res = (await (
 ).json()) as { items?: Array<{ id: string; snippet: Snippet }> };
 const s = res.items?.[0]?.snippet;
 if (!s) throw new Error(`영상을 찾지 못했습니다: ${videoId}`);
+if (isLegacyVideo(s.publishedAt)) {
+  throw new Error(`🛡️ ${videoId} 는 2026년 이전 옛 영상(${s.publishedAt ?? "게시일 모름"})이라 건드리지 않습니다.`);
+}
 
 console.log(`영상 ${videoId}${apply ? " (실제 변경 모드)" : " (미리보기 모드)"}`);
 console.log(`  현재: ${s.title}`);

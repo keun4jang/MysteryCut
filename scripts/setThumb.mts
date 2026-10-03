@@ -1,16 +1,26 @@
 /**
  * 이미 게시된 유튜브 영상의 커스텀 썸네일을 지정 이미지로 교체한다.
  * 사용: npx tsx scripts/setThumb.mts <videoId> <이미지경로>
- * 쿼터: thumbnails.set 약 50유닛.
+ * 쿼터: videos.list 1 + thumbnails.set 약 50유닛.
  */
 import fs from "node:fs/promises";
 import { getYoutubeAccessToken } from "../src/assistants/youtubePublisher.js";
+import { isLegacyVideo } from "./legacyGuard.mjs";
 
 const [videoId, imagePath] = process.argv.slice(2);
 if (!videoId || !imagePath) {
   throw new Error("사용법: npx tsx scripts/setThumb.mts <videoId> <이미지경로>");
 }
 const token = await getYoutubeAccessToken();
+const info = (await (
+  await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(videoId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+).json()) as { items?: Array<{ snippet: { publishedAt?: string } }> };
+const publishedAt = info.items?.[0]?.snippet.publishedAt;
+if (isLegacyVideo(publishedAt)) {
+  throw new Error(`🛡️ ${videoId} 는 2026년 이전 옛 영상(${publishedAt ?? "게시일 모름"})이라 건드리지 않습니다.`);
+}
 const img = await fs.readFile(imagePath);
 const res = await fetch(
   `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}&uploadType=media`,
