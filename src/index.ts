@@ -70,7 +70,11 @@ async function main() {
       console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
     } else {
       console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);
-      sources = await gatherSources(probe.searchTerms, { title: probe.title, premise: probe.premise });
+      sources = await gatherSources(probe.searchTerms, {
+        title: probe.title,
+        premise: probe.premise,
+        protagonistBioOk: isWarmAngle(pack.topicAngle),
+      });
       // 감동 편은 주인공의 선행에 논란이 있으면 버린다(sources.ts warmStoryControversy)
       const controversy =
         sources.length && isWarmAngle(pack.topicAngle)
