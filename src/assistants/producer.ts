@@ -5,7 +5,7 @@ import { findSensitiveTerms, softenText } from "../lib/safeText.js";
 import { isSameCase } from "./history.js";
 import { sourcesPromptBlock, discoverCandidateTitles, type SourceDoc } from "../lib/sources.js";
 import { numbersInText, numberInSource } from "../lib/visual/gates.js";
-import { isWarmAngle } from "../lib/variety.js";
+import { isWarmAngle, WARM_COPY_GUARDS } from "../lib/variety.js";
 import {
   StoryIdeaSchema,
   ReelScriptSchema,
@@ -376,13 +376,14 @@ export async function writeReelPlan(
     const forced = opts?.forcedCase;
     const caseMismatch = !!forced && !isSameCase(plan.idea.caseKey, forced.caseKey);
     const unsourced = sourceText ? unsourcedHeadlineNumbers(plan, sourceText) : [];
-    const gap = lengthPenalty(chars, IDEAL_CHARS, MAX_CHARS);
+    const copied = warm ? copiedWarmExamples(plan) : [];
+    const gap = lengthPenalty(chars, IDEAL_CHARS, MAX_CHARS) + (copied.length ? 5_000 : 0);
     if (gap < bestGap && !caseMismatch && !unsourced.length) {
       best = plan;
       bestChars = chars;
       bestGap = gap;
     }
-    if (!flagged.length && !caseMismatch && !unsourced.length && chars >= MIN_CHARS && chars <= MAX_CHARS) {
+    if (!flagged.length && !caseMismatch && !unsourced.length && !copied.length && chars >= MIN_CHARS && chars <= MAX_CHARS) {
       return plan;
     }
 
@@ -392,6 +393,10 @@ export async function writeReelPlan(
         `   ⚠️ 확정 사건과 다른 caseKey 로 생성됨(확정: ${forced.caseKey}, 생성: ${plan.idea.caseKey}) — 재생성 (${attempt + 1}/3)`,
       );
       feedback += `\n★직전 시도가 확정된 사건(caseKey: ${forced.caseKey}, 사건: ${forced.title})이 아니라 다른 사건으로 생성됐다. idea.caseKey 는 반드시 "${forced.caseKey}" 그대로 써야 하고, 대본 내용도 아래 원문에 근거해 오직 "${forced.title}" 사건만 다뤄야 한다. 다른 사건으로 절대 바꾸지 마라.`;
+    }
+    if (copied.length) {
+      console.warn(`   ⚠️ 감동 편 예시 문구를 베낌(${copied.join(", ")}) — 재생성 (${attempt + 1}/3)`);
+      feedback += `\n★직전 시도가 지시문의 예시 문구를 그대로 베꼈다(${copied.join(", ")}). 첫 문장·썸네일·마무리는 이 사건의 실제 장면·물건·행동으로 완전히 새로 써라. 예시의 낱말을 쓰지 마라.`;
     }
     if (unsourced.length) {
       console.warn(`   ⚠️ 제목·썸네일·훅에 원문에 없는 숫자(${unsourced.join(", ")}) — 재생성 (${attempt + 1}/3)`);
@@ -451,6 +456,13 @@ export async function writeReelPlan(
  */
 export function lengthPenalty(chars: number, ideal: number, max: number): number {
   return chars > max ? 10_000 + chars : Math.abs(chars - ideal);
+}
+
+/** 감동 편 첫 문장·썸네일·제목·훅에 지시문 예시를 베낀 흔적(공백 무시) */
+function copiedWarmExamples(plan: ReelPlan): string[] {
+  const i = plan.idea;
+  const text = [i.title, i.thumbTitle, i.hook, plan.script.segments[0]?.text].join("|").replace(/\s+/g, "");
+  return WARM_COPY_GUARDS.filter((g) => text.includes(g));
 }
 
 /** 제목·썸네일·훅에 쓴 숫자 중 원문에 그 숫자로 없는 것 */
