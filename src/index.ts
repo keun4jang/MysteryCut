@@ -235,15 +235,15 @@ async function main() {
     if (anyFail) process.exitCode = 1; // 하나라도 실패하면 워크플로가 알 수 있게
   } else {
     console.log("   ⏭️  업로드 생략 (--no-publish). 영상 파일만 생성했습니다.");
-    // 드라이런은 게시 전 내용 검토용이다 — 영상 아티팩트를 못 내려받는 환경에서도
-    // 사실·표현을 확인할 수 있게 제목·썸네일 문구·대본 전문·캡션을 로그에 남긴다.
-    console.log("   📜 검토용 원고 ────────");
-    console.log(`   제목: ${idea.title}`);
-    console.log(`   썸네일: ${(idea.thumbTitle ?? "").replace(/\n/g, " / ")} [${idea.thumbBadge ?? ""}]`);
-    script.segments.forEach((s, i) => console.log(`   ${String(i + 1).padStart(2, "0")}. ${s.text}`));
-    console.log(`   캡션: ${metadata.caption.replace(/\n/g, " ")}`);
-    console.log("   ────────────────");
   }
+  // 게시분·드라이런 모두 원고 전문을 로그에 남긴다 — 영상 아티팩트를 못 내려받는 환경에서도
+  // 사실·표현을 사후 검토할 수 있게(감동 편 점검·주간 감사용).
+  console.log("   📜 검토용 원고 ────────");
+  console.log(`   제목: ${idea.title}`);
+  console.log(`   썸네일: ${(idea.thumbTitle ?? "").replace(/\n/g, " / ")} [${idea.thumbBadge ?? ""}]`);
+  script.segments.forEach((s, i) => console.log(`   ${String(i + 1).padStart(2, "0")}. ${s.text}`));
+  console.log(`   캡션: ${metadata.caption.replace(/\n/g, " ")}`);
+  console.log("   ────────────────");
 }
 
 const execFileAsync = promisify(execFile);
