@@ -274,10 +274,17 @@ export function isWarmAngle(angle?: string): boolean {
   return !!angle && angle.includes("감동 실화");
 }
 
-/** 오늘(한국 시간)이 감동 실화 쇼츠를 내는 날인가 — 일요일 */
+/**
+ * 이번 실행이 감동 실화 쇼츠 회차(일요일)인가.
+ *
+ * 한국 시간 기준이되 하루의 경계를 새벽 6시로 둔다. GitHub 예약 실행은 몇 시간씩 늦게
+ * 시작하고(2026-10-03 토요일 회차: 19:00 KST 예약 → 23:31 KST 시작) 그 뒤 0~2시간 랜덤
+ * 지연까지 붙어서, 일요일 회차가 월요일 새벽에 영상을 만들 수 있다. 자정 기준이면 그때
+ * 미스터리 편으로 나간다.
+ */
 export function isWarmStoryDay(now = new Date()): boolean {
-  const kst = new Date(now.getTime() + 9 * 3600_000);
-  return kst.getUTCDay() === 0;
+  const shifted = new Date(now.getTime() + (9 - 6) * 3600_000); // KST(+9)에서 6시간 당김
+  return shifted.getUTCDay() === 0;
 }
 
 function weightedItem<T extends { weight: number }>(items: T[]): T {
