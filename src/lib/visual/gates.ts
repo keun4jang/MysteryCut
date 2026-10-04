@@ -188,10 +188,23 @@ const KO_NUMERALS: Array<[string, number]> = [
   ["열", 10], ["한", 1], ["두", 2], ["세", 3], ["네", 4], ["백", 100], ["천", 1000], ["만", 10000],
 ];
 const KO_COUNTER = "명|개|장|번|년|달|시간|구|통|건|줄|점|병|잔|자루|차례|번째|가지|사람|밤|살|권|개월|마리";
+
+/**
+ * '1,000'→1000, '1만 4천'→14000, '3만'→30000, '2천'→2000 으로 숫자를 펴 준다.
+ * 2026-10-04 첫 감동 편 썸네일 '1만 4천 명'이 1만과 4로 따로 잡혔다 — 원문 '14,000'과 대조가 안 된다.
+ */
+function normalizeNumbers(text: string): string {
+  return text
+    .replace(/([0-9]),(?=[0-9]{3})/g, "$1")
+    .replace(/([0-9]+)\s*만\s*([0-9]+)\s*천/g, (_, a, b) => String(Number(a) * 10000 + Number(b) * 1000))
+    .replace(/([0-9]+)\s*만/g, (_, a) => String(Number(a) * 10000))
+    .replace(/([0-9]+)\s*천/g, (_, a) => String(Number(a) * 1000));
+}
+
 export function numbersInText(text: string): number[] {
   const out = new Set<number>();
-  const t = text.replace(/([0-9]),(?=[0-9]{3})/g, "$1");
-  for (const m of t.matchAll(/([0-9]+)(\s*만)?/g)) out.add(Number(m[1]) * (m[2] ? 10000 : 1));
+  const t = normalizeNumbers(text);
+  for (const m of t.matchAll(/[0-9]+/g)) out.add(Number(m[0]));
   const words = KO_NUMERALS.map(([w]) => w).join("|");
   // 앞 글자가 한글이면 낱말 중간, 숫자면 '3만 명'의 '만'이라 따로 세지 않는다
   for (const m of t.matchAll(new RegExp(`(?<![가-힣0-9])(${words})\\s*(?:${KO_COUNTER})`, "g"))) {
@@ -211,7 +224,7 @@ const EN_NUM: Record<number, string> = {
   30: "thirty", 40: "forty", 50: "fifty", 100: "hundred", 1000: "thousand",
 };
 export function numberInSource(value: number, sourceText: string): boolean {
-  const t = sourceText.replace(/([0-9]),(?=[0-9]{3})/g, "$1");
+  const t = normalizeNumbers(sourceText);
   if (numberInQuote(value, undefined, t)) return true;
   const en = EN_NUM[value];
   return !!en && new RegExp(`\\b${en}\\b`, "i").test(t);
