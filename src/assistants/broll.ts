@@ -118,7 +118,11 @@ export function brightnessForAvgColor(avgColor?: string): number {
  * 롱폼은 화면의 주인공이 사진이 아니라 자료 카드라서 사진 수가 적어도 된다.
  * (챕터 7~9개 → 사진 7~9장)
  */
-export async function attachChapterBroll(chapters: NarratedChapter[]): Promise<NarratedChapter[]> {
+/** @param filePrefix 몰아보기는 사건마다 다르게 — 같은 이름이면 뒤 사건 사진이 앞 사건 것을 덮어쓴다(narrateLongform 참고) */
+export async function attachChapterBroll(
+  chapters: NarratedChapter[],
+  filePrefix = "lf-ch",
+): Promise<NarratedChapter[]> {
   if (!config.pexels.apiKey) {
     console.log("  🖼️  PEXELS_API_KEY 없음 → 배경 없이 그라디언트로 렌더");
     return chapters;
@@ -130,7 +134,7 @@ export async function attachChapterBroll(chapters: NarratedChapter[]): Promise<N
     const query = chapters[i].visualQuery?.trim() || "dark archive documents";
     let hit = cache.get(query);
     if (!hit) {
-      const fileName = `lf-ch-${i}.jpg`;
+      const fileName = `${filePrefix}-${i}.jpg`;
       const r = await downloadOne(query, path.join(BROLL_DIR, fileName), "landscape");
       hit = {
         bgSrc: r.ok ? `broll/${fileName}` : undefined,

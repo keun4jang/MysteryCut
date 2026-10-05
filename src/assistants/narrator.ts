@@ -96,9 +96,15 @@ export async function narrate(
  * 보이스도 매번 랜덤이 아니라 하나로 고정한다 — 진행자가 매번 바뀌면
  * 다큐로서 신뢰가 생기지 않는다.
  */
+/**
+ * @param filePrefix 음성 파일 이름 앞부분. 몰아보기는 사건마다 다르게 줘야 한다 — 같은 이름이면
+ *   뒤 사건이 앞 사건 파일을 덮어쓰고, 렌더는 맨 마지막에 한 번만 하므로 앞 사건 자막에 뒤 사건
+ *   음성이 깔린다(2026-10-05 발견, 몰아보기 도입 9/13 부터).
+ */
 export async function narrateLongform(
   script: LongformScript,
   voiceOverride?: VoiceOverride,
+  filePrefix = "lf",
 ): Promise<NarratedChapter[]> {
   await fs.mkdir(config.paths.audio, { recursive: true });
   const provider = config.tts.provider;
@@ -133,8 +139,8 @@ export async function narrateLongform(
 
     for (let si = 0; si < ch.segments.length; si++) {
       const seg = ch.segments[si];
-      const fileName = `lf-${ci}-${si}.mp3`;
-      const rawPath = path.join(config.paths.audio, `lf-${ci}-${si}.raw.mp3`);
+      const fileName = `${filePrefix}-${ci}-${si}.mp3`;
+      const rawPath = path.join(config.paths.audio, `${filePrefix}-${ci}-${si}.raw.mp3`);
       const absPath = path.join(config.paths.audio, fileName);
 
       const spoken = toSpeechText(seg.text);

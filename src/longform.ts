@@ -79,12 +79,22 @@ async function main() {
   const cases: ProducedCase[] = [];
   for (let i = 0; i < CASES_PER_COMPILATION; i++) {
     console.log(`① 사건 ${i + 1}/${CASES_PER_COMPILATION} 선정 + 원문 수집...`);
-    const produced = await produceOneCase({
-      seed: i === 0 ? args.seed : undefined,
-      avoid,
-      workingHistory,
-      isFirst: i === 0,
-    });
+    // 사건 하나의 제작 오류(대본 생성 거부·TTS 등)로 이미 만든 사건까지 버리지 않는다 — 그 사건만
+    // 건너뛰고 나머지로 몰아보기를 만든다(최소 MIN_CASES 미만이면 아래에서 중단). 2026-10-05: 3번째
+    // 사건 대본이 Gemini RECITATION 으로 끊기자 앞의 2건까지 버리고 회차 전체가 실패했다.
+    let produced: ProducedCase | null | undefined;
+    try {
+      produced = await produceOneCase({
+        seed: i === 0 ? args.seed : undefined,
+        avoid,
+        workingHistory,
+        isFirst: i === 0,
+        caseNo: i,
+      });
+    } catch (e) {
+      console.warn(`   ⚠️ 사건 ${i + 1} 제작 중 오류 — 이 사건만 건너뜀: ${e instanceof Error ? e.message : e}`);
+      produced = null;
+    }
     if (!produced) {
       console.log(`   ↩︎ 사건 ${i + 1} 확보 실패(5회 시도) — 건너뜀`);
       continue;
@@ -239,8 +249,10 @@ async function produceOneCase(opts: {
   avoid: ReturnType<typeof recentAvoidList>;
   workingHistory: { posts: HistoryPost[] };
   isFirst: boolean;
+  /** 몰아보기 안 사건 번호(0부터) — 음성·배경 파일 이름을 사건마다 다르게 하는 데 쓴다 */
+  caseNo: number;
 }): Promise<ProducedCase | null> {
-  const { avoid, workingHistory, isFirst } = opts;
+  const { avoid, workingHistory, isFirst, caseNo } = opts;
   // ★소재 각도는 사건마다 새로 뽑는다. 예전엔 영상당 한 번만 뽑아 5건 전부가
   // 같은 각도·지역을 썼고, 9/25 편은 5건이 거의 같은 한국 상속 분쟁이 됐다.
   const pack = pickStylePack();
@@ -298,10 +310,12 @@ async function produceOneCase(opts: {
     });
   }
 
-  const chapters = await narrateLongform(script, LONGFORM_VOICE);
+  // 사건마다 파일 이름을 다르게(c0-…, c1-…) — 렌더는 5건을 다 만든 뒤 한 번만 하므로, 같은 이름이면
+  // 뒤 사건 음성·사진이 앞 사건 것을 덮어써 자막과 소리·화면이 어긋난다(2026-10-05 발견).
+  const chapters = await narrateLongform(script, LONGFORM_VOICE, `lf-c${caseNo}`);
   const dropped = dropUnreadableVisuals(chapters, 30);
   if (dropped) console.log(`   ⏱️ 읽을 시간이 모자란 그래픽 ${dropped}개 폐기`);
-  await attachChapterBroll(chapters);
+  await attachChapterBroll(chapters, `lf-c${caseNo}-ch`);
 
   console.log(
     `   ⏱️ 대본 ${totalChars(script)}자 / ${countSegments(script)}컷 (전환 챕터 제외)`,

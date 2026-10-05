@@ -323,15 +323,38 @@ export async function generateStructured<S extends z.ZodType>(opts: {
   const jsonSchema = toJsonSchema(schema);
 
   let lastErr: unknown;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const text = await generateText(sys, user, temperature, jsonSchema);
+  let recited = false;
+  // RECITATION 은 파싱 재시도 횟수와 따로 최소 1번은 다시 보낸다
+  const tries = Math.max(maxRetries, 1);
+  for (let attempt = 0; attempt <= tries; attempt++) {
+    if (attempt > maxRetries && !recited) break;
+    let text: string;
+    try {
+      // RECITATION: Gemini 가 '학습 자료를 그대로 옮길 위험'으로 출력을 끊은 경우. 같은 요청은
+      // 거의 그대로 다시 끊기므로, 자기 말로 바꿔 쓰라는 지시를 붙이고 온도를 조금 올려 보낸다.
+      // (2026-10-05 롱폼: 팀부크투 필사본 대본에서 이 오류로 몰아보기 전체가 중단됐다)
+      text = await generateText(
+        sys,
+        recited ? `${user}\n\n★원문·백과사전 문장을 그대로 옮기지 말고 전부 자기 말로 바꿔 써라.` : user,
+        recited ? Math.min(2, temperature + 0.2) : temperature,
+        jsonSchema,
+      );
+    } catch (e) {
+      if (/finishReason=RECITATION/.test(String(e)) && attempt < tries) {
+        console.warn(`  ⚠️ Gemini 가 원문 인용 우려(RECITATION)로 출력을 끊음 — 자기 말로 다시 쓰게 재요청 (${attempt + 1}/${tries})`);
+        recited = true;
+        lastErr = e;
+        continue;
+      }
+      throw e;
+    }
     try {
       return schema.parse(JSON.parse(stripFences(text)));
     } catch (e) {
       lastErr = e;
     }
   }
-  throw new Error(`Gemini 구조화 출력 실패 (${maxRetries + 1}회 시도): ${String(lastErr)}`);
+  throw new Error(`Gemini 구조화 출력 실패: ${String(lastErr)}`);
 }
 
 /** zod 스키마 → Gemini responseJsonSchema 용 JSON Schema (ref 인라인, $schema 제거) */
