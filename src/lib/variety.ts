@@ -218,7 +218,7 @@ const REGION_ANGLES: Array<{ weight: number; pick: string }> = [
 /**
  * 감동 실화(선과 악) — 2026-10-03 사장님 결정으로 쇼츠에서 4주 시험한다.
  *
- * 매주 일요일 쇼츠 1편만 이 각도로 만든다(isWarmStoryDay). 랜덤 각도 풀(TOPIC_ANGLES)에는
+ * 매주 목·일요일 쇼츠만 이 각도로 만든다(isWarmStoryDay — 10/11 사장님 결정으로 주 1→2편, 첫 회 좋아요가 미스터리 편의 4~10배). 랜덤 각도 풀(TOPIC_ANGLES)에는
  * 넣지 않는다 — 넣으면 롱폼 몰아보기에도 섞이고, 몇 편이 나갔는지도 들쭉날쭉해져
  * 미스터리 쇼츠와 비교하기 어렵다. 사장님 관찰: 악역과 선한 사람이 나오는 이야기가
  * 댓글·반응이 좋다.
@@ -275,16 +275,19 @@ export function isWarmAngle(angle?: string): boolean {
 }
 
 /**
- * 이번 실행이 감동 실화 쇼츠 회차(일요일)인가.
+ * 이번 실행이 감동 실화 쇼츠 회차(목·일요일)인가.
  *
  * 한국 시간 기준이되 하루의 경계를 새벽 6시로 둔다. GitHub 예약 실행은 몇 시간씩 늦게
  * 시작하고(2026-10-03 토요일 회차: 19:00 KST 예약 → 23:31 KST 시작) 그 뒤 0~2시간 랜덤
  * 지연까지 붙어서, 일요일 회차가 월요일 새벽에 영상을 만들 수 있다. 자정 기준이면 그때
  * 미스터리 편으로 나간다.
  */
+/** 감동 편 요일(0=일, 4=목). 쇼츠 게시일은 화·목·토·일 */
+export const WARM_WEEKDAYS = [0, 4];
+
 export function isWarmStoryDay(now = new Date()): boolean {
   const shifted = new Date(now.getTime() + (9 - 6) * 3600_000); // KST(+9)에서 6시간 당김
-  return shifted.getUTCDay() === 0;
+  return WARM_WEEKDAYS.includes(shifted.getUTCDay());
 }
 
 function weightedItem<T extends { weight: number }>(items: T[]): T {
@@ -318,7 +321,7 @@ export interface StylePack {
 }
 
 /**
- * @param opts.warm 감동 실화 편으로 만든다(쇼츠 일요일). FORCE_ANGLE 이 있으면 그쪽이 우선.
+ * @param opts.warm 감동 실화 편으로 만든다(쇼츠 목·일요일). FORCE_ANGLE 이 있으면 그쪽이 우선.
  */
 export function pickStylePack(opts?: { warm?: boolean }): StylePack {
   // FORCE_ANGLE 로 특정 소재 각도를 지정할 수 있다 (샘플·검증용. 미지정이면 평소대로 랜덤)
@@ -332,7 +335,7 @@ export function pickStylePack(opts?: { warm?: boolean }): StylePack {
   const warm = forced ? isWarmAngle(forced.pick) : !!opts?.warm;
   const topic = forced ?? (warm ? { weight: 0, pick: WARM_ANGLE } : weightedItem(TOPIC_ANGLES));
   if (forced) console.log(`   📌 소재 각도 강제 지정: ${forced.pick.split(" — ")[0]}`);
-  else if (warm) console.log("   💛 일요일 — 감동 실화 편");
+  else if (warm) console.log("   💛 감동 실화 편(목·일요일 회차)");
   return {
     voice: weightedPick(VOICES),
     theme: {

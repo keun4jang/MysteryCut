@@ -41,7 +41,7 @@ async function main() {
   console.log(`🗂️  게시 이력 ${history.posts.length}건 (중복 회피)`);
 
   // 버라이어티 팩: 영상마다 목소리·비주얼·훅 구성을 랜덤 조합 (동일 템플릿 반복 방지)
-  // 일요일은 감동 실화 편(2026-10-03 부터 4주 시험 — variety.ts WARM_ANGLE)
+  // 목·일요일은 감동 실화 편(10/3 일요일 시험 시작, 10/11 목요일 추가 — variety.ts WARM_WEEKDAYS)
   const pack = pickStylePack({ warm: isWarmStoryDay() });
   console.log(
     `🎲 버라이어티: 보이스=${pack.voice.label} | 자막=${pack.theme.boxStyle} | 줌=${pack.theme.kenburns} | 긴장색=${pack.theme.colors.tension}`,
