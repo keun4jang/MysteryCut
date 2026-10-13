@@ -282,6 +282,7 @@ async function produceOneCase(opts: {
       sources = [];
     }
     avoid.caseKeys.push(probe.caseKey);
+    (avoid.rejected ??= []).push(`${probe.title} (${probe.caseKey})`);
     avoid.titles.push(probe.title);
     if (tries === 4) return null;
     probe = await proposeCase(undefined, avoid, {

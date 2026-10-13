@@ -92,6 +92,7 @@ async function main() {
       }
     }
     avoid.caseKeys.push(probe.caseKey);
+    (avoid.rejected ??= []).push(`${probe.title} (${probe.caseKey})`);
     avoid.titles.push(probe.title);
     if (tries === 3) break;
     probe = await proposeCase(args.seed, avoid, planOpts);

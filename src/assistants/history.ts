@@ -62,7 +62,7 @@ export function usedKeySet(hist: HistoryFile): Set<string> {
 export function recentAvoidList(
   hist: HistoryFile,
   n = 80,
-): { caseKeys: string[]; titles: string[]; recentHashtags: string[] } {
+): { caseKeys: string[]; titles: string[]; recentHashtags: string[]; rejected?: string[] } {
   const recent = hist.posts.slice(-n);
   // 해시태그는 최근 5개 게시물 것만 (그 이전 반복은 자연스러움)
   const recentTags = hist.posts.slice(-5).flatMap((p) => p.hashtags ?? []);

@@ -50,6 +50,12 @@ export type CaseProbe = z.infer<typeof CaseProbeSchema>;
 export interface AvoidList {
   caseKeys: string[];
   titles: string[];
+  /**
+   * 이번 실행에서 이미 고른 뒤 버린 사건(중복·원문 없음·논란). 긴 이력 목록 속에 묻히면 모델이
+   * 같은 사건을 또 고른다(2026-10-13: '타마무 슈드 사건'을 4번 연속 골라 그날 게시 실패) —
+   * 사용자 메시지 맨 앞에 따로 못박는다.
+   */
+  rejected?: string[];
   /** 최근 게시물의 해시태그 (같은 세트 반복 금지용) */
   recentHashtags?: string[];
 }
@@ -135,15 +141,21 @@ export async function proposeCase(
       : "",
   ].join("\n");
 
-  const user = seed
-    ? `다음 조건/소재를 반영해서 사건을 골라줘: ${seed}`
-    : "기존과 겹치지 않는 신선한 사건을 하나 골라줘.";
+  const rejected = avoid?.rejected ?? [];
+  const user =
+    (rejected.length
+      ? `★방금 고른 다음 사건은 이미 다뤘거나 쓸 수 없어서 버렸다. 이것과 같은 사건·같은 인물은 절대 다시 고르지 말고 완전히 다른 사건을 골라라: ${rejected.join(" / ")}\n\n`
+      : "") +
+    (seed
+      ? `다음 조건/소재를 반영해서 사건을 골라줘: ${seed}`
+      : "기존과 겹치지 않는 신선한 사건을 하나 골라줘.");
 
   return (await generateStructured({
     schema: CaseProbeSchema,
     system,
     user,
-    temperature: 1.1,
+    // 버린 사건이 쌓일수록 온도를 조금씩 올려 같은 답으로 수렴하지 않게 한다
+    temperature: Math.min(1.5, 1.1 + 0.1 * rejected.length),
     maxRetries: 1,
   })) as CaseProbe;
 }
