@@ -93,7 +93,16 @@ export async function proposeCase(
   const warm = isWarmAngle(opts?.topicAngle);
   const candidates = await discoverCandidateTitles(24, warm).catch(() => [] as string[]);
   const avoidTitlesLower = new Set((avoid?.titles ?? []).map((t) => t.toLowerCase()));
-  const freshCandidates = candidates.filter((t) => !avoidTitlesLower.has(t.toLowerCase()));
+  // 문서 제목을 caseKey 꼴로 바꿔 이력과 대조한다 — 'Dyatlov Pass incident' ↔ dyatlov-pass-1959
+  const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "");
+  const freshCandidates = candidates.filter(
+    (t) =>
+      !avoidTitlesLower.has(t.toLowerCase()) &&
+      !(avoid?.caseKeys ?? []).some((k) => isSameCase(slug(t), k)),
+  );
+  // 버린 사건이 2건 이상 쌓이면 모델이 같은 유명 사건으로 계속 돌아간다(10/13 드라이런: 댜틀로프 4연속,
+  // 회피 목록·버린 목록을 명시해도 무시). 그때부터는 이력과 겹치지 않는 실제 문서 후보 안에서만 고르게 한다.
+  const mustPickFromList = (avoid?.rejected?.length ?? 0) >= 2 && freshCandidates.length >= 3;
 
   const system = [
     warm
@@ -143,6 +152,9 @@ export async function proposeCase(
 
   const rejected = avoid?.rejected ?? [];
   const user =
+    (mustPickFromList
+      ? `★★이번에는 반드시 아래 목록에 있는 문서 제목 중 하나를 골라라. 목록 밖 사건은 이미 다룬 것이라 쓸 수 없다:\n${freshCandidates.map((t) => `  · ${t}`).join("\n")}\n\n`
+      : "") +
     (rejected.length
       ? `★방금 고른 다음 사건은 이미 다뤘거나 쓸 수 없어서 버렸다. 이것과 같은 사건·같은 인물은 절대 다시 고르지 말고 완전히 다른 사건을 골라라: ${rejected.join(" / ")}\n\n`
       : "") +
