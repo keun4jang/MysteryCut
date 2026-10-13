@@ -65,7 +65,7 @@ async function main() {
   console.log("① 사건 선정 + 원문 수집...");
   let probe = await proposeCase(args.seed, avoid, planOpts);
   let sources: SourceDoc[] = [];
-  for (let tries = 0; tries < 4; tries++) {
+  for (let tries = 0; tries < 6; tries++) {
     if (isDuplicate(history, probe.caseKey)) {
       console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
     } else {
@@ -94,7 +94,7 @@ async function main() {
     avoid.caseKeys.push(probe.caseKey);
     (avoid.rejected ??= []).push(`${probe.title} (${probe.caseKey})`);
     avoid.titles.push(probe.title);
-    if (tries === 3) break;
+    if (tries === 5) break;
     probe = await proposeCase(args.seed, avoid, planOpts);
   }
   // ★루프가 '마지막 시도(tries===3)도 중복'으로 끝난 경우를 반드시 걸러야 한다.
@@ -105,13 +105,13 @@ async function main() {
   // 있었다, 감사에서 확인). 중복 게시보다 그날 게시 실패(알림)가 낫다.
   if (isDuplicate(history, probe.caseKey)) {
     throw new Error(
-      `사건 선정 4회 시도 모두 중복 소재로 귀결(마지막 후보: ${probe.caseKey}) — 중복 게시 방지를 위해 중단합니다.`,
+      `사건 선정 6회 시도 모두 중복 소재로 귀결(마지막 후보: ${probe.caseKey}) — 중복 게시 방지를 위해 중단합니다.`,
     );
   }
   if (!sources.length) {
     // 감동 편은 원문 없이 만들면 지어낸 미담이 나온다(이 장르의 가장 큰 위험) — 그날은 게시하지 않는다
     if (isWarmAngle(pack.topicAngle)) {
-      throw new Error("감동 실화 편: 4회 시도 모두 원문을 못 찾았거나 논란이 있는 소재였음 — 원문 없는 미담을 내보내지 않으려고 중단합니다.");
+      throw new Error("감동 실화 편: 6회 시도 모두 원문을 못 찾았거나 논란이 있는 소재였음 — 원문 없는 미담을 내보내지 않으려고 중단합니다.");
     }
     console.warn("   ⚠️ 원문 없이 진행 — 안전 모드(구체적 수치·인용 자제)로 대본을 만듭니다.");
   }

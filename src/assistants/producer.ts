@@ -136,7 +136,7 @@ export async function proposeCase(
           "",
           "★중복 금지 — 아래는 이미 게시했거나 이번에 실패한 사건이다. 전부 피해라:",
           `- caseKey: ${avoid.caseKeys.join(", ") || "(없음)"}`,
-          `- 제목: ${avoid.titles.slice(-40).join(" / ") || "(없음)"}`,
+          `- 제목: ${avoid.titles.join(" / ") || "(없음)"}`,
         ].join("\n")
       : "",
   ].join("\n");

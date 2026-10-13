@@ -61,7 +61,8 @@ export function usedKeySet(hist: HistoryFile): Set<string> {
 /** LLM 프롬프트에 넘길 '최근 사용 소재' 요약 (caseKey + 제목 + 최근 해시태그) */
 export function recentAvoidList(
   hist: HistoryFile,
-  n = 80,
+  // 전체 이력. 80건만 넘기던 때 오래된 유명 사건(타마무 슈드·댜틀로프·이스달 여인)을 모델이 계속 다시 골랐다(10/13).
+  n = 1000,
 ): { caseKeys: string[]; titles: string[]; recentHashtags: string[]; rejected?: string[] } {
   const recent = hist.posts.slice(-n);
   // 해시태그는 최근 5개 게시물 것만 (그 이전 반복은 자연스러움)
