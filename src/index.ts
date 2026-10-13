@@ -73,7 +73,7 @@ async function main() {
       sources = await gatherSources(probe.searchTerms, {
         title: probe.title,
         premise: probe.premise,
-        protagonistBioOk: isWarmAngle(pack.topicAngle),
+        protagonistBioOk: true, // 10/13 사장님 결정: 미스터리 편도 주인공 본인 전기 인정(sources.ts)
       });
       // 감동 편은 주인공의 선행에 논란이 있으면 버린다(sources.ts warmStoryControversy)
       const controversy =

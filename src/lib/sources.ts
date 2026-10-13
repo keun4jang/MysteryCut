@@ -312,7 +312,7 @@ export async function warmStoryControversy(
 interface CaseInfo {
   title: string;
   premise: string;
-  /** 감동 실화 편 — 주인공 본인 전기 문서를 원문으로 인정 */
+  /** 주인공 본인 전기 문서를 원문으로 인정(감동 편 10/3, 미스터리 쇼츠·롱폼 10/13 부터) */
   protagonistBioOk?: boolean;
 }
 

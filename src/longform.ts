@@ -267,7 +267,9 @@ async function produceOneCase(opts: {
       console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
     } else {
       console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);
-      sources = await gatherSources(probe.searchTerms, { title: probe.title, premise: probe.premise });
+      // 주인공 본인 전기도 원문으로 인정(10/13 사장님 결정) — '조선 경종의 의문스러운 죽음'처럼 사건 문서가
+      // 따로 없고 인물 전기 안에 사건이 서술된 소재가 탈락하던 것(10/5 드라이런 5건 중 2건). 동명이인은 여전히 제외.
+      sources = await gatherSources(probe.searchTerms, { title: probe.title, premise: probe.premise, protagonistBioOk: true });
       const volume = sources.reduce((n, d) => n + d.extract.length, 0);
       // 원문이 짧으면 최소 러닝타임을 채울 정보가 없다 — 다른 사건으로 간다.
       // 몰아보기는 사건당 목표 분량이 낮아(CASE_CHAR_LIMITS.min) 단일 사건
