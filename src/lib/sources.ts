@@ -309,6 +309,40 @@ export async function warmStoryControversy(
   }
 }
 
+/**
+ * 미스터리 편: 정치적으로 지금도 다투는 사건이면 쓰지 않는다(이유 문자열, 괜찮으면 null).
+ * 10/13 드라이런에서 '장준하 의문사'가 뽑혀 '1번 사고, 2번 타살' 투표로 끝나는 대본이 나왔다 —
+ * 국가기관 개입 의혹이 걸린 정치인·민주화 인사 의문사는 사실관계가 다퉈지고 댓글이 정치 싸움이 된다.
+ */
+export async function politicalControversy(
+  docs: SourceDoc[],
+  caseInfo: { title: string; premise: string },
+): Promise<string | null> {
+  try {
+    const v = await generateStructured({
+      schema: ControversySchema,
+      system:
+        "너는 채널 안전 검토 담당이다. 이 사건을 미스터리 영상으로 다뤄도 되는지 원문만 보고 판정한다. " +
+        "다음 중 하나라도 해당하면 controversial=true: (1) 정치인·민주화운동가·언론인 등 정치적 인물의 죽음·실종에 국가기관·정권 개입 의혹이 걸린 사건, " +
+        "(2) 진상·책임을 두고 정당·진영이 지금도 다투는 사건(국가 재난·군 사건 포함), " +
+        "(3) 왜곡·허위 사실 유포를 법으로 처벌하는 사건(5·18 민주화운동 등), (4) 현직·생존 정치인이 당사자인 사건. " +
+        "수백 년 전 왕실 의문사 같은 역사 논쟁, 정치와 무관한 미제 사건은 해당하지 않는다.",
+      user:
+        `[소재] ${caseInfo.title}\n[개요] ${caseInfo.premise}\n\n` +
+        docs.map((d, i) => `[원문 ${i}] ${d.title}\n${d.extract.slice(0, 4000)}`).join("\n\n") +
+        "\n\n{controversial, reason(한 문장)} 으로 답하라.",
+      temperature: 0,
+      maxRetries: 2,
+    });
+    console.log(`  ${v.controversial ? "↩︎" : "✅"} 정치 논란 확인: ${v.controversial ? "논란 있음" : "문제없음"} — ${v.reason}`);
+    return v.controversial ? v.reason : null;
+  } catch (e) {
+    // 확인 실패로 게시가 멈추면 안 된다 — 프롬프트 규칙이 1차 방어선이라 통과시킨다
+    console.warn(`  ⚠️ 정치 논란 확인 실패(통과 처리): ${e instanceof Error ? e.message : e}`);
+    return null;
+  }
+}
+
 interface CaseInfo {
   title: string;
   premise: string;

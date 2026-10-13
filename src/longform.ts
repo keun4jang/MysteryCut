@@ -14,7 +14,7 @@ import { renderLongform, renderLongformThumb } from "./render.js";
 import { publishLongform } from "./assistants/youtubePublisher.js";
 import { loadHistory, recentAvoidList, isDuplicate, appendPost, type HistoryPost } from "./assistants/history.js";
 import { persistLatestLongform } from "./lib/latestLongform.js";
-import { gatherSources, sourcesCitation, type SourceDoc } from "./lib/sources.js";
+import { gatherSources, sourcesCitation, politicalControversy, type SourceDoc } from "./lib/sources.js";
 import { longformSrt } from "./lib/captions.js";
 import { dropUnreadableVisuals } from "./lib/visual/normalize.js";
 import { pickStylePack, LONGFORM_VOICE } from "./lib/variety.js";
@@ -275,10 +275,16 @@ async function produceOneCase(opts: {
       // 몰아보기는 사건당 목표 분량이 낮아(CASE_CHAR_LIMITS.min) 단일 사건
       // 롱폼(3000자 기준)보다 문턱을 살짝 낮춰도 지어낼 위험이 크지 않다.
       if (sources.length && volume >= 1800) {
-        console.log(`   📚 원문 ${sources.length}건 / ${volume}자: ${sources.map((d) => d.title).join(", ")}`);
-        break;
+        if (await politicalControversy(sources, { title: probe.title, premise: probe.premise })) {
+          console.log(`   ↩︎ 정치 논란 소재라 쓰지 않음(${probe.title})`);
+          sources = [];
+        } else {
+          console.log(`   📚 원문 ${sources.length}건 / ${volume}자: ${sources.map((d) => d.title).join(", ")}`);
+          break;
+        }
+      } else {
+        console.log(`   ↩︎ 원문 부족(${sources.length}건 ${volume}자)`);
       }
-      console.log(`   ↩︎ 원문 부족(${sources.length}건 ${volume}자)`);
       sources = [];
     }
     avoid.caseKeys.push(probe.caseKey);

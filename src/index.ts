@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "./config.js";
 import { writeReelPlan, proposeCase } from "./assistants/producer.js";
-import { gatherSources, sourcesCitation, warmStoryControversy, type SourceDoc } from "./lib/sources.js";
+import { gatherSources, sourcesCitation, warmStoryControversy, politicalControversy, type SourceDoc } from "./lib/sources.js";
 import { narrate } from "./assistants/narrator.js";
 import { attachBroll } from "./assistants/broll.js";
 import { renderReel } from "./render.js";
@@ -79,14 +79,16 @@ async function main() {
       const controversy =
         sources.length && isWarmAngle(pack.topicAngle)
           ? await warmStoryControversy(sources, { title: probe.title, premise: probe.premise })
-          : null;
+          : sources.length
+            ? await politicalControversy(sources, { title: probe.title, premise: probe.premise })
+            : null;
       if (sources.length && !controversy) {
         console.log(`   📚 원문 ${sources.length}건 확보: ${sources.map((d) => d.title).join(", ")}`);
         break;
       }
       if (controversy) {
         sources = [];
-        console.log(`   ↩︎ 감동 편에 쓰지 않음(${probe.title}) — 다른 사건으로`);
+        console.log(`   ↩︎ 논란 소재라 쓰지 않음(${probe.title}) — 다른 사건으로`);
       } else {
         console.log(`   ↩︎ 원문을 못 찾음(${probe.searchTerms.join(", ")}) — 다른 사건으로`);
       }
