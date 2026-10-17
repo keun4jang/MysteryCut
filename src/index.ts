@@ -17,6 +17,7 @@ import {
   appendPost,
 } from "./assistants/history.js";
 import { pickStylePack, isWarmStoryDay, isWarmAngle } from "./lib/variety.js";
+import { verifyFacts, type FactItem } from "./lib/factcheck.js";
 import { deriveGrade, gradeColors } from "./lib/grade.js";
 import { totalDurationInFrames } from "./remotion/timing.js";
 import { reelSrt } from "./lib/captions.js";
@@ -139,6 +140,24 @@ async function main() {
 
   // 수집한 원문을 설명란 참고자료로 (유튜브에만 노출)
   if (sources.length) metadata.sourcesCitation = sourcesCitation(sources);
+
+  // 완성 원고를 원문과 한 줄씩 대조해 틀린 사실을 고친다(10/17 '총리'(실제 국철 총재)·'시속 수백 킬로' 통과 사례).
+  // 고친 뒤에도 틀린 줄이 남으면 그날은 게시하지 않는다.
+  const factItems: FactItem[] = [
+    { id: "title", text: idea.title, apply: (f) => { idea.title = f; script.title = f; } },
+    { id: "thumb", text: idea.thumbTitle, apply: (f) => { idea.thumbTitle = f; } },
+    { id: "hook", text: idea.hook, apply: (f) => { idea.hook = f; } },
+    { id: "caption/en", text: metadata.caption, apply: (f, en) => { metadata.caption = f; if (en) metadata.captionEn = en; } },
+    ...script.segments.map((seg, i): FactItem => ({
+      id: `s${i + 1}/en`,
+      text: seg.text,
+      apply: (f, en) => { seg.text = f; if (en) seg.textEn = en; },
+    })),
+  ];
+  const sourceText = sources.map((d) => `[${d.title}]\n${d.extract}`).join("\n\n");
+  if (!(await verifyFacts(factItems, sourceText, probe.title))) {
+    throw new Error(`원고 사실 검증 실패 — 교정 후에도 원문과 어긋난 줄이 남음(${idea.caseKey}). 틀린 내용을 내보내지 않으려고 중단합니다.`);
+  }
 
   console.log(`   💡 ${idea.title} — ${idea.hook}`);
   // 완성 제목으로 한 번 더 — 10/12·10/16 에 caseKey 만 바꾼 같은 사건이 게시됐다. 중복 게시보다 그날 실패(알림)가 낫다.
