@@ -276,7 +276,7 @@ async function produceOneCase(opts: {
       // 롱폼(3000자 기준)보다 문턱을 살짝 낮춰도 지어낼 위험이 크지 않다.
       if (sources.length && volume >= 1800) {
         if (await politicalControversy(sources, { title: probe.title, premise: probe.premise })) {
-          console.log(`   ↩︎ 정치 논란 소재라 쓰지 않음(${probe.title})`);
+          console.log(`   ↩︎ 정치·성범죄 소재라 쓰지 않음(${probe.title})`);
           sources = [];
         } else {
           console.log(`   📚 원문 ${sources.length}건 / ${volume}자: ${sources.map((d) => d.title).join(", ")}`);
