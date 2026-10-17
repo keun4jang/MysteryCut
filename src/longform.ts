@@ -15,6 +15,7 @@ import { publishLongform } from "./assistants/youtubePublisher.js";
 import { loadHistory, recentAvoidList, isDuplicate, appendPost, type HistoryPost } from "./assistants/history.js";
 import { persistLatestLongform } from "./lib/latestLongform.js";
 import { gatherSources, sourcesCitation, politicalControversy, sameCaseInHistory, type SourceDoc } from "./lib/sources.js";
+import { verifyFacts, type FactItem } from "./lib/factcheck.js";
 import { longformSrt } from "./lib/captions.js";
 import { dropUnreadableVisuals } from "./lib/visual/normalize.js";
 import { pickStylePack, LONGFORM_VOICE } from "./lib/variety.js";
@@ -317,6 +318,32 @@ async function produceOneCase(opts: {
   // 완성 제목으로 한 번 더 — 소재 선정 단계 제목엔 연도가 빠져 제목 비교가 안 잡히는 경우가 있다
   if (isDuplicate(workingHistory, probe.caseKey, script.title)) {
     console.log(`   ♻️  완성 제목이 이미 게시한 사건과 겹침(${script.title}) — 이 사건은 건너뜀`);
+    return null;
+  }
+  // 원고를 원문과 한 줄씩 대조해 틀린 사실을 고친다(쇼츠와 같은 검사, factcheck.ts). 고친 뒤에도 남으면 이 사건만 건너뜀.
+  const factItems: FactItem[] = [
+    { id: "title", text: script.title, apply: (f) => { script.title = f; } },
+    { id: "thumb", text: script.thumbTitle, apply: (f) => { script.thumbTitle = f; } },
+    { id: "question", text: script.centralQuestion, apply: (f) => { script.centralQuestion = f; } },
+  ];
+  script.chapters.forEach((ch, c) => {
+    factItems.push({ id: `c${c + 1}`, text: ch.heading, apply: (f) => { ch.heading = f; } });
+    ch.segments.forEach((seg, i) => {
+      factItems.push({
+        id: `c${c + 1}s${i + 1}/en`,
+        text: seg.text,
+        apply: (f, en) => { seg.text = f; if (en) seg.textEn = en; },
+      });
+      const frame = seg.frame;
+      if (frame) {
+        factItems.push({ id: `c${c + 1}s${i + 1}L`, text: frame.label, apply: (f) => { frame.label = f; } });
+        if (frame.support) factItems.push({ id: `c${c + 1}s${i + 1}S`, text: frame.support, apply: (f) => { frame.support = f; } });
+      }
+    });
+  });
+  const sourceText = sources.map((d) => `[${d.title}]\n${d.extract}`).join("\n\n");
+  if (!(await verifyFacts(factItems, sourceText, probe.title))) {
+    console.log(`   ↩︎ 사실 검증 실패 — 이 사건은 건너뜀(${probe.title})`);
     return null;
   }
 
