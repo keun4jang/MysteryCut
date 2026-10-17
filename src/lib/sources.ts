@@ -344,6 +344,42 @@ export async function politicalControversy(
   }
 }
 
+const SameCaseSchema = z.object({ matchIndex: z.number().int(), reason: z.string() });
+
+/**
+ * 이미 게시한 사건과 같은 사건인지 AI 로 대조(겹치면 그 게시물 제목, 아니면 null).
+ * 규칙 비교(isDuplicate)는 caseKey 를 매번 다르게 짓고(gae-gu-i-boys / gaeguri-sony.. / so-yeon-homicide /
+ * gaeguri-sonyeon-sagan) 제목에 연도가 없으면 못 잡는다 — 10/17 드라이런에서 개구리 소년이 네 번째로 뽑혔다.
+ * 확인 실패 시엔 막지 않는다(규칙 비교가 1차 방어선).
+ */
+export async function sameCaseInHistory(
+  caseInfo: { title: string; premise: string; caseKey: string },
+  posts: Array<{ title: string; caseKey: string }>,
+): Promise<string | null> {
+  if (!posts.length) return null;
+  try {
+    const v = await generateStructured({
+      schema: SameCaseSchema,
+      system:
+        "너는 중복 검사 담당이다. [후보]가 [게시 목록] 중 하나와 '같은 실제 사건·인물·현상'을 다루는지 판정한다. " +
+        "제목 표현·각도가 달라도 같은 사건이면 같은 것이다(예: '와룡산에서 사라진 다섯 아이들' = '개구리 소년 사건'). " +
+        "같은 유형일 뿐 다른 사건이면(다른 실종자, 다른 배) 같은 것이 아니다. 같은 게 있으면 그 번호, 없으면 -1.",
+      user:
+        `[후보] ${caseInfo.title} (${caseInfo.caseKey})\n${caseInfo.premise}\n\n[게시 목록]\n` +
+        posts.map((p, i) => `${i}. ${p.title} (${p.caseKey})`).join("\n") +
+        "\n\n{matchIndex(정수, 없으면 -1), reason(한 문장)} 으로 답하라.",
+      temperature: 0,
+      maxRetries: 2,
+    });
+    const hit = v.matchIndex >= 0 && v.matchIndex < posts.length ? posts[v.matchIndex] : null;
+    console.log(`  ${hit ? "♻️" : "✅"} 이력 대조(AI): ${hit ? `이미 게시함 — ${hit.title}` : "새 사건"} — ${v.reason}`);
+    return hit ? hit.title : null;
+  } catch (e) {
+    console.warn(`  ⚠️ 이력 대조(AI) 실패(통과 처리): ${e instanceof Error ? e.message : e}`);
+    return null;
+  }
+}
+
 interface CaseInfo {
   title: string;
   premise: string;

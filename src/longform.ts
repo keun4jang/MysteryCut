@@ -14,7 +14,7 @@ import { renderLongform, renderLongformThumb } from "./render.js";
 import { publishLongform } from "./assistants/youtubePublisher.js";
 import { loadHistory, recentAvoidList, isDuplicate, appendPost, type HistoryPost } from "./assistants/history.js";
 import { persistLatestLongform } from "./lib/latestLongform.js";
-import { gatherSources, sourcesCitation, politicalControversy, type SourceDoc } from "./lib/sources.js";
+import { gatherSources, sourcesCitation, politicalControversy, sameCaseInHistory, type SourceDoc } from "./lib/sources.js";
 import { longformSrt } from "./lib/captions.js";
 import { dropUnreadableVisuals } from "./lib/visual/normalize.js";
 import { pickStylePack, LONGFORM_VOICE } from "./lib/variety.js";
@@ -263,7 +263,10 @@ async function produceOneCase(opts: {
   });
   let sources: SourceDoc[] = [];
   for (let tries = 0; tries < 5; tries++) {
-    if (isDuplicate(workingHistory, probe.caseKey, probe.title)) {
+    if (
+      isDuplicate(workingHistory, probe.caseKey, probe.title) ||
+      (await sameCaseInHistory(probe, workingHistory.posts))
+    ) {
       console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
     } else {
       console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);

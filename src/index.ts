@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "./config.js";
 import { writeReelPlan, proposeCase } from "./assistants/producer.js";
-import { gatherSources, sourcesCitation, warmStoryControversy, politicalControversy, type SourceDoc } from "./lib/sources.js";
+import { gatherSources, sourcesCitation, warmStoryControversy, politicalControversy, sameCaseInHistory, type SourceDoc } from "./lib/sources.js";
 import { narrate } from "./assistants/narrator.js";
 import { attachBroll } from "./assistants/broll.js";
 import { renderReel } from "./render.js";
@@ -65,8 +65,12 @@ async function main() {
   console.log("① 사건 선정 + 원문 수집...");
   let probe = await proposeCase(args.seed, avoid, planOpts);
   let sources: SourceDoc[] = [];
+  let probeIsDup = false;
   for (let tries = 0; tries < 6; tries++) {
-    if (isDuplicate(history, probe.caseKey, probe.title)) {
+    // 규칙 비교 → 통과하면 AI 로 전체 이력과 한 번 더 대조(caseKey·제목을 매번 다르게 지어내는 경우)
+    probeIsDup =
+      isDuplicate(history, probe.caseKey, probe.title) || !!(await sameCaseInHistory(probe, history.posts));
+    if (probeIsDup) {
       console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
     } else {
       console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);
@@ -105,7 +109,7 @@ async function main() {
   // 안전 모드 경고만 찍고 이미 게시한 사건을 다시 대본화·게시한다(롱폼은
   // longform.ts 가 sources 없으면 throw 해서 우연히 막혀 있었는데 쇼츠만 뚫려
   // 있었다, 감사에서 확인). 중복 게시보다 그날 게시 실패(알림)가 낫다.
-  if (isDuplicate(history, probe.caseKey, probe.title)) {
+  if (probeIsDup || isDuplicate(history, probe.caseKey, probe.title)) {
     throw new Error(
       `사건 선정 6회 시도 모두 중복 소재로 귀결(마지막 후보: ${probe.caseKey}) — 중복 게시 방지를 위해 중단합니다.`,
     );
