@@ -66,7 +66,7 @@ async function main() {
   let probe = await proposeCase(args.seed, avoid, planOpts);
   let sources: SourceDoc[] = [];
   for (let tries = 0; tries < 6; tries++) {
-    if (isDuplicate(history, probe.caseKey)) {
+    if (isDuplicate(history, probe.caseKey, probe.title)) {
       console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
     } else {
       console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);
@@ -105,7 +105,7 @@ async function main() {
   // 안전 모드 경고만 찍고 이미 게시한 사건을 다시 대본화·게시한다(롱폼은
   // longform.ts 가 sources 없으면 throw 해서 우연히 막혀 있었는데 쇼츠만 뚫려
   // 있었다, 감사에서 확인). 중복 게시보다 그날 게시 실패(알림)가 낫다.
-  if (isDuplicate(history, probe.caseKey)) {
+  if (isDuplicate(history, probe.caseKey, probe.title)) {
     throw new Error(
       `사건 선정 6회 시도 모두 중복 소재로 귀결(마지막 후보: ${probe.caseKey}) — 중복 게시 방지를 위해 중단합니다.`,
     );
@@ -130,6 +130,10 @@ async function main() {
   if (sources.length) metadata.sourcesCitation = sourcesCitation(sources);
 
   console.log(`   💡 ${idea.title} — ${idea.hook}`);
+  // 완성 제목으로 한 번 더 — 10/12·10/16 에 caseKey 만 바꾼 같은 사건이 게시됐다. 중복 게시보다 그날 실패(알림)가 낫다.
+  if (isDuplicate(history, idea.caseKey, idea.title)) {
+    throw new Error(`완성된 제목이 이미 게시한 사건과 겹침(${idea.title}, ${idea.caseKey}) — 중복 게시 방지를 위해 중단합니다.`);
+  }
   console.log(`   🔑 caseKey: ${idea.caseKey}`);
   console.log(`   📝 세그먼트 ${script.segments.length}개`);
 

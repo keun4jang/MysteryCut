@@ -103,6 +103,24 @@ function keyNameTokens(key: string): Set<string> {
   );
 }
 
+/** 짧은 편집 거리(오타 허용) — 'merdith' ↔ 'meredith'(10/15 감동 편이 10/4 와 같은 사건으로 재게시됨) */
+function editDistance(a: string, b: string): number {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return dp[a.length][b.length];
+}
+
+/** 같은 고유명 토큰인가 — 완전 일치, 또는 5자 이상에서 철자 1자(8자 이상은 2자) 차이 */
+function sameToken(a: string, b: string): boolean {
+  if (a === b) return true;
+  const n = Math.min(a.length, b.length);
+  if (n < 5 || Math.abs(a.length - b.length) > 2) return false;
+  return editDistance(a, b) <= (n >= 8 ? 2 : 1);
+}
+
 function keyYear(key: string): string | null {
   // 조선 시대 소재는 1473 같은 연도도 나온다 — 1000~2099 전체를 연도로 인식
   const m = normalizeKey(key).match(/\b(1\d{3}|20\d\d)\b/);
@@ -123,9 +141,10 @@ export function isSameCase(a: string, b: string): boolean {
   const ta = keyNameTokens(a);
   const tb = keyNameTokens(b);
   if (!ta.size || !tb.size) return false;
-  const shared = [...ta].filter((t) => tb.has(t));
+  const shared = [...ta].filter((t) => [...tb].some((u) => sameToken(t, u)));
   if (!shared.length) return false;
-  const subset = shared.length === ta.size || shared.length === tb.size;
+  const sharedB = [...tb].filter((u) => [...ta].some((t) => sameToken(t, u)));
+  const subset = shared.length === ta.size || sharedB.length === tb.size;
   const strong = subset || shared.length >= 2;
   if (!strong) return false;
   const ya = keyYear(a);
@@ -134,8 +153,39 @@ export function isSameCase(a: string, b: string): boolean {
   return true;
 }
 
-export function isDuplicate(hist: HistoryFile, caseKey: string): boolean {
-  return hist.posts.some((p) => isSameCase(p.caseKey, caseKey));
+// 한국어 제목 비교용 — 사건을 가르지 못하는 흔한 낱말
+const GENERIC_TITLE_WORDS = new Set([
+  "사건", "기록", "미제사건", "미제", "역사", "진실", "정체", "비밀", "미스터리", "실종", "사라진", "사라졌나", "사라졌을까",
+  "발견된", "발견", "어디로", "무엇", "무엇인가", "무엇이었나", "누구", "누구였나", "어떻게", "남긴", "남은", "흔적", "흔적도",
+  "없이", "마지막", "그날", "이유", "결말", "판결", "검증", "전승", "실화", "기묘한", "이상한", "의문의", "끝내",
+]);
+const KO_PARTICLE = /(은|는|이|가|을|를|의|에|에서|에게|으로|로|과|와|도|만|까지|부터|이었나|였나)$/;
+
+/** 제목에서 연도와 사건을 가르는 낱말을 뽑는다 (조사 제거, ｜ 뒤 꼬리표 제외) */
+function titleSignature(title: string): { year: string | null; words: string[] } {
+  const head = title.split(/[｜|]/)[0];
+  const year = head.match(/(1\d{3}|20\d\d)년/)?.[1] ?? null;
+  const words = (head.match(/[가-힣A-Za-z]{2,}/g) ?? [])
+    .map((w) => w.toLowerCase().replace(KO_PARTICLE, ""))
+    .filter((w) => w.length >= 2 && !GENERIC_TITLE_WORDS.has(w));
+  return { year, words: [...new Set(words)] };
+}
+
+/**
+ * 제목으로 같은 사건인지 — caseKey 를 매번 다르게 지어내는 경우를 잡는다
+ * (10/12 '와룡산 아이들'이 gae-gu-i-boys / gaeguri / so-yeon-homicide 로 세 번, 10/16 '훈민정음 해례본'이
+ * hunminjeongeum-haerye / jeon-hyeong-pil 로 두 번 게시됨). 연도가 같고 고유 낱말이 2개 이상 겹치면 같은 사건.
+ */
+export function isSameTitle(a: string, b: string): boolean {
+  const sa = titleSignature(a);
+  const sb = titleSignature(b);
+  if (!sa.year || sa.year !== sb.year) return false;
+  const shared = sa.words.filter((w) => sb.words.some((v) => v === w || (w.length >= 3 && v.length >= 3 && (v.startsWith(w) || w.startsWith(v)))));
+  return shared.length >= 2;
+}
+
+export function isDuplicate(hist: HistoryFile, caseKey: string, title?: string): boolean {
+  return hist.posts.some((p) => isSameCase(p.caseKey, caseKey) || (!!title && isSameTitle(p.title, title)));
 }
 
 /** 이력에 1건 추가하고 파일 저장 (게시 성공 후 호출) */

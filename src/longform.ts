@@ -263,7 +263,7 @@ async function produceOneCase(opts: {
   });
   let sources: SourceDoc[] = [];
   for (let tries = 0; tries < 5; tries++) {
-    if (isDuplicate(workingHistory, probe.caseKey)) {
+    if (isDuplicate(workingHistory, probe.caseKey, probe.title)) {
       console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
     } else {
       console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);
@@ -305,6 +305,11 @@ async function produceOneCase(opts: {
     charLimits: CASE_CHAR_LIMITS,
   });
   console.log(`   💡 ${script.title}`);
+  // 완성 제목으로 한 번 더 — 소재 선정 단계 제목엔 연도가 빠져 제목 비교가 안 잡히는 경우가 있다
+  if (isDuplicate(workingHistory, probe.caseKey, script.title)) {
+    console.log(`   ♻️  완성 제목이 이미 게시한 사건과 겹침(${script.title}) — 이 사건은 건너뜀`);
+    return null;
+  }
 
   if (!isFirst) {
     script.chapters.unshift({
