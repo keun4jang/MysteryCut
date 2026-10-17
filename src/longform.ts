@@ -262,11 +262,14 @@ async function produceOneCase(opts: {
     regionAngle: pack.regionAngle,
   });
   let sources: SourceDoc[] = [];
+  let rejectReason = "";
   for (let tries = 0; tries < 5; tries++) {
+    rejectReason = "";
     if (
       isDuplicate(workingHistory, probe.caseKey, probe.title) ||
       (await sameCaseInHistory(probe, workingHistory.posts))
     ) {
+      rejectReason = "이미 게시함";
       console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
     } else {
       console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);
@@ -278,7 +281,9 @@ async function produceOneCase(opts: {
       // 몰아보기는 사건당 목표 분량이 낮아(CASE_CHAR_LIMITS.min) 단일 사건
       // 롱폼(3000자 기준)보다 문턱을 살짝 낮춰도 지어낼 위험이 크지 않다.
       if (sources.length && volume >= 1800) {
-        if (await politicalControversy(sources, { title: probe.title, premise: probe.premise })) {
+        const why = await politicalControversy(sources, { title: probe.title, premise: probe.premise });
+        if (why) {
+          rejectReason = `채널 기준 위반: ${why}`;
           console.log(`   ↩︎ 정치·성범죄 소재라 쓰지 않음(${probe.title})`);
           sources = [];
         } else {
@@ -286,12 +291,13 @@ async function produceOneCase(opts: {
           break;
         }
       } else {
+        rejectReason = "위키백과 원문 부족";
         console.log(`   ↩︎ 원문 부족(${sources.length}건 ${volume}자)`);
       }
       sources = [];
     }
     avoid.caseKeys.push(probe.caseKey);
-    (avoid.rejected ??= []).push(`${probe.title} (${probe.caseKey})`);
+    (avoid.rejected ??= []).push(`${probe.title} (${probe.caseKey}) — 버린 이유: ${rejectReason || "기타"}`);
     avoid.titles.push(probe.title);
     if (tries === 4) return null;
     probe = await proposeCase(undefined, avoid, {

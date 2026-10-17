@@ -66,11 +66,14 @@ async function main() {
   let probe = await proposeCase(args.seed, avoid, planOpts);
   let sources: SourceDoc[] = [];
   let probeIsDup = false;
+  let rejectReason = "";
   for (let tries = 0; tries < 6; tries++) {
+    rejectReason = "";
     // 규칙 비교 → 통과하면 AI 로 전체 이력과 한 번 더 대조(caseKey·제목을 매번 다르게 지어내는 경우)
     probeIsDup =
       isDuplicate(history, probe.caseKey, probe.title) || !!(await sameCaseInHistory(probe, history.posts));
     if (probeIsDup) {
+      rejectReason = "이미 게시함";
       console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
     } else {
       console.log(`   🔎 후보: ${probe.title} (${probe.caseKey})`);
@@ -91,14 +94,17 @@ async function main() {
         break;
       }
       if (controversy) {
+        rejectReason = `채널 기준 위반: ${controversy}`;
         sources = [];
         console.log(`   ↩︎ 논란 소재라 쓰지 않음(${probe.title}) — 다른 사건으로`);
       } else {
+        rejectReason = "위키백과 원문 없음";
         console.log(`   ↩︎ 원문을 못 찾음(${probe.searchTerms.join(", ")}) — 다른 사건으로`);
       }
     }
     avoid.caseKeys.push(probe.caseKey);
-    (avoid.rejected ??= []).push(`${probe.title} (${probe.caseKey})`);
+    // 버린 이유를 같이 넘긴다 — 이유를 모르면 같은 종류(정치·성범죄 사건)를 계속 고른다(10/17 드라이런 6연속 탈락)
+    (avoid.rejected ??= []).push(`${probe.title} (${probe.caseKey}) — 버린 이유: ${rejectReason || "기타"}`);
     avoid.titles.push(probe.title);
     if (tries === 5) break;
     probe = await proposeCase(args.seed, avoid, planOpts);
