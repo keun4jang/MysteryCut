@@ -344,6 +344,10 @@ async function produceOneCase(opts: {
   const sourceText = sources.map((d) => `[${d.title}]\n${d.extract}`).join("\n\n");
   if (!(await verifyFacts(factItems, sourceText, probe.title))) {
     console.log(`   ↩︎ 사실 검증 실패 — 이 사건은 건너뜀(${probe.title})`);
+    // 이번 회차에서 다시 고르지 않게 기록한다 — 10/19 오언 파핏이 사실 검증 탈락 직후 다음 슬롯에 또 뽑혔다
+    workingHistory.posts.push({ caseKey: probe.caseKey, title: probe.title, premise: probe.premise, at: "" });
+    avoid.caseKeys.push(probe.caseKey);
+    (avoid.rejected ??= []).push(`${probe.title} (${probe.caseKey}) — 버린 이유: 원고 사실 검증 실패`);
     return null;
   }
 
