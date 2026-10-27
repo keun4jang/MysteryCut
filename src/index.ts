@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "./config.js";
 import { writeReelPlan, proposeCase } from "./assistants/producer.js";
-import { gatherSources, sourcesCitation, warmStoryControversy, politicalControversy, sameCaseInHistory, type SourceDoc } from "./lib/sources.js";
+import { gatherSources, sourcesCitation, warmStoryControversy, politicalControversy, sameCaseInHistory, isNonCaseTitle, confirmCaseIdentity, type SourceDoc } from "./lib/sources.js";
 import { narrate } from "./assistants/narrator.js";
 import { attachBroll } from "./assistants/broll.js";
 import { renderReel } from "./render.js";
@@ -71,9 +71,14 @@ async function main() {
   for (let tries = 0; tries < 6; tries++) {
     rejectReason = "";
     // 규칙 비교 → 통과하면 AI 로 전체 이력과 한 번 더 대조(caseKey·제목을 매번 다르게 지어내는 경우)
-    probeIsDup =
-      isDuplicate(history, probe.caseKey, probe.title) || !!(await sameCaseInHistory(probe, history.posts));
-    if (probeIsDup) {
+    probeIsDup = false;
+    if (isNonCaseTitle(probe.title)) {
+      rejectReason = "실제 사건이 아닌 문서(목록·작품)";
+      console.log(`   ↩︎ 실제 사건이 아닌 문서(${probe.title}) — 다른 사건으로`);
+    } else if (
+      (probeIsDup =
+        isDuplicate(history, probe.caseKey, probe.title) || !!(await sameCaseInHistory(probe, history.posts)))
+    ) {
       rejectReason = "이미 게시함";
       console.log(`   ♻️  중복 소재(${probe.caseKey}) — 다른 사건으로`);
     } else {
@@ -157,6 +162,21 @@ async function main() {
   const sourceText = sources.map((d) => `[${d.title}]\n${d.extract}`).join("\n\n");
   if (!(await verifyFacts(factItems, sourceText, probe.title))) {
     throw new Error(`원고 사실 검증 실패 — 교정 후에도 원문과 어긋난 줄이 남음(${idea.caseKey}). 틀린 내용을 내보내지 않으려고 중단합니다.`);
+  }
+
+  // 원고가 실제로 다룬 사건과 caseKey 가 맞는지 — 어긋나면 바로잡고, 바로잡은 사건이 이미 게시한 것이면 중단
+  const corrected = await confirmCaseIdentity(
+    { caseKey: idea.caseKey, title: probe.title },
+    [idea.title, ...script.segments.map((s) => s.text)].join("\n"),
+  );
+  if (corrected) {
+    idea.caseKey = corrected.caseKey;
+    if (
+      isDuplicate(history, corrected.caseKey, corrected.caseName) ||
+      (await sameCaseInHistory({ ...probe, caseKey: corrected.caseKey, title: corrected.caseName }, history.posts))
+    ) {
+      throw new Error(`원고가 실제로 다룬 사건(${corrected.caseName})이 이미 게시한 사건 — 중복 게시 방지를 위해 중단합니다.`);
+    }
   }
 
   console.log(`   💡 ${idea.title} — ${idea.hook}`);

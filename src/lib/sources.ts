@@ -474,7 +474,54 @@ const WARM_DISCOVERY_QUERIES: Array<{ lang: "ko" | "en"; q: string }> = [
 
 /** 목록·분류 안내문서처럼 사건 자체가 아닌 문서를 걸러낸다 */
 function looksLikeIndexPage(title: string): boolean {
-  return /^(목록|분류|List of|Category:|Timeline of)/i.test(title);
+  return /^(목록|분류|List of|Category:|Timeline of)/i.test(title) || isNonCaseTitle(title);
+}
+
+/**
+ * 실제 사건·인물·현상이 아닌 문서 제목인지 — 목록·연표·작품(드라마 시즌·영화·책·애니) 문서.
+ * 10/21 롱폼 후보에 'Unsolved Mysteries season 16'·'Lists of problems'·'실종자 목록'·애니메이션이 섞여
+ * 슬롯 하나를 통째로 날렸다. 발굴 후보와 모델이 고른 후보 양쪽에 쓴다.
+ */
+export function isNonCaseTitle(title: string): boolean {
+  return (
+    /^(lists? of|index of|outline of|timeline of|glossary of|category:)/i.test(title) ||
+    /(목록|일람|연표)$/.test(title.trim()) ||
+    /\b(season|series)\s*\d+|\bepisodes?\b|\((tv series|tv program|film|novel|book|album|song|anime|manga|video game|miniseries|documentary|web series)\)/i.test(title) ||
+    /시즌\s*\d|\((드라마|영화|소설|애니메이션|만화|게임|음반|다큐멘터리)\)/.test(title)
+  );
+}
+
+const CaseIdentitySchema = z.object({ same: z.boolean(), caseKey: z.string(), caseName: z.string() });
+
+/**
+ * 완성 원고가 실제로 다룬 사건과 caseKey·사건명이 맞는지 확인하고, 다르면 바로잡은 값을 준다(같으면 null).
+ * 10/21 롱폼: 화이트홀 사건 원고가 whitechapel-murders-1888(잭 더 리퍼)로, 윌리엄 라니 원고가
+ * william-buckland-tiger-1803 으로 이력에 저장됐다 — 중복 판정이 엉뚱한 사건을 기준으로 돌게 된다.
+ * 확인 실패 시엔 기존 값을 그대로 쓴다(null).
+ */
+export async function confirmCaseIdentity(
+  current: { caseKey: string; title: string },
+  scriptText: string,
+): Promise<{ caseKey: string; caseName: string } | null> {
+  try {
+    const v = await generateStructured({
+      schema: CaseIdentitySchema,
+      system:
+        "너는 기록 담당이다. [원고]가 실제로 다룬 사건이 [등록 정보]의 사건과 같은지 판정한다. " +
+        "같으면 same=true 로 등록 정보를 그대로 돌려줘라. 다르면(다른 사건·다른 인물·이름 혼동) same=false 로, " +
+        "원고가 실제로 다룬 사건의 caseKey(영어 소문자 슬러그, 대표 명칭+연도, 예: 'whitehall-mystery-1888')와 caseName(한국어 사건명)을 써라.",
+      user: `[등록 정보] caseKey=${current.caseKey} / 사건명=${current.title}\n\n[원고]\n${scriptText.slice(0, 3000)}\n\n{same, caseKey, caseName} 으로 답하라.`,
+      temperature: 0,
+      maxRetries: 2,
+    });
+    const key = v.caseKey.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    if (v.same || !key || key === current.caseKey) return null;
+    console.log(`  🏷️  사건 식별 정정: ${current.caseKey}(${current.title}) → ${key}(${v.caseName})`);
+    return { caseKey: key, caseName: v.caseName.trim() || current.title };
+  } catch (e) {
+    console.warn(`  ⚠️ 사건 식별 확인 실패(기존 값 유지): ${e instanceof Error ? e.message : e}`);
+    return null;
+  }
 }
 
 /**

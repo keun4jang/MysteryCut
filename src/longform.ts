@@ -14,7 +14,7 @@ import { renderLongform, renderLongformThumb } from "./render.js";
 import { publishLongform } from "./assistants/youtubePublisher.js";
 import { loadHistory, recentAvoidList, isDuplicate, appendPost, type HistoryPost } from "./assistants/history.js";
 import { persistLatestLongform } from "./lib/latestLongform.js";
-import { gatherSources, sourcesCitation, politicalControversy, sameCaseInHistory, type SourceDoc } from "./lib/sources.js";
+import { gatherSources, sourcesCitation, politicalControversy, sameCaseInHistory, isNonCaseTitle, confirmCaseIdentity, type SourceDoc } from "./lib/sources.js";
 import { verifyFacts, type FactItem } from "./lib/factcheck.js";
 import { longformSrt } from "./lib/captions.js";
 import { dropUnreadableVisuals } from "./lib/visual/normalize.js";
@@ -130,6 +130,15 @@ async function main() {
       centralQuestion: c.script.centralQuestion,
       description: c.script.description,
     })),
+  );
+  // 종합 제목도 실제 구성과 대조 — 10/21 '수십 년이 지나도 풀리지 않은 사건들'에 1869·1888년 사건과 이미 설명된 자연재해가 섞였다
+  const caseList = cases
+    .map((c, i) => `${i + 1}. ${c.script.title} — ${c.script.centralQuestion}\n${c.script.description}`)
+    .join("\n\n");
+  await verifyFacts(
+    [{ id: "title", text: meta.title, apply: (f) => { meta.title = f; } }],
+    `[이번 영상에 실제로 들어간 사건 목록 — 제목은 이 모두에 맞아야 한다]\n${caseList}`,
+    "몰아보기 종합 제목",
   );
   console.log(`   💡 ${meta.title}`);
 
@@ -266,7 +275,10 @@ async function produceOneCase(opts: {
   let rejectReason = "";
   for (let tries = 0; tries < 5; tries++) {
     rejectReason = "";
-    if (
+    if (isNonCaseTitle(probe.title)) {
+      rejectReason = "실제 사건이 아닌 문서(목록·작품)";
+      console.log(`   ↩︎ 실제 사건이 아닌 문서(${probe.title}) — 다른 사건으로`);
+    } else if (
       isDuplicate(workingHistory, probe.caseKey, probe.title) ||
       (await sameCaseInHistory(probe, workingHistory.posts))
     ) {
@@ -349,6 +361,24 @@ async function produceOneCase(opts: {
     avoid.caseKeys.push(probe.caseKey);
     (avoid.rejected ??= []).push(`${probe.title} (${probe.caseKey}) — 버린 이유: 원고 사실 검증 실패`);
     return null;
+  }
+  // 원고가 실제로 다룬 사건과 caseKey 가 맞는지 — 어긋나면 바로잡아 이력에 저장(10/21 화이트홀↔화이트채플)
+  const corrected = await confirmCaseIdentity(
+    { caseKey: probe.caseKey, title: probe.title },
+    [script.title, ...script.chapters.flatMap((ch) => ch.segments.map((s) => s.text))].join("\n"),
+  );
+  if (corrected) {
+    const fixed = { ...probe, caseKey: corrected.caseKey, title: corrected.caseName };
+    if (
+      isDuplicate(workingHistory, fixed.caseKey, fixed.title) ||
+      (await sameCaseInHistory(fixed, workingHistory.posts))
+    ) {
+      console.log(`   ♻️  원고가 실제로 다룬 사건(${fixed.title})이 이미 게시함 — 이 사건은 건너뜀`);
+      workingHistory.posts.push({ caseKey: probe.caseKey, title: probe.title, premise: probe.premise, at: "" });
+      return null;
+    }
+    probe.caseKey = fixed.caseKey;
+    probe.title = fixed.title;
   }
 
   if (!isFirst) {
