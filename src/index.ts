@@ -18,6 +18,7 @@ import {
 } from "./assistants/history.js";
 import { pickStylePack, isWarmStoryDay, isWarmAngle } from "./lib/variety.js";
 import { verifyFacts, type FactItem } from "./lib/factcheck.js";
+import { reviewDesign } from "./assistants/artDirector.js";
 import { deriveGrade, gradeColors } from "./lib/grade.js";
 import { totalDurationInFrames } from "./remotion/timing.js";
 import { reelSrt } from "./lib/captions.js";
@@ -242,6 +243,8 @@ async function main() {
   // 첫 프레임(썸네일 카드)을 이미지로 추출 — 유튜브 커스텀 썸네일용
   // (유튜브는 첫 프레임을 자동 채택하지 않으므로 thumbnails.set 으로 직접 지정)
   const thumbPath = await extractThumb(videoPath);
+  // 아트디렉터 디자인 검수 — 로그만 남기고 게시는 막지 않는다(주간 아트디렉터 점검이 모아서 디자인 코드를 고침)
+  await reviewDesign({ kind: "shorts", videoPath, thumbPath, title: idea.title });
 
   if (args.publish) {
     // 인스타·유튜브를 각각 독립 게시 (한쪽이 실패해도 다른 쪽은 진행)

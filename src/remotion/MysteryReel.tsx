@@ -613,6 +613,8 @@ const Watermark: React.FC = () => (
     <div
       style={{
         color: "rgba(255,255,255,0.5)",
+        // fontFamily 가 빠져 있어 워터마크만 명조(세리프) 기본체로 찍혔다(10/27 아트디렉터 점검)
+        fontFamily: FONT_FAMILY,
         fontSize: 30,
         fontWeight: 700,
         letterSpacing: "1px",
@@ -651,6 +653,7 @@ const LongformCTA: React.FC = () => {
           borderRadius: 999,
           backgroundColor: "rgba(0,0,0,0.45)",
           color: "rgba(255,255,255,0.92)",
+          fontFamily: FONT_FAMILY, // 워터마크와 같은 누락 — 기본체로 찍히지 않게
           fontSize: 24,
           fontWeight: 600,
           letterSpacing: "-0.2px",

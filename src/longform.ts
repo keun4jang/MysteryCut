@@ -16,6 +16,7 @@ import { loadHistory, recentAvoidList, isDuplicate, appendPost, type HistoryPost
 import { persistLatestLongform } from "./lib/latestLongform.js";
 import { gatherSources, sourcesCitation, politicalControversy, sameCaseInHistory, isNonCaseTitle, confirmCaseIdentity, type SourceDoc } from "./lib/sources.js";
 import { verifyFacts, type FactItem } from "./lib/factcheck.js";
+import { reviewDesign } from "./assistants/artDirector.js";
 import { longformSrt } from "./lib/captions.js";
 import { dropUnreadableVisuals } from "./lib/visual/normalize.js";
 import { pickStylePack, LONGFORM_VOICE } from "./lib/variety.js";
@@ -184,6 +185,8 @@ async function main() {
   console.log(`   🎬 ${videoPath}`);
   const thumbPath = await renderLongformThumb(inputProps);
   console.log(`   🖼️  썸네일: ${thumbPath}`);
+  // 아트디렉터 디자인 검수 — 로그만 남기고 게시는 막지 않는다
+  await reviewDesign({ kind: "longform", videoPath, thumbPath, title: meta.title });
 
   if (!args.publish) {
     console.log("   ⏭️  업로드 생략 (--no-publish). 영상 파일만 생성했습니다.");

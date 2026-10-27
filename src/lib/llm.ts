@@ -134,12 +134,22 @@ function isTokenLimitRejection(err: unknown): boolean {
   return statusOf(err) === 400 && /max_output_tokens|maxOutputTokens|output token/i.test(msg);
 }
 
+/** 이미지 첨부(아트디렉터 디자인 검수용) — base64 JPEG/PNG */
+export interface InlineImage {
+  mimeType: string;
+  data: string;
+}
+
 async function generateText(
   system: string,
-  user: string,
+  userText: string,
   temperature: number,
   jsonSchema: Record<string, unknown>,
+  images: InlineImage[] = [],
 ): Promise<string> {
+  const user = images.length
+    ? [{ role: "user", parts: [{ text: userText }, ...images.map((inlineData) => ({ inlineData }))] }]
+    : userText;
   const cfg = {
     systemInstruction: system,
     responseMimeType: "application/json",
@@ -316,8 +326,9 @@ export async function generateStructured<S extends z.ZodType>(opts: {
   user: string;
   temperature?: number;
   maxRetries?: number;
+  images?: InlineImage[];
 }): Promise<z.infer<S>> {
-  const { schema, system, user, temperature = 1.1, maxRetries = 2 } = opts;
+  const { schema, system, user, temperature = 1.1, maxRetries = 2, images = [] } = opts;
   const sys =
     system + "\n\n반드시 유효한 JSON 하나만 출력해라. 코드블록 표시나 설명 문장은 넣지 마라.";
   const jsonSchema = toJsonSchema(schema);
@@ -338,6 +349,7 @@ export async function generateStructured<S extends z.ZodType>(opts: {
         recited ? `${user}\n\n★원문·백과사전 문장을 그대로 옮기지 말고 전부 자기 말로 바꿔 써라.` : user,
         recited ? Math.min(2, temperature + 0.2) : temperature,
         jsonSchema,
+        images,
       );
     } catch (e) {
       if (/finishReason=RECITATION/.test(String(e)) && attempt < tries) {
