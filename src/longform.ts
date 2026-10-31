@@ -78,6 +78,10 @@ async function main() {
   // 같은 사건이 두 번 뽑히지 않게 한다(appendPost 는 전부 끝난 뒤에 한다).
   const workingHistory = { posts: [...history.posts] };
 
+  // 미스터비스트 원칙 '한 문장으로 이해되는 하나의 기획'(10/31): 사건마다 각도를 따로 뽑던 것을 회차당 주제 하나로 묶는다.
+  // 지역은 사건마다 새로 뽑아 비슷한 사건만 몰리지 않게 한다(9/25 편: 각도·지역을 다 고정했더니 5건이 거의 같은 한국 상속 분쟁).
+  const themeAngle = pickStylePack().topicAngle;
+  console.log(`   🎯 이번 회차 주제: ${themeAngle.split(" — ")[0]}`);
   const cases: ProducedCase[] = [];
   for (let i = 0; i < CASES_PER_COMPILATION; i++) {
     console.log(`① 사건 ${i + 1}/${CASES_PER_COMPILATION} 선정 + 원문 수집...`);
@@ -92,6 +96,7 @@ async function main() {
         workingHistory,
         isFirst: i === 0,
         caseNo: i,
+        themeAngle,
       });
     } catch (e) {
       console.warn(`   ⚠️ 사건 ${i + 1} 제작 중 오류 — 이 사건만 건너뜀: ${e instanceof Error ? e.message : e}`);
@@ -131,17 +136,49 @@ async function main() {
       centralQuestion: c.script.centralQuestion,
       description: c.script.description,
     })),
+    themeAngle.split(" — ")[0].replace(/^소재 각도: /, ""),
   );
   // 종합 제목도 실제 구성과 대조 — 10/21 '수십 년이 지나도 풀리지 않은 사건들'에 1869·1888년 사건과 이미 설명된 자연재해가 섞였다
   const caseList = cases
     .map((c, i) => `${i + 1}. ${c.script.title} — ${c.script.centralQuestion}\n${c.script.description}`)
     .join("\n\n");
   await verifyFacts(
-    [{ id: "title", text: meta.title, apply: (f) => { meta.title = f; } }],
-    `[이번 영상에 실제로 들어간 사건 목록 — 제목은 이 모두에 맞아야 한다]\n${caseList}`,
-    "몰아보기 종합 제목",
+    [
+      { id: "title", text: meta.title, apply: (f) => { meta.title = f; } },
+      { id: "thumb", text: meta.thumbTitle, apply: (f) => { meta.thumbTitle = f; } },
+      ...meta.teaser.map((t, i) => ({
+        id: `teaser${i + 1}/en`,
+        text: t.text,
+        apply: (f: string, en?: string) => { t.text = f; if (en) t.textEn = en; },
+      })),
+    ],
+    `[이번 영상에 실제로 들어간 사건 목록 — 제목·썸네일·예고는 이 모두에 맞아야 한다]\n${caseList}`,
+    "몰아보기 종합 제목·예고",
   );
   console.log(`   💡 ${meta.title}`);
+
+  // 미스터비스트 원칙 '첫 30초에 약속을 확인시켜라'(10/31): 첫 사건 전에 20초 남짓한 예고(콜드 오픈)를 붙인다.
+  // 제목이 약속한 주제를 바로 말하고 가장 강한 장면들을 미리 보여준 뒤 첫 사건으로 들어간다.
+  if (meta.teaser.length >= 2) {
+    const teaserScript = {
+      ...cases[0].script,
+      chapters: [
+        {
+          heading: "오늘의 사건",
+          visualQuery: cases[0].script.chapters.find((ch) => ch.heading !== "다음 사건")?.visualQuery || "dark mysterious archive room",
+          segments: meta.teaser.map((t, i) => ({
+            text: t.text,
+            textEn: t.textEn,
+            emphasis: (i === meta.teaser.length - 1 ? "normal" : "tension") as "normal" | "tension",
+          })),
+        },
+      ],
+    } as LongformScript;
+    const teaser = await narrateLongform(teaserScript, LONGFORM_VOICE, "lf-teaser");
+    await attachChapterBroll(teaser, "lf-teaser-ch");
+    allChapters.unshift(...teaser);
+    console.log(`   🎬 콜드 오픈 예고 ${meta.teaser.length}컷 추가`);
+  }
 
   const secs = longformDurationInFrames(allChapters, 30) / 30;
   const totalCuts = allChapters.reduce((n, c) => n + c.segments.length, 0);
@@ -161,7 +198,8 @@ async function main() {
   // 배지만 '사건 모음'으로 바꿔 몰아보기라는 걸 한눈에 알린다.
   const inputProps: LongformInputProps = {
     title: meta.title,
-    thumbTitle: cases[0].script.thumbTitle,
+    // 패키징은 회차 주제로(10/31) — 종합 썸네일 문구가 규격(2줄 이내, 줄당 9자 이내)이면 그걸, 아니면 1번째 사건 것을 쓴다
+    thumbTitle: validCompilationThumb(meta.thumbTitle) ? meta.thumbTitle : cases[0].script.thumbTitle,
     thumbBadge: "사건 모음",
     centralQuestion: cases[0].script.centralQuestion,
     chapters: allChapters,
@@ -264,11 +302,13 @@ async function produceOneCase(opts: {
   isFirst: boolean;
   /** 몰아보기 안 사건 번호(0부터) — 음성·배경 파일 이름을 사건마다 다르게 하는 데 쓴다 */
   caseNo: number;
+  /** 회차 주제(소재 각도) — 5건 모두 이 주제로 고른다 */
+  themeAngle: string;
 }): Promise<ProducedCase | null> {
   const { avoid, workingHistory, isFirst, caseNo } = opts;
-  // ★소재 각도는 사건마다 새로 뽑는다. 예전엔 영상당 한 번만 뽑아 5건 전부가
-  // 같은 각도·지역을 썼고, 9/25 편은 5건이 거의 같은 한국 상속 분쟁이 됐다.
-  const pack = pickStylePack();
+  // 소재 각도는 회차 주제로 고정하고(10/31), 지역만 사건마다 새로 뽑는다 — 9/25 편은 각도·지역을 다 고정해
+  // 5건이 거의 같은 한국 상속 분쟁이 됐다.
+  const pack = { topicAngle: opts.themeAngle, regionAngle: pickStylePack().regionAngle };
   console.log(`   🧭 ${pack.topicAngle.split(" — ")[0]} | ${pack.regionAngle.split(" — ")[0]}`);
   let probe = await proposeCase(opts.seed, avoid, {
     topicAngle: pack.topicAngle,
@@ -441,3 +481,10 @@ main().catch((err) => {
   console.error("롱폼 파이프라인 실패:", err);
   process.exit(1);
 });
+
+/** 롱폼 썸네일 문구 규격 — 360px 폭에서 읽히려면 2줄 이내, 줄당 9자 이내 */
+function validCompilationThumb(t: string | undefined): t is string {
+  if (!t?.trim()) return false;
+  const lines = t.trim().split("\n");
+  return lines.length <= 2 && lines.every((l) => l.trim().length >= 2 && l.trim().length <= 9);
+}

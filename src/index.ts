@@ -3,7 +3,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "./config.js";
-import { writeReelPlan, proposeCase } from "./assistants/producer.js";
+import { writeReelPlan, proposeCase, designPackaging } from "./assistants/producer.js";
 import { gatherSources, sourcesCitation, warmStoryControversy, politicalControversy, sameCaseInHistory, isNonCaseTitle, confirmCaseIdentity, type SourceDoc } from "./lib/sources.js";
 import { narrate } from "./assistants/narrator.js";
 import { attachBroll } from "./assistants/broll.js";
@@ -138,10 +138,17 @@ async function main() {
 
   // ② 확정된 사건 + 원문에 근거해 대본·캡션 생성
   console.log("②~③ 대본·캡션 생성...");
+  // 미스터비스트식 '패키징 먼저' — 제목·썸네일을 먼저 정하고 대본이 그 약속을 첫 컷에서 지키게 한다
+  const packaging = await designPackaging(
+    probe,
+    sources.map((d) => d.extract).join("\n"),
+    isWarmAngle(pack.topicAngle),
+  );
   const { idea, script, metadata } = await writeReelPlan(args.seed, avoid, {
     ...planOpts,
     forcedCase: probe,
     sources,
+    ...(packaging ? { packaging } : {}),
   });
 
   // 수집한 원문을 설명란 참고자료로 (유튜브에만 노출)

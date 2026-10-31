@@ -565,6 +565,10 @@ function sanitize(s: LongformScript): void {
 /** 몰아보기(여러 사건 모음) 롱폼의 종합 메타데이터 */
 const CompilationMetaSchema = z.object({
   title: z.string(),
+  /** 회차 주제로 지은 썸네일 문구 — 4~8자 × 최대 2줄 */
+  thumbTitle: z.string(),
+  /** 첫 사건 전 콜드 오픈 예고 3~5줄(한국어+영어) */
+  teaser: z.array(z.object({ text: z.string(), textEn: z.string() })),
   description: z.string(),
   tags: z.array(z.string()),
 });
@@ -580,10 +584,20 @@ export type CompilationMeta = z.infer<typeof CompilationMetaSchema>;
  */
 export async function writeCompilationMeta(
   cases: Array<{ title: string; centralQuestion: string; description: string }>,
+  theme?: string,
 ): Promise<CompilationMeta> {
   const system = [
     `너는 ${config.channel.language} 시사·사건 다큐멘터리 채널의 편성 담당자다.`,
     `이번 영상은 서로 다른 실제 사건 ${cases.length}개를 한 편에 묶은 '모음' 영상이다.`,
+    theme ? `이번 회차 주제: '${theme}' — 사건들은 이 주제로 골랐다. 제목·썸네일은 이 주제 하나로 1초 만에 이해되게 묶어라(미스터비스트 원칙: 한 문장 기획).` : "",
+    "",
+    "[thumbTitle] 썸네일 대형 문구. 4~8자씩 최대 2줄(실제 개행). 물음표·마침표 없이. 영상 전체를 관통하는 가장 강한 한 방(주제+숫자도 좋다. 예: '사라진 5명' 류 — 베끼지 말 것).",
+    "",
+    "[teaser] 첫 사건 전에 나올 20초 남짓한 예고(콜드 오픈) 3~5줄. 각 줄 text(한국어 20~38자 구어체)와 textEn(자연스러운 영어).",
+    "- 첫 줄: 제목이 약속한 주제를 바로 말한다(인사·'안녕하세요'·채널 소개 금지).",
+    "- 가운데 줄들: 서로 다른 사건의 가장 이상한 장면을 하나씩 사실로 던진다(질문은 최대 1번). 아래 사건 요약에 있는 사실만 써라.",
+    "- 마지막 줄: '첫 번째 사건부터 갈게요.'처럼 바로 본편으로 넘긴다.",
+    "- 자살·자해 등 연령제한 표현 금지.",
     "",
     "[title] 38~60자. '여러 사건을 모았다'는 게 드러나야 한다 — '모음'/'몰아보기' 류 표현은",
     "국내 실화 미스터리 채널에서 이미 자리잡은 관습이라 자연스럽게 써도 된다.",
@@ -610,7 +624,7 @@ export async function writeCompilationMeta(
   const meta = (await generateStructured({
     schema: CompilationMetaSchema,
     system,
-    user: `아래 ${cases.length}개 사건을 묶은 모음 영상의 title/description/tags 를 만들어줘.\n\n${user}`,
+    user: `아래 ${cases.length}개 사건을 묶은 모음 영상의 title/thumbTitle/teaser/description/tags 를 만들어줘.\n\n${user}`,
     temperature: 0.9,
   })) as CompilationMeta;
 
@@ -618,6 +632,9 @@ export async function writeCompilationMeta(
   meta.title = meta.title.replace(/\\+n/g, " ").replace(/\s*\n\s*/g, " ").trim();
   meta.description = meta.description.replace(/\\+n/g, "\n").trim();
   meta.tags = (meta.tags ?? []).map((t) => t.replace(/^#/, "").trim());
+  meta.thumbTitle = (meta.thumbTitle ?? "").replace(/\\+n/g, "\n").trim();
+  meta.teaser = (meta.teaser ?? []).filter((t) => t.text?.trim()).slice(0, 5);
+  if (findSensitiveTerms(meta.teaser.map((t) => t.text)).length) meta.teaser = []; // 위험 표현이 섞이면 예고 생략
 
   // 위험 표현 순화 — 단일 사건 대본과 동일한 안전장치
   if (findSensitiveTerms([meta.title, meta.description]).length) {

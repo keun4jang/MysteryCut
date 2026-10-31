@@ -71,6 +71,8 @@ export interface PlanOptions {
   signoffStyle?: string;
   /** 버라이어티 팩이 고른 제목 구조 (같은 접미사 반복 방지) */
   titleStyle?: string;
+  /** 패키징 먼저(designPackaging) 결과 — 있으면 제목·썸네일을 고정하고 첫 컷에서 약속을 지키게 한다 */
+  packaging?: Packaging;
   /** 1단계에서 확정된 사건 — 있으면 모델은 이 사건으로만 써야 한다 */
   forcedCase?: CaseProbe;
   /** 위키백과에서 받아온 사건 원문 — 대본의 사실은 여기서만 나와야 한다 */
@@ -171,6 +173,67 @@ export async function proposeCase(
     temperature: Math.min(1.5, 1.1 + 0.1 * rejected.length),
     maxRetries: 1,
   })) as CaseProbe;
+}
+
+const PackagingSchema = z.object({
+  candidates: z.array(
+    z.object({
+      title: z.string(),
+      thumbTitle: z.string(),
+      promise: z.string(),
+      clarity: z.number(),
+      curiosity: z.number(),
+      truth: z.number(),
+    }),
+  ),
+});
+export interface Packaging {
+  title: string;
+  thumbTitle: string;
+  /** 제목·썸네일이 시청자에게 한 약속 — 첫 1~2 세그먼트에서 바로 보여줘야 할 장면 */
+  promise: string;
+}
+
+/**
+ * 미스터비스트식 '패키징 먼저'(10/31 사장님 "미스터비스트의 영상제작 철학을 바탕으로 우리도 제작해줘").
+ * 그는 영상보다 제목·썸네일을 먼저 정하고, 클릭 이유가 1초 안에 이해되지 않는 기획은 찍지 않는다.
+ * 확정된 사건으로 제목·썸네일 후보 5쌍을 만들어 스스로 채점(한눈에 이해·궁금증·원문 사실성)하고,
+ * 원문에 없는 숫자가 들어간 후보는 버린 뒤 최고점을 고른다. 실패하면 null(기존 방식으로 진행).
+ */
+export async function designPackaging(forced: CaseProbe, sourceText: string, warm: boolean): Promise<Packaging | null> {
+  try {
+    const v = await generateStructured({
+      schema: PackagingSchema,
+      system: [
+        `너는 ${config.channel.language} 쇼츠 채널의 패키징(제목·썸네일) 담당이다. 영상보다 패키징을 먼저 정한다.`,
+        warm
+          ? "이번 회차는 '감동 실화(선과 악)' 편이다. 공포 대신 놀라움·뭉클함으로 클릭을 만든다."
+          : "채널 톤은 실화 미스터리. 공포를 과장하지 말고 '이게 어떻게 가능해?'라는 궁금증으로 클릭을 만든다.",
+        "후보 5쌍을 만든다. 각 후보:",
+        "- title: 25자 안팎, 사건을 특정할 수 있게, 쉬운 우리말(시청자 87%가 45세 이상).",
+        "- thumbTitle: 6~14자, 필요하면 실제 개행으로 2줄. 물음표·마침표 없이. 이 사건만의 가장 강한 한 장면·모순.",
+        "- promise: 이 패키징을 보고 클릭한 사람이 영상 첫 3초에 '바로 이거'라고 확인할 장면 한 문장.",
+        "- clarity(1~10): 1초 만에 무슨 얘기인지 이해되는가. curiosity(1~10): 안 누르고 못 배기는 궁금증이 생기는가.",
+        "  truth(1~10): 원문 사실 그대로인가(과장·추측을 사실처럼 쓰면 낮게). 숫자는 원문에 그대로 있는 것만.",
+        "원칙: 단순하고 극단적인 한 가지(가장 이상한 한 사실)를 앞세워라. 설명형·나열형·'미스터리' 반복 금지. 낚시(영상이 지키지 못할 약속) 금지.",
+      ].join("\n"),
+      user: `[사건] ${forced.title} (${forced.caseKey})\n[개요] ${forced.premise}\n\n[원문]\n${sourceText.slice(0, 6000)}\n\n{candidates:[{title, thumbTitle, promise, clarity, curiosity, truth}]} 5개로 답하라.`,
+      temperature: 1.0,
+      maxRetries: 1,
+    });
+    const scored = v.candidates
+      .map((c) => ({ ...c, thumbTitle: c.thumbTitle.replace(/\\n/g, "\n").trim(), title: c.title.trim() }))
+      .filter((c) => c.title && c.thumbTitle && c.truth >= 7)
+      .filter((c) => numbersInText(`${c.title}\n${c.thumbTitle}`).every((n) => numberInSource(n, sourceText)))
+      .sort((a, b) => b.clarity + b.curiosity - (a.clarity + a.curiosity));
+    const best = scored[0];
+    if (!best) return null;
+    console.log(`   📦 패키징 먼저: "${best.title}" / 썸네일 "${best.thumbTitle.replace(/\n/g, " / ")}" (이해 ${best.clarity}·궁금증 ${best.curiosity}·사실 ${best.truth}, 후보 ${v.candidates.length}개 중)`);
+    return { title: best.title, thumbTitle: best.thumbTitle, promise: best.promise };
+  } catch (e) {
+    console.warn(`   ⚠️ 패키징 단계 생략(기존 방식으로 진행): ${e instanceof Error ? e.message.slice(0, 150) : e}`);
+    return null;
+  }
 }
 
 export async function writeReelPlan(
@@ -279,6 +342,22 @@ export async function writeReelPlan(
     "- 확신이 안 서면 (C) 대신 (A)나 (B)를 골라라. 안전이 소재 다양성보다 우선한다.",
     avoidBlock,
     forcedCaseBlock,
+    opts?.packaging
+      ? [
+          "",
+          "[★★패키징이 먼저 확정됐다 — 그대로 쓰고 영상이 그 약속을 지켜라]",
+          `- idea.title = "${opts.packaging.title}" (그대로)`,
+          `- idea.thumbTitle = "${opts.packaging.thumbTitle.replace(/\n/g, "\\n")}" (그대로)`,
+          `- 약속: ${opts.packaging.promise}`,
+          "- ★첫 1~2 세그먼트에서 이 약속(썸네일·제목이 말한 바로 그 장면)을 곧장 보여줘라. 배경 설명·인사·'오늘은' 같은 도입부 금지.",
+        ].join("\n")
+      : "",
+    "",
+    "[★미스터비스트 원칙 — 시청 지속]",
+    "- 첫 3초가 전부다: 클릭한 이유(썸네일·제목의 약속)를 첫 문장에서 바로 확인시켜라. 맥락 설명은 그 뒤에 조금씩.",
+    "- 점점 세게: 대본을 3등분했을 때 뒤로 갈수록 더 놀라운 사실이 나와야 한다. 가장 큰 반전은 마지막 1/4 에. 초반에 다 써버리지 마라.",
+    "- 지루한 컷 0개: 각 세그먼트에 '이 컷을 빼도 이야기가 이해되나?'를 물어 이해된다면 그 컷은 빼고 새 사실로 바꿔라.",
+    "- 약속을 지켜라: 썸네일·제목이 암시한 것이 영상에서 반드시 나와야 한다. 지키지 못할 약속(낚시)은 이탈과 신고로 돌아온다.",
     sourcesBlock,
     noSourceBlock,
     "",
@@ -389,6 +468,12 @@ export async function writeReelPlan(
       maxRetries: 1,
     })) as ReelPlan;
     sanitizePlan(plan);
+    if (opts?.packaging) {
+      // 패키징을 먼저 정했으니 모델이 바꿔 써도 확정값으로 되돌린다
+      plan.idea.title = opts.packaging.title;
+      plan.idea.thumbTitle = opts.packaging.thumbTitle;
+      plan.script.title = opts.packaging.title;
+    }
     const chars = plan.script.segments.reduce((n, s) => n + s.text.length, 0);
     // 연령제한 유발 표현이 남아 있으면 분량과 무관하게 재생성 (도달 손실이 더 크다)
     const flagged = findSensitive(plan);
