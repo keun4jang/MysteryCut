@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "./config.js";
 import { writeReelPlan, proposeCase } from "./assistants/producer.js";
-import { gatherSources, sourcesCitation, warmStoryControversy, politicalControversy, sameCaseInHistory, isNonCaseTitle, confirmCaseIdentity, type SourceDoc } from "./lib/sources.js";
+import { gatherSources, sourcesCitation, warmStoryControversy, politicalControversy, sameCaseInHistory, isNonCaseTitle, isSexCrimeCase, confirmCaseIdentity, type SourceDoc } from "./lib/sources.js";
 import { narrate } from "./assistants/narrator.js";
 import { attachBroll } from "./assistants/broll.js";
 import { renderReel } from "./render.js";
@@ -76,6 +76,9 @@ async function main() {
     if (isNonCaseTitle(probe.title)) {
       rejectReason = "실제 사건이 아닌 문서(목록·작품)";
       console.log(`   ↩︎ 실제 사건이 아닌 문서(${probe.title}) — 다른 사건으로`);
+    } else if (isSexCrimeCase(probe.title, probe.premise)) {
+      rejectReason = "채널 기준 위반: 성범죄 중심 사건";
+      console.log(`   ↩︎ 성범죄 중심 사건이라 쓰지 않음(${probe.title}) — 다른 사건으로`);
     } else if (
       (probeIsDup =
         isDuplicate(history, probe.caseKey, probe.title) || !!(await sameCaseInHistory(probe, history.posts)))

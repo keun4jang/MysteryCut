@@ -325,9 +325,10 @@ export async function politicalControversy(
         "너는 채널 안전 검토 담당이다. 이 사건을 미스터리 영상으로 다뤄도 되는지 원문만 보고 판정한다. " +
         "다음 중 하나라도 해당하면 controversial=true: (1) 정치인·민주화운동가·언론인 등 정치적 인물의 죽음·실종에 국가기관·정권 개입 의혹이 걸린 사건, " +
         "(2) 진상·책임을 두고 정당·진영이 지금도 다투는 사건(국가 재난·군 사건 포함), " +
-        "단 경찰 부실·강압 수사나 누명이 재심·판결로 이미 바로잡힌 사건(예: 약촌오거리 사건)은 진영 다툼이 아니므로 (2)에 해당하지 않는다. " +
+        "단 경찰 부실·강압 수사나 누명이 재심·판결로 이미 바로잡힌 사건(예: 약촌오거리 사건)은 진영 다툼이 아니므로 (2)에 해당하지 않는다(이 예외는 (2)에만 적용된다). " +
         "(3) 왜곡·허위 사실 유포를 법으로 처벌하는 사건(5·18 민주화운동 등), (4) 현직·생존 정치인이 당사자인 사건, " +
         "(5) 성범죄가 사건의 중심인 사건(연쇄 성폭행·강간살인·아동 성범죄 등 — 피해자 2차 가해 소지가 커서 다루지 않는다, 10/17 사장님 결정). " +
+        "★(5)는 다른 어떤 예외보다 우선한다 — 누명·조작·재심으로 바로잡힌 사건이라도 성범죄가 중심이면 controversial=true. " +
         "수백 년 전 왕실 의문사 같은 역사 논쟁, 정치와 무관한 미제 사건은 해당하지 않는다.",
       user:
         `[소재] ${caseInfo.title}\n[개요] ${caseInfo.premise}\n\n` +
@@ -489,6 +490,15 @@ export function isNonCaseTitle(title: string): boolean {
     /\b(season|series)\s*\d+|\bepisodes?\b|\((tv series|tv program|film|novel|book|album|song|anime|manga|video game|miniseries|documentary|web series)\)/i.test(title) ||
     /시즌\s*\d|\((드라마|영화|소설|애니메이션|만화|게임|음반|다큐멘터리)\)/.test(title)
   );
+}
+
+/**
+ * 성범죄가 중심인 사건인지 낱말로 먼저 거른다(AI 판정 전에 코드로).
+ * 10/31 실제 쇼츠: '춘천 강간살인 조작 사건'이 AI 판정에서 '재심으로 바로잡힌 사건이라 진영 다툼 아님'을 이유로 통과했다
+ * — (5) 성범죄 조항을 (2) 예외가 덮어 버렸다. 제목·개요에 이런 낱말이 있으면 판정과 무관하게 버린다.
+ */
+export function isSexCrimeCase(title: string, premise = ""): boolean {
+  return /강간|성폭행|성폭력|성추행|성범죄|추행|윤간|성매매|아동\s*성|rape|sexual\s*(assault|abuse|violence)|molest|pedophil/i.test(`${title}\n${premise}`);
 }
 
 const CaseIdentitySchema = z.object({ same: z.boolean(), caseKey: z.string(), caseName: z.string() });

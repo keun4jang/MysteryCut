@@ -14,7 +14,7 @@ import { renderLongform, renderLongformThumb } from "./render.js";
 import { publishLongform } from "./assistants/youtubePublisher.js";
 import { loadHistory, recentAvoidList, isDuplicate, appendPost, type HistoryPost } from "./assistants/history.js";
 import { persistLatestLongform } from "./lib/latestLongform.js";
-import { gatherSources, sourcesCitation, politicalControversy, sameCaseInHistory, isNonCaseTitle, confirmCaseIdentity, type SourceDoc } from "./lib/sources.js";
+import { gatherSources, sourcesCitation, politicalControversy, sameCaseInHistory, isNonCaseTitle, isSexCrimeCase, confirmCaseIdentity, type SourceDoc } from "./lib/sources.js";
 import { verifyFacts, type FactItem } from "./lib/factcheck.js";
 import { reviewDesign } from "./assistants/artDirector.js";
 import { longformSrt } from "./lib/captions.js";
@@ -281,6 +281,9 @@ async function produceOneCase(opts: {
     if (isNonCaseTitle(probe.title)) {
       rejectReason = "실제 사건이 아닌 문서(목록·작품)";
       console.log(`   ↩︎ 실제 사건이 아닌 문서(${probe.title}) — 다른 사건으로`);
+    } else if (isSexCrimeCase(probe.title, probe.premise)) {
+      rejectReason = "채널 기준 위반: 성범죄 중심 사건";
+      console.log(`   ↩︎ 성범죄 중심 사건이라 쓰지 않음(${probe.title}) — 다른 사건으로`);
     } else if (
       isDuplicate(workingHistory, probe.caseKey, probe.title) ||
       (await sameCaseInHistory(probe, workingHistory.posts))
