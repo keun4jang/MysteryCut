@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { generateStructured } from "./llm.js";
+import { findSensitiveTerms, softenText } from "./safeText.js";
 
 /**
  * 완성 원고 사실 검증 — 원고 문장을 위키 원문과 한 줄씩 대조해 틀리거나 원문에 없는 구체적 사실을 고친다.
@@ -41,6 +42,8 @@ export async function findIssues(items: FactItem[], sourceText: string, caseTitl
         "(나) 원문에 없는 구체적 사실을 단정한 것 — 원문에 없는 수치·속도·인원(예: '시속 수백 킬로'), 원문에 없는 인물 행동·발언·수사 결과, 추측을 확정 사실처럼 쓴 것, " +
         "다른 시대·다른 인물의 일을 이 사람 일로 옮긴 것(예: 1970년 단체의 시위를 1891년 인물이 한 일로).\n" +
         "(다) 한국어로 뜻이 통하지 않는 낱말·오타·꼬인 문장(예: '홀들바다 뛰어 들어갔어요', 기름을 '강유'로) — 원문에 맞는 바른 말로 고친다.\n" +
+        "★연령제한을 피하려고 일부러 쓴 중립 표현('스스로 벌인 일', '세상을 떠난', '의문의 죽음', '타살 혐의점을 찾지 못했다', '추락')은 원문의 자살·투신 기록과 같은 뜻으로 보고 문제 삼지 마라. " +
+        "고칠 때도 자살·자해·투신·극단적 선택 같은 낱말은 절대 쓰지 말고 이런 중립 표현을 써라.\n" +
         "다음은 문제 삼지 마라: 분위기·감정 묘사, 시청자에게 던지는 질문, 투표·댓글·좋아요 요청, 다음 편 예고, " +
         "원문 내용을 자연스럽게 바꿔 말한 것, 원문에 있는 사실을 요약·생략한 것, 누구나 아는 일반 상식.\n" +
         "골라낸 줄마다 fix 에 원문에 맞게 고친 문장을 써라. 원래 말투·길이·문장 형태(제목은 제목답게, 짧은 문구는 짧게)를 최대한 유지하고 틀린 부분만 바꿔라. " +
@@ -78,9 +81,12 @@ export async function verifyFacts(items: FactItem[], sourceText: string, caseTit
       console.log(`  ⚠️ 사실 교정 보류 [${issue.id}] 고친 문구가 ${it.maxLen}자를 넘음: "${issue.fix}"`);
       continue;
     }
-    console.log(`  ✏️  사실 교정 [${issue.id}] "${it.text}" → "${issue.fix}" (${issue.problem})`);
-    it.apply(issue.fix, issue.fixEn);
-    it.text = issue.fix;
+    // 교정문이 연령제한 낱말을 되살리면 다시 중립화한다(10/31 드라이런: 중립화한 '의문의 죽음'을 사실 교정이 '자살'로 되돌림)
+    const soft = (t?: string) => (t && findSensitiveTerms([t]).length ? softenText(t) : t);
+    const fix = soft(issue.fix)!;
+    console.log(`  ✏️  사실 교정 [${issue.id}] "${it.text}" → "${fix}" (${issue.problem})`);
+    it.apply(fix, soft(issue.fixEn));
+    it.text = fix;
   }
   const second = await findIssues(items, sourceText, caseTitle);
   if (second === null || !second.length) {
