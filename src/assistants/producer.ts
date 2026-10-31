@@ -5,6 +5,7 @@ import { findSensitiveTerms, softenText } from "../lib/safeText.js";
 import { isSameCase } from "./history.js";
 import { sourcesPromptBlock, discoverCandidateTitles, type SourceDoc } from "../lib/sources.js";
 import { numbersInText, numberInSource } from "../lib/visual/gates.js";
+import { findIssues } from "../lib/factcheck.js";
 import { isWarmAngle, WARM_COPY_GUARDS } from "../lib/variety.js";
 import {
   StoryIdeaSchema,
@@ -71,6 +72,8 @@ export interface PlanOptions {
   signoffStyle?: string;
   /** 버라이어티 팩이 고른 제목 구조 (같은 접미사 반복 방지) */
   titleStyle?: string;
+  /** 사실 검증에서 나온 지적 — 다시 쓸 때 사용자 메시지 끝에 붙인다 */
+  extraFeedback?: string;
   /** 패키징 먼저(designPackaging) 결과 — 있으면 제목·썸네일을 고정하고 첫 컷에서 약속을 지키게 한다 */
   packaging?: Packaging;
   /** 1단계에서 확정된 사건 — 있으면 모델은 이 사건으로만 써야 한다 */
@@ -226,7 +229,24 @@ export async function designPackaging(forced: CaseProbe, sourceText: string, war
       .filter((c) => c.title && c.thumbTitle && c.truth >= 7)
       .filter((c) => numbersInText(`${c.title}\n${c.thumbTitle}`).every((n) => numberInSource(n, sourceText)))
       .sort((a, b) => b.clarity + b.curiosity - (a.clarity + a.curiosity));
-    const best = scored[0];
+    // 자체 채점(truth)은 믿을 수 없다(10/31 드라이런: 사실 10점 후보 '왕이 탄 배가 가라앉았다'가 원문에 없음).
+    // 점수 순으로 최대 3개를 원문과 대조해 어긋남이 없는 첫 후보를 쓴다.
+    let best: (typeof scored)[number] | undefined;
+    for (const c of scored.slice(0, 3)) {
+      const issues = await findIssues(
+        [
+          { id: "title", text: c.title, apply: () => {} },
+          { id: "thumb", text: c.thumbTitle, apply: () => {} },
+        ],
+        sourceText,
+        forced.title,
+      );
+      if (issues === null || !issues.length) {
+        best = c;
+        break;
+      }
+      console.log(`   ↩︎ 패키징 후보 탈락(원문과 어긋남): "${c.thumbTitle.replace(/\n/g, " / ")}" — ${issues[0].problem}`);
+    }
     if (!best) return null;
     console.log(`   📦 패키징 먼저: "${best.title}" / 썸네일 "${best.thumbTitle.replace(/\n/g, " / ")}" (이해 ${best.clarity}·궁금증 ${best.curiosity}·사실 ${best.truth}, 후보 ${v.candidates.length}개 중)`);
     return { title: best.title, thumbTitle: best.thumbTitle, promise: best.promise };
@@ -463,7 +483,7 @@ export async function writeReelPlan(
     const plan = (await generateStructured({
       schema: ReelPlanSchema,
       system,
-      user: user + feedback,
+      user: user + (opts?.extraFeedback ?? "") + feedback,
       temperature: 1.15,
       maxRetries: 1,
     })) as ReelPlan;

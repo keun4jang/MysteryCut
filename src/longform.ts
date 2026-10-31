@@ -136,7 +136,8 @@ async function main() {
       centralQuestion: c.script.centralQuestion,
       description: c.script.description,
     })),
-    themeAngle.split(" — ")[0].replace(/^소재 각도: /, ""),
+    // 모든 사건이 주제로 뽑혔을 때만 주제로 묶는다(일부가 자유 각도면 주제 제목이 거짓말이 된다)
+    cases.every((c) => c.topicAngle === themeAngle) ? themeAngle.split(" — ")[0].replace(/^소재 각도: /, "") : undefined,
   );
   // 종합 제목도 실제 구성과 대조 — 10/21 '수십 년이 지나도 풀리지 않은 사건들'에 1869·1888년 사건과 이미 설명된 자연재해가 섞였다
   const caseList = cases
@@ -145,7 +146,7 @@ async function main() {
   await verifyFacts(
     [
       { id: "title", text: meta.title, apply: (f) => { meta.title = f; } },
-      { id: "thumb", text: meta.thumbTitle, apply: (f) => { meta.thumbTitle = f; } },
+      { id: "thumb", text: meta.thumbTitle, apply: (f) => { meta.thumbTitle = f; }, maxLen: 16 },
       ...meta.teaser.map((t, i) => ({
         id: `teaser${i + 1}/en`,
         text: t.text,
@@ -308,7 +309,7 @@ async function produceOneCase(opts: {
   const { avoid, workingHistory, isFirst, caseNo } = opts;
   // 소재 각도는 회차 주제로 고정하고(10/31), 지역만 사건마다 새로 뽑는다 — 9/25 편은 각도·지역을 다 고정해
   // 5건이 거의 같은 한국 상속 분쟁이 됐다.
-  const pack = { topicAngle: opts.themeAngle, regionAngle: pickStylePack().regionAngle };
+  let pack = { topicAngle: opts.themeAngle, regionAngle: pickStylePack().regionAngle };
   console.log(`   🧭 ${pack.topicAngle.split(" — ")[0]} | ${pack.regionAngle.split(" — ")[0]}`);
   let probe = await proposeCase(opts.seed, avoid, {
     topicAngle: pack.topicAngle,
@@ -356,6 +357,11 @@ async function produceOneCase(opts: {
     (avoid.rejected ??= []).push(`${probe.title} (${probe.caseKey}) — 버린 이유: ${rejectReason || "기타"}`);
     avoid.titles.push(probe.title);
     if (tries === 4) return null;
+    // 주제로 2번 실패하면 이 칸은 주제를 풀고 자유 각도로 고른다 — 10/31 드라이런: 주제를 끝까지 고집하다 5칸 중 1건만 확보해 회차 중단
+    if (tries === 1 && pack.topicAngle === opts.themeAngle) {
+      pack = pickStylePack();
+      console.log(`   🧭 주제로 못 찾음 — 이 칸은 자유 각도로: ${pack.topicAngle.split(" — ")[0]} | ${pack.regionAngle.split(" — ")[0]}`);
+    }
     probe = await proposeCase(undefined, avoid, {
       topicAngle: pack.topicAngle,
       regionAngle: pack.regionAngle,
@@ -378,7 +384,7 @@ async function produceOneCase(opts: {
   // 원고를 원문과 한 줄씩 대조해 틀린 사실을 고친다(쇼츠와 같은 검사, factcheck.ts). 고친 뒤에도 남으면 이 사건만 건너뜀.
   const factItems: FactItem[] = [
     { id: "title", text: script.title, apply: (f) => { script.title = f; } },
-    { id: "thumb", text: script.thumbTitle, apply: (f) => { script.thumbTitle = f; } },
+    { id: "thumb", text: script.thumbTitle, apply: (f) => { script.thumbTitle = f; }, maxLen: 16 },
     { id: "question", text: script.centralQuestion, apply: (f) => { script.centralQuestion = f; } },
   ];
   script.chapters.forEach((ch, c) => {
