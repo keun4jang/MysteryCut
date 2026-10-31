@@ -369,7 +369,8 @@ export async function writeReelPlan(
           `- idea.title = "${opts.packaging.title}" (그대로)`,
           `- idea.thumbTitle = "${opts.packaging.thumbTitle.replace(/\n/g, "\\n")}" (그대로)`,
           `- 약속: ${opts.packaging.promise}`,
-          "- ★첫 1~2 세그먼트에서 이 약속(썸네일·제목이 말한 바로 그 장면)을 곧장 보여줘라. 배경 설명·인사·'오늘은' 같은 도입부 금지.",
+          "- ★첫 1~2 세그먼트에서 이 약속(썸네일·제목이 말한 바로 그 장면)을 썸네일 낱말 그대로 곧장 보여줘라. 배경 설명·인사·'오늘은' 같은 도입부 금지.",
+          "- ★영상 전체가 이 약속을 파고들어야 한다. 원문에 여러 사건이 있어도 패키징이 가리키는 사건·장면을 중심으로 깊게 쓰고, 나머지는 한두 컷으로만. 관련 사건을 날짜·사망자 수로 나열하는 것은 실패다.",
         ].join("\n")
       : "",
     "",
@@ -508,13 +509,14 @@ export async function writeReelPlan(
     const caseMismatch = !!forced && !isSameCase(plan.idea.caseKey, forced.caseKey);
     const unsourced = sourceText ? unsourcedHeadlineNumbers(plan, sourceText) : [];
     const copied = warm ? copiedWarmExamples(plan) : [];
-    const gap = lengthPenalty(chars, IDEAL_CHARS, MAX_CHARS) + (copied.length ? 5_000 : 0);
+    const brokenPromise = promiseMissing(plan, opts?.packaging);
+    const gap = lengthPenalty(chars, IDEAL_CHARS, MAX_CHARS) + (copied.length ? 5_000 : 0) + (brokenPromise ? 3_000 : 0);
     if (gap < bestGap && !caseMismatch && !unsourced.length) {
       best = plan;
       bestChars = chars;
       bestGap = gap;
     }
-    if (!flagged.length && !caseMismatch && !unsourced.length && !copied.length && chars >= MIN_CHARS && chars <= MAX_CHARS) {
+    if (!flagged.length && !caseMismatch && !unsourced.length && !copied.length && !brokenPromise && chars >= MIN_CHARS && chars <= MAX_CHARS) {
       return plan;
     }
 
@@ -532,6 +534,10 @@ export async function writeReelPlan(
     if (unsourced.length) {
       console.warn(`   ⚠️ 제목·썸네일·훅에 원문에 없는 숫자(${unsourced.join(", ")}) — 재생성 (${attempt + 1}/3)`);
       feedback += `\n★직전 시도의 제목(title)·썸네일 문구(thumbTitle)·훅(hook)에 원문에 없는 숫자(${unsourced.join(", ")})가 들어 있었다. 이 세 곳에는 아래 원문에 그 숫자 그대로 적힌 것만 써라. 계산하거나 어림한 숫자도 안 된다. 쓸 숫자가 없으면 숫자 없이 모순·부정·사물로 써라.`;
+    }
+    if (brokenPromise && opts?.packaging) {
+      console.warn(`   ⚠️ 첫 2컷이 썸네일 약속을 안 보여줌 — 재생성 (${attempt + 1}/3)`);
+      feedback += `\n★직전 시도의 첫 1~2 세그먼트가 썸네일('${opts.packaging.thumbTitle.replace(/\n/g, " ")}')이 약속한 장면을 보여주지 않았다. 첫 세그먼트부터 그 장면(${opts.packaging.promise})을 그 낱말 그대로 보여줘라. 그리고 영상 전체를 그 사건·장면에 집중하라 — 썸네일과 무관한 다른 사건을 나열하지 마라.`;
     }
     if (flagged.length) {
       console.warn(`   ⚠️ 연령제한 위험 표현 발견(${flagged.join(", ")}) — 재생성 (${attempt + 1}/3)`);
@@ -586,7 +592,25 @@ export async function writeReelPlan(
  * 상한을 넘는 안은 상한 안쪽 안이 하나도 없을 때만 고르고, 그중에서도 가장 짧은 것을 고른다.
  */
 export function lengthPenalty(chars: number, ideal: number, max: number): number {
-  return chars > max ? 10_000 + chars : Math.abs(chars - ideal);
+  // 상한을 살짝(25자 이내) 넘는 안은 크게 모자란 안보다 낫다 — 10/31 드라이런: 944자(상한+4) 안을 버리고 626자(71초) 안을 채택.
+  if (chars > max + 25) return 10_000 + chars;
+  if (chars > max) return (chars - max) * 3 + Math.abs(chars - ideal);
+  return Math.abs(chars - ideal);
+}
+
+/**
+ * 패키징 약속 이행 확인 — 썸네일 문구의 핵심 낱말이 첫 2컷에 나오는가(미스터비스트 '첫 3초').
+ * 10/31 드라이런: 썸네일 '철도 총재가 / 토막 시신으로'인데 '토막 시신'은 3번째 컷에, 그 뒤엔 다른 사건 나열.
+ */
+function promiseMissing(plan: ReelPlan, packaging?: Packaging): boolean {
+  if (!packaging) return false;
+  const words = (packaging.thumbTitle.match(/[가-힣A-Za-z0-9]{2,}/g) ?? [])
+    .map((w) => w.replace(/(은|는|이|가|을|를|의|에|에서|으로|로|과|와|도|만)$/, ""))
+    .filter((w) => w.length >= 2);
+  if (!words.length) return false;
+  const opening = plan.script.segments.slice(0, 2).map((s) => s.text).join(" ");
+  const hits = words.filter((w) => opening.includes(w)).length;
+  return hits < Math.min(2, words.length);
 }
 
 /** 감동 편 첫 문장·썸네일·제목·훅에 지시문 예시를 베낀 흔적(공백 무시) */

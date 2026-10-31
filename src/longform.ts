@@ -80,8 +80,9 @@ async function main() {
 
   // 미스터비스트 원칙 '한 문장으로 이해되는 하나의 기획'(10/31): 사건마다 각도를 따로 뽑던 것을 회차당 주제 하나로 묶는다.
   // 지역은 사건마다 새로 뽑아 비슷한 사건만 몰리지 않게 한다(9/25 편: 각도·지역을 다 고정했더니 5건이 거의 같은 한국 상속 분쟁).
-  const themeAngle = pickStylePack().topicAngle;
-  console.log(`   🎯 이번 회차 주제: ${themeAngle.split(" — ")[0]}`);
+  // 10/31 재테스트: 주제를 고정하자 5칸 중 2건만 확보(원문이 위키에 있는 사건이 주제마다 넉넉하지 않다). 주제 고정은 끄고
+  // 칸마다 자유 각도로 고르되, 종합 제목·썸네일·콜드 오픈 예고로 '한 편의 기획'처럼 묶는다.
+  const themeAngle: string = "";
   const cases: ProducedCase[] = [];
   for (let i = 0; i < CASES_PER_COMPILATION; i++) {
     console.log(`① 사건 ${i + 1}/${CASES_PER_COMPILATION} 선정 + 원문 수집...`);
@@ -137,7 +138,7 @@ async function main() {
       description: c.script.description,
     })),
     // 모든 사건이 주제로 뽑혔을 때만 주제로 묶는다(일부가 자유 각도면 주제 제목이 거짓말이 된다)
-    cases.every((c) => c.topicAngle === themeAngle) ? themeAngle.split(" — ")[0].replace(/^소재 각도: /, "") : undefined,
+    themeAngle && cases.every((c) => c.topicAngle === themeAngle) ? themeAngle.split(" — ")[0].replace(/^소재 각도: /, "") : undefined,
   );
   // 종합 제목도 실제 구성과 대조 — 10/21 '수십 년이 지나도 풀리지 않은 사건들'에 1869·1888년 사건과 이미 설명된 자연재해가 섞였다
   const caseList = cases
@@ -309,7 +310,7 @@ async function produceOneCase(opts: {
   const { avoid, workingHistory, isFirst, caseNo } = opts;
   // 소재 각도는 회차 주제로 고정하고(10/31), 지역만 사건마다 새로 뽑는다 — 9/25 편은 각도·지역을 다 고정해
   // 5건이 거의 같은 한국 상속 분쟁이 됐다.
-  let pack = { topicAngle: opts.themeAngle, regionAngle: pickStylePack().regionAngle };
+  let pack = opts.themeAngle ? { topicAngle: opts.themeAngle, regionAngle: pickStylePack().regionAngle } : pickStylePack();
   console.log(`   🧭 ${pack.topicAngle.split(" — ")[0]} | ${pack.regionAngle.split(" — ")[0]}`);
   let probe = await proposeCase(opts.seed, avoid, {
     topicAngle: pack.topicAngle,
@@ -361,7 +362,7 @@ async function produceOneCase(opts: {
     avoid.titles.push(probe.title);
     if (tries === 4) return null;
     // 주제로 2번 실패하면 이 칸은 주제를 풀고 자유 각도로 고른다 — 10/31 드라이런: 주제를 끝까지 고집하다 5칸 중 1건만 확보해 회차 중단
-    if (tries === 1 && pack.topicAngle === opts.themeAngle) {
+    if (tries === 1 && opts.themeAngle && pack.topicAngle === opts.themeAngle) {
       pack = pickStylePack();
       console.log(`   🧭 주제로 못 찾음 — 이 칸은 자유 각도로: ${pack.topicAngle.split(" — ")[0]} | ${pack.regionAngle.split(" — ")[0]}`);
     }
