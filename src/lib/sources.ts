@@ -489,8 +489,8 @@ export function isNonCaseTitle(title: string): boolean {
     /(목록|일람|연표)$/.test(title.trim()) ||
     /\b(season|series)\s*\d+|\bepisodes?\b|\((tv series|tv program|film|novel|book|album|song|anime|manga|video game|miniseries|documentary|web series)\)/i.test(title) ||
     /시즌\s*\d|\((드라마|영화|소설|애니메이션|만화|게임|음반|다큐멘터리)\)/.test(title) ||
-    // 사건 이름이 아닌 일반 명사·프로그램명(10/31 롱폼: 'Unsolved Mysteries'·'History Cold Case'·'미해결 사건'·'cold-case-disambiguation')
-    /^(unsolved mysteries|unsolved|cold case|history cold case|urban legends?|mystery|mysteries|미해결 사건|미제 사건|미제사건|미스터리|도시 전설|괴담|실종)$/i.test(title.trim()) ||
+    // 사건 이름이 아닌 일반 명사·프로그램명(10/31·11/2: 'Unsolved Mysteries'·'History Cold Case'·'미해결 사건'·'cold-case-disambiguation')
+    /^(unsolved mysteries|unsolved murders?|unsolved|cold case|history cold case|urban legends?|mystery|mysteries|미해결 사건|미제 사건|미제사건|미스터리|도시 전설|괴담|실종)$/i.test(title.trim()) ||
     /disambiguation|동음이의/i.test(title)
   );
 }
