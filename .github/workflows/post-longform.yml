@@ -90,6 +90,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ffmpeg 가 없으면 썸네일 추출·아트디렉터 검수·나레이션 무음 트리밍이 조용히 빠진다(10/27 쇼츠: apt 에서 ffmpeg 설치
+      # 실패 → 유튜브 커스텀 썸네일 없이 게시). 재설치를 한 번 더 해 보고, 그래도 없으면 Remotion 내장 ffmpeg/ffprobe 로 대체한다.
+      - name: ffmpeg 확인
+        run: |
+          if ! command -v ffmpeg >/dev/null; then
+            echo "⚠️ ffmpeg 없음 — apt 재설치 시도"
+            sudo timeout 300 apt-get update >/dev/null 2>&1 || true
+            sudo timeout 300 apt-get install -y ffmpeg >/dev/null 2>&1 || true
+          fi
+          if ! command -v ffmpeg >/dev/null; then
+            echo "⚠️ apt 재설치도 실패 — Remotion 내장 ffmpeg/ffprobe 로 대체"
+            for t in ffmpeg ffprobe; do
+              printf '#!/bin/sh\nexec npx --no-install remotion %s "$@"\n' "$t" | sudo tee "/usr/local/bin/$t" >/dev/null
+              sudo chmod +x "/usr/local/bin/$t"
+            done
+          fi
+          ffmpeg -version 2>/dev/null | head -1
+
       # 무료 TTS (Microsoft Edge 뉴럴 음성) — GOOGLE_TTS_API_KEY 있으면 자동으로 Google TTS 사용
       - name: Install edge-tts
         run: pipx install edge-tts
