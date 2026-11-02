@@ -517,7 +517,9 @@ const ThumbnailCard: React.FC<{
       <AbsoluteFill
         style={{
           background:
-            "radial-gradient(ellipse at 50% 52%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.72) 100%), linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.12) 35%, rgba(80,0,10,0.28) 100%)",
+            // 맨 앞 층: 문구가 놓이는 가운데 띠만 살짝 눌러 복잡한 배경(철골·건물)과 글자가 겹쳐 보이지 않게(11/2 아트디렉터 점검 —
+            // 10/29·11/1 '배경과 글자 겹침·대비' 지적 반복)
+            "radial-gradient(ellipse 75% 20% at 50% 50%, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0) 100%), radial-gradient(ellipse at 50% 52%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.72) 100%), linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.12) 35%, rgba(80,0,10,0.28) 100%)",
         }}
       />
 
