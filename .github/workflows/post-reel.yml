@@ -13,12 +13,12 @@ name: 미스터리 릴스 자동 게시
 # 구독자 알림도 채널당 하루 3개가 상한이라, 남은 자리를 롱폼에 양보합니다.
 on:
   schedule:
-    # UTC 기준. KST = UTC+9. 주 4개(화·목·토·일) + 랜덤 지연. 롱폼(월·수·금)과 요일을 나눈다.
+    # UTC 기준. KST = UTC+9. 주 4개(화·목·토·일), 게시 시각은 매번 17~23시 KST 사이 무작위. 롱폼(월·수·금)과 요일을 나눈다.
     # 2026-10-02 매일 → 주 4개: 커뮤니티 가이드 스팸 조항 'Automated or synthetic
     # mass-production'(경고·해지까지 가는 조항)에 걸릴 노출면을 줄인다. 쇼츠 시청은
     # YPP 시청시간에 안 들어가고, 쇼츠→롱폼 유입도 90일 9회뿐이라 잃는 게 거의 없다.
     # 목·일요일 회차는 '감동 실화(선과 악)' 편(10/3 일요일 시작, 10/11 목요일 추가 — src/lib/variety.ts WARM_WEEKDAYS).
-    - cron: "0 10 * * 0,2,4,6" # 저녁 창: 19:00 KST + 랜덤
+    - cron: "23 3 * * 0,2,4,6" # 12:23 KST 에 깨워 17~23시 KST 사이 무작위 시각에 게시(아래 '게시 시각 맞추기')
   workflow_dispatch: # 수동 실행(테스트용) — 랜덤 지연 없이 바로 실행
     inputs:
       seed:
@@ -61,7 +61,7 @@ jobs:
   post:
     runs-on: ubuntu-latest
     # 랜덤 지연(최대 120분) + 생성·렌더·게시 여유까지 포함해 넉넉히
-    timeout-minutes: 180
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -134,14 +134,23 @@ jobs:
             echo "BGM_URL 미설정 — 저장소 기본 BGM(eerie.mp3) 사용"
           fi
 
-      # 스케줄 실행일 때만 0~120분 랜덤 지연 (수동 실행은 즉시) → 매일 게시 시각이 달라짐
-      # ($RANDOM 은 0~32767 이라 두 번 조합해 0~7200초(2시간) 균등 분포를 만든다)
-      - name: Random delay (스케줄 실행만)
+      # 게시 시각을 매번 다르게, 한국 시간 저녁 창 안으로(11/3 사장님: "업로드 시간은 항상 달라야 해", 창은 17~23시 KST).
+      # GitHub 스케줄은 정시 혼잡으로 3~7시간씩 늦게 시작한다(10월 실측: 19시 예약 → 22:24~02:28 KST 게시). 그래서 일찍 깨우고,
+      # 그날의 목표 시각(시작 17:00~22:45 KST)을 무작위로 뽑아 그때까지 기다린다. 이미 지났으면 바로 진행. 수동 실행은 대기 없음.
+      - name: 게시 시각 맞추기 (스케줄 실행만)
         if: github.event_name == 'schedule'
         run: |
-          DELAY=$(( (RANDOM * 32768 + RANDOM) % 7201 ))
-          echo "게시까지 ${DELAY}초(약 $((DELAY/60))분) 대기 (자연스러운 게시 시각)"
-          sleep $DELAY
+          DAY0=$(date -u -d 'today 00:00' +%s)
+          TARGET=$(( DAY0 + (480 + (RANDOM * 32768 + RANDOM) % (825 - 480 + 1)) * 60 ))
+          NOW=$(date -u +%s)
+          WAIT=$(( TARGET - NOW ))
+          [ "$WAIT" -gt 18000 ] && WAIT=18000
+          if [ "$WAIT" -gt 0 ]; then
+            echo "목표 시작 $(TZ=Asia/Seoul date -d @$TARGET '+%H:%M') KST — $((WAIT/60))분 대기"
+            sleep $WAIT
+          else
+            echo "목표 시각($(TZ=Asia/Seoul date -d @$TARGET '+%H:%M') KST)이 이미 지나 바로 진행"
+          fi
 
       - name: Generate & publish reel
         env:

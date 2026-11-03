@@ -22,9 +22,8 @@ name: 미스터리 롱폼 자동 게시
 on:
   schedule:
     # UTC 기준. KST = UTC+9.
-    - cron: "0 9 * * 1" # 월요일 18:00 KST
-    - cron: "0 9 * * 3" # 수요일 18:00 KST
-    - cron: "0 9 * * 5" # 금요일 18:00 KST
+    # 11/3 사장님 결정: 주 2편(수·토), 게시 시각은 매번 17~23시 KST 사이 무작위. 11:37 KST 에 깨워 아래 '게시 시각 맞추기'에서 기다린다.
+    - cron: "37 2 * * 3,6"
   workflow_dispatch:
     inputs:
       seed:
@@ -54,7 +53,7 @@ jobs:
     # 배율). 몰아보기 5사건 드라이런 실측(2026-09-13): 사건 생성 16분 + 렌더 91분
     # = 총 107분(영상 24분 기준). Gemini 503(일시적 과부하)이 겹치는 최악의
     # 경우까지 감안해 여유를 더 뒀다 — 공개 저장소라 최대 360분까지 무료다.
-    timeout-minutes: 240
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
 
@@ -86,6 +85,24 @@ jobs:
           done
           echo "시스템 라이브러리 설치 완료"
           ffmpeg -version | head -1
+
+      # 게시 시각을 매번 다르게, 한국 시간 저녁 창 안으로(11/3 사장님: "업로드 시간은 항상 달라야 해", 창은 17~23시 KST).
+      # GitHub 스케줄은 정시 혼잡으로 3~7시간씩 늦게 시작한다(10월 실측: 19시 예약 → 22:24~02:28 KST 게시). 그래서 일찍 깨우고,
+      # 그날의 목표 시각(렌더 1시간 남짓 감안해 시작 17:00~21:20 KST)을 무작위로 뽑아 그때까지 기다린다. 이미 지났으면 바로 진행. 수동 실행은 대기 없음.
+      - name: 게시 시각 맞추기 (스케줄 실행만)
+        if: github.event_name == 'schedule'
+        run: |
+          DAY0=$(date -u -d 'today 00:00' +%s)
+          TARGET=$(( DAY0 + (480 + (RANDOM * 32768 + RANDOM) % (740 - 480 + 1)) * 60 ))
+          NOW=$(date -u +%s)
+          WAIT=$(( TARGET - NOW ))
+          [ "$WAIT" -gt 13800 ] && WAIT=13800
+          if [ "$WAIT" -gt 0 ]; then
+            echo "목표 시작 $(TZ=Asia/Seoul date -d @$TARGET '+%H:%M') KST — $((WAIT/60))분 대기"
+            sleep $WAIT
+          else
+            echo "목표 시각($(TZ=Asia/Seoul date -d @$TARGET '+%H:%M') KST)이 이미 지나 바로 진행"
+          fi
 
       - name: Install dependencies
         run: npm ci
