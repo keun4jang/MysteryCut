@@ -176,8 +176,9 @@ export async function publishYouTube(
   // 3) 커스텀 썸네일 지정 (실패해도 게시 자체는 성공으로 처리)
   if (thumbPath) await setThumbnail(json.id, thumbPath, accessToken);
 
-  // 4) 정확한 한국어·영어 자막 트랙 등록
-  if (srt) await uploadCaptionTrack(json.id, srt, accessToken, "한국어");
+  // 4) 영어 자막 트랙만 등록. 한국어는 화면에 이미 박혀 있어, 한국어 트랙을 올리면 유튜브가
+  //    그 위에 같은 문장을 한 번 더 띄운다(11/4 사장님 "유튜브 자동자막이 안보이게해줘").
+  void srt;
   if (srtEn) await uploadCaptionTrack(json.id, srtEn, accessToken, "English", "en");
 
   // 5) 롱폼 유도 댓글 자동 작성 (고정은 Studio 에서 수동 — postPromoComment 참고)
@@ -278,8 +279,8 @@ export async function publishLongform(
   const playlistId = await ensureLongformPlaylist(accessToken);
   if (playlistId) await addToLongformPlaylist(playlistId, json.id, accessToken);
 
-  // 정확한 한국어 자막 트랙 등록 (ASR 오인식 대체용 — 겹침 문제는 화면 배치로 푼다)
-  if (srt) await uploadCaptionTrack(json.id, srt, accessToken, "한국어");
+  // 한국어 자막 트랙은 올리지 않는다 — 화면 자막과 겹쳐 두 번 보인다(11/4 사장님 요청).
+  void srt;
   // 영어 트랙 — 화면에 깔리는 작은 영어 자막과 같은 문장이지만, CC 로 켜면
   // 시청자가 크기·색을 직접 조절할 수 있다. 미국 시청자 22% 를 위한 것.
   if (srtEn) await uploadCaptionTrack(json.id, srtEn, accessToken, "English", "en");
