@@ -327,6 +327,7 @@ export async function politicalControversy(
         "(2) 진상·책임을 두고 정당·진영이 지금도 다투는 사건(국가 재난·군 사건 포함), " +
         "단 경찰 부실·강압 수사나 누명이 재심·판결로 이미 바로잡힌 사건(예: 약촌오거리 사건)은 진영 다툼이 아니므로 (2)에 해당하지 않는다(이 예외는 (2)에만 적용되고, 정치인·정당 지도자·민주화 인사가 당사자면 재심 무죄여도 (1)에 해당한다 — 예: 조봉암·진보당 사건). " +
         "(3) 왜곡·허위 사실 유포를 법으로 처벌하는 사건(5·18 민주화운동 등), (4) 현직·생존 정치인이 당사자인 사건, " +
+        "(6) 어린이·유아가 살해된 사건, 시신 훼손·식인·시간(屍姦) 등 극도로 잔혹한 사건(11/6 미야자키 쓰토무 사건이 후보로 뽑힘), " +
         "(5) 성범죄가 사건의 중심인 사건(연쇄 성폭행·강간살인·아동 성범죄 등 — 피해자 2차 가해 소지가 커서 다루지 않는다, 10/17 사장님 결정). " +
         "★(5)는 다른 어떤 예외보다 우선한다 — 누명·조작·재심으로 바로잡힌 사건이라도 성범죄가 중심이면 controversial=true. " +
         "수백 년 전 왕실 의문사 같은 역사 논쟁, 정치와 무관한 미제 사건은 해당하지 않는다.",
@@ -340,9 +341,10 @@ export async function politicalControversy(
     console.log(`  ${v.controversial ? "↩︎" : "✅"} 정치·성범죄 소재 확인: ${v.controversial ? "논란 있음" : "문제없음"} — ${v.reason}`);
     return v.controversial ? v.reason : null;
   } catch (e) {
-    // 확인 실패로 게시가 멈추면 안 된다 — 프롬프트 규칙이 1차 방어선이라 통과시킨다
-    console.warn(`  ⚠️ 정치 논란 확인 실패(통과 처리): ${e instanceof Error ? e.message : e}`);
-    return null;
+    // 확인 못 한 소재는 쓰지 않는다. 11/6 실제 실행: 미야자키 쓰토무(아동 연쇄 살해·시신 훼손) 원문을 Gemini 가
+    // PROHIBITED_CONTENT 로 차단했는데 '통과 처리'돼 대본 단계까지 갔다. 차단 자체가 위험 소재라는 신호다.
+    console.warn(`  ⚠️ 정치·성범죄 소재 확인 실패 — 이 소재를 쓰지 않음: ${e instanceof Error ? e.message : e}`);
+    return "소재 안전 확인 실패";
   }
 }
 
@@ -501,6 +503,9 @@ export function isNonCaseTitle(title: string): boolean {
  * — (5) 성범죄 조항을 (2) 예외가 덮어 버렸다. 제목·개요에 이런 낱말이 있으면 판정과 무관하게 버린다.
  */
 export function isSexCrimeCase(title: string, premise = ""): boolean {
+  const t = `${title}\n${premise}`;
+  // 아동 피해 살인·극도로 잔혹한 사건도 같은 이유(피해자 2차 가해·연령제한)로 코드에서 먼저 거른다(11/6)
+  if (/(유아|아동|어린이|소녀|소년|여아|남아)[^\n]{0,8}(유괴|살인|살해)|연속\s*유괴|시신\s*훼손|식인|시간\s*범|child\s*(murder|killer|abduction)|cannibal|necrophil/i.test(t)) return true;
   return /강간|성폭행|성폭력|성추행|성범죄|추행|윤간|성매매|아동\s*성|rape|sexual\s*(assault|abuse|violence)|molest|pedophil/i.test(`${title}\n${premise}`);
 }
 
