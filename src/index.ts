@@ -69,7 +69,8 @@ async function main() {
   let sources: SourceDoc[] = [];
   let probeIsDup = false;
   let rejectReason = "";
-  for (let tries = 0; tries < 6; tries++) {
+  // 11/6: 이력 228건이라 유명 사건 후보가 연달아 중복으로 걸려 6회로는 바닥났다(실제 실행 2회 연속) — 10회로 늘림
+  for (let tries = 0; tries < 10; tries++) {
     rejectReason = "";
     // 규칙 비교 → 통과하면 AI 로 전체 이력과 한 번 더 대조(caseKey·제목을 매번 다르게 지어내는 경우)
     probeIsDup = false;
@@ -127,7 +128,7 @@ async function main() {
   // 있었다, 감사에서 확인). 중복 게시보다 그날 게시 실패(알림)가 낫다.
   if (probeIsDup || isDuplicate(history, probe.caseKey, probe.title)) {
     throw new Error(
-      `사건 선정 6회 시도 모두 중복 소재로 귀결(마지막 후보: ${probe.caseKey}) — 중복 게시 방지를 위해 중단합니다.`,
+      `사건 선정 10회 시도 모두 중복 소재로 귀결(마지막 후보: ${probe.caseKey}) — 중복 게시 방지를 위해 중단합니다.`,
     );
   }
   if (!sources.length) {
