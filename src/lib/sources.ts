@@ -555,9 +555,9 @@ export async function confirmCaseIdentity(
  * 매 호출마다 검색어를 무작위로 몇 개만 골라서 써서(고정된 첫 페이지만
  * 반복해서 보여주지 않도록), 회차마다 다른 후보군이 보이게 한다.
  */
-export async function discoverCandidateTitles(limit = 24, warm = false): Promise<string[]> {
+export async function discoverCandidateTitles(limit = 24, warm = false, queries = 4): Promise<string[]> {
   const pool = warm ? WARM_DISCOVERY_QUERIES : DISCOVERY_QUERIES;
-  const picks = [...pool].sort(() => Math.random() - 0.5).slice(0, 4);
+  const picks = [...pool].sort(() => Math.random() - 0.5).slice(0, queries);
   const titles = new Set<string>();
   for (const { lang, q } of picks) {
     try {

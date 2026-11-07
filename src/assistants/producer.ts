@@ -91,7 +91,11 @@ export async function proposeCase(
   // LLM 이 기억만으로 지어낸 사건명은 원문 미달로 버려지는 비율이 높았다
   // (실측 2026-08-25). 검색 실패해도 후보 없이 그냥 진행한다 — 필수 아님.
   const warm = isWarmAngle(opts?.topicAngle);
-  const candidates = await discoverCandidateTitles(24, warm).catch(() => [] as string[]);
+  const rejectedCount = avoid?.rejected?.length ?? 0;
+  // 버린 사건이 쌓이면 검색어를 늘려 이력과 안 겹치는 후보를 더 많이 확보한다(11/7: 유명 사건 10연속 중복)
+  const candidates = await discoverCandidateTitles(rejectedCount >= 2 ? 48 : 24, warm, rejectedCount >= 2 ? 10 : 4).catch(
+    () => [] as string[],
+  );
   const avoidTitlesLower = new Set((avoid?.titles ?? []).map((t) => t.toLowerCase()));
   // 문서 제목을 caseKey 꼴로 바꿔 이력과 대조한다 — 'Dyatlov Pass incident' ↔ dyatlov-pass-1959
   const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "");
@@ -102,7 +106,8 @@ export async function proposeCase(
   );
   // 버린 사건이 2건 이상 쌓이면 모델이 같은 유명 사건으로 계속 돌아간다(10/13 드라이런: 댜틀로프 4연속,
   // 회피 목록·버린 목록을 명시해도 무시). 그때부터는 이력과 겹치지 않는 실제 문서 후보 안에서만 고르게 한다.
-  const mustPickFromList = (avoid?.rejected?.length ?? 0) >= 2 && freshCandidates.length >= 3;
+  const mustPickFromList = rejectedCount >= 2 && freshCandidates.length >= 1;
+  if (rejectedCount >= 2) console.log(`   📋 이력과 안 겹치는 실제 문서 후보 ${freshCandidates.length}개${mustPickFromList ? " — 이 안에서만 고르게 함" : ""}`);
 
   const system = [
     warm
@@ -163,14 +168,31 @@ export async function proposeCase(
       ? `다음 조건/소재를 반영해서 사건을 골라줘: ${seed}`
       : "기존과 겹치지 않는 신선한 사건을 하나 골라줘.");
 
-  return (await generateStructured({
-    schema: CaseProbeSchema,
-    system,
-    user,
-    // 버린 사건이 쌓일수록 온도를 조금씩 올려 같은 답으로 수렴하지 않게 한다
-    temperature: Math.min(1.5, 1.1 + 0.1 * rejected.length),
-    maxRetries: 1,
-  })) as CaseProbe;
+  const ask = async (extra: string) =>
+    (await generateStructured({
+      schema: CaseProbeSchema,
+      system,
+      user: extra + user,
+      // 버린 사건이 쌓일수록 온도를 조금씩 올려 같은 답으로 수렴하지 않게 한다
+      temperature: Math.min(1.5, 1.1 + 0.1 * rejected.length),
+      maxRetries: 1,
+    })) as CaseProbe;
+  const probe = await ask(
+    mustPickFromList ? "★searchTerms 의 첫 항목은 목록에 있는 문서 제목을 한 글자도 바꾸지 말고 그대로 써라.\n" : "",
+  );
+  if (!mustPickFromList) return probe;
+  // 모델이 '목록에서만 골라라'를 무시하고 기억 속 유명 사건(MH370·디아틀로프 등)으로 돌아가는 일이 반복됐다(11/6·11/7 실제 실행).
+  // 코드로 확인해 목록 밖이면 한 번 더 묻고, 그래도 밖이면 목록 첫 후보로 검색어를 바꿔 원문 단계에서 실제 문서로 묶는다.
+  const inList = (p: CaseProbe) => {
+    const terms = [p.title, ...p.searchTerms].map((t) => t.toLowerCase().trim());
+    return freshCandidates.find((c) => terms.includes(c.toLowerCase()));
+  };
+  if (inList(probe)) return probe;
+  console.log(`   ↩︎ 후보 목록 밖 사건(${probe.title}) — 목록 안에서 다시 고르게 함`);
+  const again = await ask(
+    `★방금 '${probe.title}'은 목록 밖이라 버렸다. 반드시 목록의 문서 제목 하나를 골라 searchTerms 첫 항목에 그대로 써라.\n`,
+  );
+  return again;
 }
 
 export async function writeReelPlan(
