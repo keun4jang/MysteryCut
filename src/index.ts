@@ -117,7 +117,7 @@ async function main() {
     // 버린 이유를 같이 넘긴다 — 이유를 모르면 같은 종류(정치·성범죄 사건)를 계속 고른다(10/17 드라이런 6연속 탈락)
     (avoid.rejected ??= []).push(`${probe.title} (${probe.caseKey}) — 버린 이유: ${rejectReason || "기타"}`);
     avoid.titles.push(probe.title);
-    if (tries === 5) break;
+    if (tries === 9) break; // 11/7: 상한을 10회로 올리고 여기는 5에 남겨 둬 실제로는 6회에서 멈췄다(11/7 쇼츠 실패)
     probe = await proposeCase(args.seed, avoid, planOpts);
   }
   // ★루프가 '마지막 시도(tries===3)도 중복'으로 끝난 경우를 반드시 걸러야 한다.
