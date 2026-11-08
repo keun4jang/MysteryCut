@@ -54,15 +54,42 @@ on:
 # 날 서로 다른 소재를 동시에 골라 같은 사건이 두 번 게시되는 레이스를 막는다
 # (11/8: 예전엔 접두사가 달라 실제로는 공유되지 않았다. 사고 시나리오는 post-reel.yml 의 같은 블록 주석 참고).
 # 드라이런은 워크플로별 별도 그룹. 대기열에서 기다리는 동안은 runner 시간·timeout 을 쓰지 않는다.
-concurrency:
-  group: ${{ github.event.inputs.dry_run == 'true' && format('dryrun-{0}', github.workflow) || 'mystery-cut-publish' }}
-  cancel-in-progress: false
+# 11/8: 그룹은 아래 게시 잡에만 건다(대기 잡은 그룹 밖) — 대기(sleep)가 그룹을 붙잡으면 토요일에 다른 워크플로가 몇 시간 밀린다.
 
 permissions:
   contents: write
 
 jobs:
+  # 게시 시각까지 기다리는 잡(스케줄 실행만). 게시 그룹 밖에서 기다리므로 쇼츠·롱폼이 서로 대기열을 막지 않는다.
+  wait:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 250
+    steps:
+      # 게시 시각을 매번 다르게, 한국 시간 저녁 창 안으로(11/3 사장님: "업로드 시간은 항상 달라야 해", 창은 17~23시 KST).
+      # GitHub 스케줄은 정시 혼잡으로 3~7시간씩 늦게 시작한다(10월 실측: 19시 예약 → 22:24~02:28 KST 게시). 그래서 일찍 깨우고,
+      # 그날의 목표 시각(렌더 1시간 남짓 감안해 시작 17:00~21:20 KST)을 무작위로 뽑아 그때까지 기다린다. 이미 지났으면 바로 진행. 수동 실행은 대기 없음.
+      - name: 게시 시각 맞추기 (스케줄 실행만)
+        run: |
+          DAY0=$(date -u -d 'today 00:00' +%s)
+          TARGET=$(( DAY0 + (480 + (RANDOM * 32768 + RANDOM) % (740 - 480 + 1)) * 60 ))
+          NOW=$(date -u +%s)
+          WAIT=$(( TARGET - NOW ))
+          [ "$WAIT" -gt 13800 ] && WAIT=13800
+          if [ "$WAIT" -gt 0 ]; then
+            echo "목표 시작 $(TZ=Asia/Seoul date -d @$TARGET '+%H:%M') KST — $((WAIT/60))분 대기"
+            sleep $WAIT
+          else
+            echo "목표 시각($(TZ=Asia/Seoul date -d @$TARGET '+%H:%M') KST)이 이미 지나 바로 진행"
+          fi
+
   longform:
+    needs: wait
+    # 대기 잡이 성공했거나(스케줄) 건너뛰어졌을 때(수동·드라이런) 진행
+    if: ${{ !cancelled() && needs.wait.result != 'failure' }}
+    concurrency:
+      group: ${{ github.event.inputs.dry_run == 'true' && format('dryrun-{0}', github.workflow) || 'mystery-cut-publish' }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     # 가로 영상은 렌더가 오래 걸린다(러닝타임의 3~4배 — 몰아보기 전환 전후 동일한
     # 배율). 몰아보기 5사건 드라이런 실측(2026-09-13): 사건 생성 16분 + 렌더 91분
@@ -101,23 +128,6 @@ jobs:
           echo "시스템 라이브러리 설치 완료"
           ffmpeg -version | head -1
 
-      # 게시 시각을 매번 다르게, 한국 시간 저녁 창 안으로(11/3 사장님: "업로드 시간은 항상 달라야 해", 창은 17~23시 KST).
-      # GitHub 스케줄은 정시 혼잡으로 3~7시간씩 늦게 시작한다(10월 실측: 19시 예약 → 22:24~02:28 KST 게시). 그래서 일찍 깨우고,
-      # 그날의 목표 시각(렌더 1시간 남짓 감안해 시작 17:00~21:20 KST)을 무작위로 뽑아 그때까지 기다린다. 이미 지났으면 바로 진행. 수동 실행은 대기 없음.
-      - name: 게시 시각 맞추기 (스케줄 실행만)
-        if: github.event_name == 'schedule'
-        run: |
-          DAY0=$(date -u -d 'today 00:00' +%s)
-          TARGET=$(( DAY0 + (480 + (RANDOM * 32768 + RANDOM) % (740 - 480 + 1)) * 60 ))
-          NOW=$(date -u +%s)
-          WAIT=$(( TARGET - NOW ))
-          [ "$WAIT" -gt 13800 ] && WAIT=13800
-          if [ "$WAIT" -gt 0 ]; then
-            echo "목표 시작 $(TZ=Asia/Seoul date -d @$TARGET '+%H:%M') KST — $((WAIT/60))분 대기"
-            sleep $WAIT
-          else
-            echo "목표 시각($(TZ=Asia/Seoul date -d @$TARGET '+%H:%M') KST)이 이미 지나 바로 진행"
-          fi
 
       - name: Install dependencies
         run: npm ci
