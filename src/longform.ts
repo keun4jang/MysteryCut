@@ -383,17 +383,9 @@ async function runCompilation(ctx: {
     .join("\n\n");
   const titleBefore = meta.title;
   await verifyFacts(
-    [
-      { id: "title", text: meta.title, apply: (f) => { meta.title = f; } },
-      { id: "thumb", text: meta.thumbTitle, apply: (f) => { meta.thumbTitle = f; }, maxLen: 16 },
-      ...meta.teaser.map((t, i) => ({
-        id: `teaser${i + 1}/en`,
-        text: t.text,
-        apply: (f: string, en?: string) => { t.text = f; if (en) t.textEn = en; },
-      })),
-    ],
-    `[이번 영상에 실제로 들어간 사건 목록 — 제목·썸네일·예고는 이 모두에 맞아야 한다]\n${caseList}`,
-    "몰아보기 종합 제목·예고",
+    [{ id: "title", text: meta.title, apply: (f) => { meta.title = f; } }],
+    `[이번 영상에 실제로 들어간 사건 목록 — 제목은 이 모두에 맞아야 한다]\n${caseList}`,
+    "몰아보기 종합 제목",
   );
   if (meta.title !== titleBefore) meta.titleEn = ""; // 교정된 제목과 영어 제목이 어긋나지 않게
   console.log(`   💡 ${meta.title} [제목 검사 ${checkTitle(meta.title, recentTitles).ok ? "통과" : "미통과"}]`);
@@ -689,7 +681,7 @@ async function produceOneCase(opts: {
   // 원고를 원문과 한 줄씩 대조해 틀린 사실을 고친다. 고친 뒤에도 남거나 검증 자체를 못 하면 이 사건은 버린다.
   const factItems: FactItem[] = [
     { id: "title", text: script.title, apply: (f) => { script.title = f; } },
-    { id: "thumb", text: script.thumbTitle, apply: (f) => { script.thumbTitle = f; }, maxLen: 16 },
+    { id: "thumb", text: script.thumbTitle, apply: (f) => { script.thumbTitle = f; } },
     { id: "question", text: script.centralQuestion, apply: (f) => { script.centralQuestion = f; } },
   ];
   script.chapters.forEach((ch, c) => {
@@ -800,10 +792,3 @@ main().catch((err) => {
   console.error("롱폼 파이프라인 실패:", err);
   process.exit(1);
 });
-
-/** 롱폼 썸네일 문구 규격 — 360px 폭에서 읽히려면 2줄 이내, 줄당 9자 이내 */
-function validCompilationThumb(t: string | undefined): t is string {
-  if (!t?.trim()) return false;
-  const lines = t.trim().split("\n");
-  return lines.length <= 2 && lines.every((l) => l.trim().length >= 2 && l.trim().length <= 9);
-}

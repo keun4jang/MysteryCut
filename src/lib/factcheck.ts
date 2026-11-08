@@ -16,8 +16,6 @@ export interface FactItem {
   text: string;
   /** 고친 문장을 반영한다(영어 번역이 딸린 줄은 fixEn 도 받는다) */
   apply: (fix: string, fixEn?: string) => void;
-  /** 형식 제약(예: 썸네일 문구 최대 글자수) — 고친 문장이 넘으면 반영하지 않고 실패로 둔다 */
-  maxLen?: number;
 }
 
 const FactCheckSchema = z.object({
@@ -32,7 +30,7 @@ const FactCheckSchema = z.object({
 });
 type FactIssue = z.infer<typeof FactCheckSchema>["issues"][number];
 
-export async function findIssues(items: FactItem[], sourceText: string, caseTitle: string): Promise<FactIssue[] | null> {
+async function findIssues(items: FactItem[], sourceText: string, caseTitle: string): Promise<FactIssue[] | null> {
   try {
     const v = await generateStructured({
       schema: FactCheckSchema,
@@ -51,7 +49,7 @@ export async function findIssues(items: FactItem[], sourceText: string, caseTitl
         "영어 번역이 딸린 줄([…/en] 표시)은 fixEn 에 고친 문장의 영어 번역도 써라. 문제없는 줄은 issues 에 넣지 마라.",
       user:
         `[사건] ${caseTitle}\n\n[원문]\n${sourceText}\n\n[원고]\n` +
-        items.map((it) => `[${it.id}]${it.maxLen ? ` (짧은 문구: 고칠 때도 ${it.maxLen}자 이내, 같은 형식)` : ""} ${it.text}`).join("\n") +
+        items.map((it) => `[${it.id}] ${it.text}`).join("\n") +
         "\n\n{issues: [{id, problem(한 문장, 원문 근거), fix, fixEn(영어 번역이 딸린 줄만)}]} 로 답하라. 문제가 없으면 issues 는 빈 배열.",
       temperature: 0,
       maxRetries: 2,
@@ -85,11 +83,6 @@ export async function verifyFacts(
   const byId = new Map(items.map((it) => [it.id, it]));
   for (const issue of first) {
     const it = byId.get(issue.id)!;
-    if (it.maxLen && issue.fix.replace(/\s+/g, "").length > it.maxLen) {
-      // 짧은 문구(썸네일 등)를 설명 문장으로 바꿔 버리는 교정은 반영하지 않는다(10/31 드라이런: 썸네일이 한 문장 설명이 됨)
-      console.log(`  ⚠️ 사실 교정 보류 [${issue.id}] 고친 문구가 ${it.maxLen}자를 넘음: "${issue.fix}"`);
-      continue;
-    }
     // 교정문이 연령제한 낱말을 되살리면 다시 중립화한다(10/31 드라이런: 중립화한 '의문의 죽음'을 사실 교정이 '자살'로 되돌림)
     const soft = (t?: string) => (t && findSensitiveTerms([t]).length ? softenText(t) : t);
     const fix = soft(issue.fix)!;

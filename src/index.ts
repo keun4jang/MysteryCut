@@ -3,7 +3,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "./config.js";
-import { writeReelPlan, proposeCase, designPackaging } from "./assistants/producer.js";
+import { writeReelPlan, proposeCase } from "./assistants/producer.js";
 import { gatherSources, sourcesCitation, warmStoryControversy, politicalControversy, sameCaseInHistory, isNonCaseTitle, isSexCrimeCase, confirmCaseIdentity, type SourceDoc } from "./lib/sources.js";
 import { narrate } from "./assistants/narrator.js";
 import { attachBroll } from "./assistants/broll.js";
@@ -17,7 +17,7 @@ import {
   appendPost,
 } from "./assistants/history.js";
 import { pickStylePack, isWarmStoryDay, isWarmAngle } from "./lib/variety.js";
-import { verifyFacts, findIssues, type FactItem } from "./lib/factcheck.js";
+import { verifyFacts, type FactItem } from "./lib/factcheck.js";
 import { reviewDesign } from "./assistants/artDirector.js";
 import { deriveGrade, gradeColors } from "./lib/grade.js";
 import { totalDurationInFrames } from "./remotion/timing.js";
@@ -142,39 +142,11 @@ async function main() {
 
   // ② 확정된 사건 + 원문에 근거해 대본·캡션 생성
   console.log("②~③ 대본·캡션 생성...");
-  // 미스터비스트식 '패키징 먼저' — 제목·썸네일을 먼저 정하고 대본이 그 약속을 첫 컷에서 지키게 한다
-  const packaging = await designPackaging(
-    probe,
-    sources.map((d) => d.extract).join("\n"),
-    isWarmAngle(pack.topicAngle),
-  );
-  const planWith = (extraFeedback?: string) =>
-    writeReelPlan(args.seed, avoid, {
-      ...planOpts,
-      forcedCase: probe,
-      sources,
-      ...(packaging ? { packaging } : {}),
-      ...(extraFeedback ? { extraFeedback } : {}),
-    });
-  let plan = await planWith();
-  const sourceText = sources.map((d) => `[${d.title}]\n${d.extract}`).join("\n\n");
-  // 원문에 없는 내용이 많으면(4줄 이상) 줄마다 땜질하지 않고 지적을 붙여 한 번 다시 쓴다 — 10/31 드라이런: 9줄을 땜질하자
-  // '여러 이야기가 전해진다' 같은 빈 문장만 남고 흐름이 무너졌다.
-  {
-    const pre = await findIssues(
-      plan.script.segments.map((seg, i) => ({ id: `s${i + 1}`, text: seg.text, apply: () => {} })),
-      sourceText,
-      probe.title,
-    );
-    if (pre && pre.length >= 4) {
-      console.log(`   ⚠️ 원문에 없는 내용 ${pre.length}줄 — 지적을 붙여 대본을 다시 씀`);
-      plan = await planWith(
-        "\n\n★직전 원고에서 원문에 없거나 원문과 다른 내용이 나왔다. 아래 내용은 쓰지 말고, 원문에 있는 사실로만 다시 써라. 분량이 모자라면 원문의 다른 사실을 더 파라:\n" +
-          pre.map((i) => `- ${i.problem}`).join("\n"),
-      );
-    }
-  }
-  const { idea, script, metadata } = plan;
+  const { idea, script, metadata } = await writeReelPlan(args.seed, avoid, {
+    ...planOpts,
+    forcedCase: probe,
+    sources,
+  });
 
   // 수집한 원문을 설명란 참고자료로 (유튜브에만 노출)
   if (sources.length) metadata.sourcesCitation = sourcesCitation(sources);
@@ -183,7 +155,7 @@ async function main() {
   // 고친 뒤에도 틀린 줄이 남으면 그날은 게시하지 않는다.
   const factItems: FactItem[] = [
     { id: "title", text: idea.title, apply: (f) => { idea.title = f; script.title = f; } },
-    { id: "thumb", text: idea.thumbTitle, apply: (f) => { idea.thumbTitle = f; }, maxLen: 16 },
+    { id: "thumb", text: idea.thumbTitle, apply: (f) => { idea.thumbTitle = f; } },
     { id: "hook", text: idea.hook, apply: (f) => { idea.hook = f; } },
     { id: "caption/en", text: metadata.caption, apply: (f, en) => { metadata.caption = f; if (en) metadata.captionEn = en; } },
     ...script.segments.map((seg, i): FactItem => ({
@@ -192,6 +164,7 @@ async function main() {
       apply: (f, en) => { seg.text = f; if (en) seg.textEn = en; },
     })),
   ];
+  const sourceText = sources.map((d) => `[${d.title}]\n${d.extract}`).join("\n\n");
   if (!(await verifyFacts(factItems, sourceText, probe.title))) {
     throw new Error(`원고 사실 검증 실패 — 교정 후에도 원문과 어긋난 줄이 남음(${idea.caseKey}). 틀린 내용을 내보내지 않으려고 중단합니다.`);
   }

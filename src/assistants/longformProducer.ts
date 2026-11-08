@@ -626,10 +626,6 @@ function sanitize(s: LongformScript): void {
 /** 몰아보기(여러 사건 모음) 롱폼의 종합 메타데이터 */
 const CompilationMetaSchema = z.object({
   title: z.string(),
-  /** 회차 주제로 지은 썸네일 문구 — 4~8자 × 최대 2줄 */
-  thumbTitle: z.string(),
-  /** 첫 사건 전 콜드 오픈 예고 3~5줄(한국어+영어) */
-  teaser: z.array(z.object({ text: z.string(), textEn: z.string() })),
   description: z.string(),
   tags: z.array(z.string()),
   /** 영어 제목·설명(localizations.en — 11/8) */
