@@ -171,7 +171,7 @@ export function longformChapterTimestamps(
     const len = g.chapters.reduce((n, c) => n + longformChapterFrames(c, fps), 0) / fps;
     if (!g.chapters.length) continue;
     if (rows.length && len < 10) rows[rows.length - 1].len += len;
-    else rows.push({ label: g.label.replace(/\s+/g, " ").trim(), start: t, len });
+    else rows.push({ label: g.label.replace(/#/g, "").replace(/\s+/g, " ").trim(), start: t, len }); // 설명란 해시태그는 끝의 3개만
     t += len;
   }
   // 첫 줄이 10초 미만이면 다음 줄을 0:00 으로 당긴다
