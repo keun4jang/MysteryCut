@@ -412,6 +412,10 @@ thumbTitle 규칙을 다시 읽고 고쳐라. 대본 내용은 그대로 둬도 
     }
   }
 
+  // 단일 사건은 한 번에 2,000~2,500자밖에 안 나온다(11/8 드라이런: 5,000자 목표에 2,453자 → 6분 18초).
+  // 원문에 아직 안 쓴 사실로 챕터를 덧붙여 목표 분량까지 늘린다(최대 2회, 덧붙인 게 적으면 멈춤).
+  if (single && totalChars(best!) < minChars) await extendSingle(best!, system, idealChars, minChars, maxChars);
+
   applyVisualGates(best!, opts.sources, opts.forcedCase.title);
   const leftover = findSensitiveTerms(collectTexts(best!));
   if (leftover.length) {
@@ -419,6 +423,46 @@ thumbTitle 규칙을 다시 읽고 고쳐라. 대본 내용은 그대로 둬도 
     console.warn(`   ⚠️ 재생성에도 위험 표현 잔존(${leftover.join(", ")}) — 자동 중립화`);
   }
   return best!;
+}
+
+const ExtensionSchema = z.object({ chapters: LongformScriptSchema.shape.chapters });
+
+/** 단일 사건 대본 분량 늘리기 — 분석 챕터(뒤 3개) 앞에 원문의 새 사실로 된 챕터를 끼운다. */
+async function extendSingle(script: LongformScript, system: string, idealChars: number, minChars: number, maxChars: number) {
+  for (let round = 0; round < 2 && totalChars(script) < minChars; round++) {
+    const before = totalChars(script);
+    const need = Math.min(idealChars, maxChars) - before;
+    const written = script.chapters
+      .map((c, i) => `[${i + 1}] ${c.heading}\n` + c.segments.map((g) => `- ${g.text}`).join("\n"))
+      .join("\n");
+    try {
+      const ext = (await generateStructured({
+        schema: ExtensionSchema,
+        system,
+        user:
+          `아래는 이미 쓴 대본이다. 이 대본의 '증거'와 '가설' 사이에 끼울 **새 챕터**를 약 ${need}자(챕터 ${Math.max(2, Math.round(need / 450))}개 안팎, 한 컷 38~44자)로 써라.\n` +
+          "- 원문에 있지만 아래 대본에 아직 없는 사실만 쓴다: 추가 증거, 추가 인물의 진술, 다른 시간대, 반박, 다른 가설.\n" +
+          "- 이미 쓴 문장·사실을 다시 말하지 마라. 원문에 더 쓸 사실이 없으면 짧게 끝내라(지어내지 마라).\n" +
+          "- frame question 은 쓰지 마라. 콜드 오픈·인사·결론·시청자 질문도 쓰지 마라(앞뒤에 이미 있다).\n" +
+          '- 출력은 {"chapters":[...]} 하나.\n\n[이미 쓴 대본]\n' + written,
+        temperature: 0.8,
+        maxRetries: 1,
+      })) as { chapters: LongformScript["chapters"] };
+      const add = (ext.chapters ?? []).filter((c) => c.segments?.length);
+      for (const c of add) for (const g of c.segments) if (g.frame?.kind === "question") delete g.frame;
+      const at = Math.max(1, script.chapters.length - 3);
+      script.chapters.splice(at, 0, ...add);
+      sanitize(script);
+      // 덧붙인 뒤 상한을 넘으면 마지막으로 끼운 챕터부터 뺀다
+      while (totalChars(script) > maxChars && add.length) script.chapters.splice(script.chapters.indexOf(add.pop()!), 1);
+      const gained = totalChars(script) - before;
+      console.log(`   ➕ 대본 늘리기 ${round + 1}회: 챕터 ${add.length}개 · +${gained}자 → ${totalChars(script)}자`);
+      if (gained < 300) break;
+    } catch (e) {
+      console.warn(`   ⚠️ 대본 늘리기 실패(있는 분량으로 진행): ${e instanceof Error ? e.message : e}`);
+      break;
+    }
+  }
 }
 
 /** 썸네일 문구에서 걸러야 하는 낚시 상투어 — 45세 이상 시청자에게는 역효과다 */
