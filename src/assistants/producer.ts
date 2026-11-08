@@ -71,6 +71,8 @@ export interface PlanOptions {
   signoffStyle?: string;
   /** 버라이어티 팩이 고른 제목 구조 (같은 접미사 반복 방지) */
   titleStyle?: string;
+  /** 몰아보기 테마(11/8, variety.ts COMPILATION_THEMES 의 seedHint) — 있으면 이 테마에 맞는 사건만 */
+  theme?: string;
   /** 1단계에서 확정된 사건 — 있으면 모델은 이 사건으로만 써야 한다 */
   forcedCase?: CaseProbe;
   /** 위키백과에서 받아온 사건 원문 — 대본의 사실은 여기서만 나와야 한다 */
@@ -144,6 +146,7 @@ export async function proposeCase(
     "",
     `[★이번 회차 소재 각도] ${opts?.topicAngle ?? "자유"}`,
     `[★이번 회차 지역] ${opts?.regionAngle ?? "자유"}`,
+    opts?.theme ? `[★★이번 영상 테마 — 반드시 이 테마에 맞는 사건만] ${opts.theme}` : "",
     "",
     "[안전] 실존 생존 인물의 명예를 훼손할 수 있는 최근 사건(대략 5년 이내), 신원이 특정되는 사적 개인 사건은 고르지 마라. 정치인·민주화 인사의 의문사(국가기관 개입 의혹), 진영이 지금도 다투는 사건, 5·18처럼 왜곡을 법으로 처벌하는 사건, 성범죄가 중심인 사건(연쇄 성폭행·강간살인·아동 성범죄 — 화성 연쇄살인 등)도 고르지 마라.",
     avoid && (avoid.caseKeys.length || avoid.titles.length)
