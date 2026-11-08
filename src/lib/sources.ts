@@ -327,7 +327,11 @@ export async function politicalControversy(
         "(2) 진상·책임을 두고 정당·진영이 지금도 다투는 사건(국가 재난·군 사건 포함), " +
         "단 경찰 부실·강압 수사나 누명이 재심·판결로 이미 바로잡힌 사건(예: 약촌오거리 사건)은 진영 다툼이 아니므로 (2)에 해당하지 않는다(이 예외는 (2)에만 적용되고, 정치인·정당 지도자·민주화 인사가 당사자면 재심 무죄여도 (1)에 해당한다 — 예: 조봉암·진보당 사건). " +
         "(3) 왜곡·허위 사실 유포를 법으로 처벌하는 사건(5·18 민주화운동 등), (4) 현직·생존 정치인이 당사자인 사건, " +
-        "(6) 어린이·유아가 살해된 사건, 시신 훼손·식인·시간(屍姦) 등 극도로 잔혹한 사건(11/6 미야자키 쓰토무 사건이 후보로 뽑힘), " +
+        "(6) 어린이·유아가 살해·유괴·납치되거나 실종된 사건(예: 매들린 매캔 실종, 상자 속 소년), 시신 훼손·식인·시간(屍姦) 등 극도로 잔혹한 사건(11/6 미야자키 쓰토무 사건이 후보로 뽑힘), " +
+        // 11/8: 장르 밖 소재·생존 유명인 소재가 롱폼에 들어갔다(심야괴담회·괴담 레스토랑·7대 난제·동남 방언·차예련·김광석) — 같은 호출에서 함께 판정(Gemini 호출 수 그대로)
+        "(7) 특정한 실제 역사적 사건·사고·현상·인물의 기록이 아닌 것 — 책·영화·드라마·방송 프로그램·애니메이션·게임 같은 작품, 목록, '도시 전설'·'미제 사건'·'오판' 같은 일반 개념, 수학·과학 난제, 언어·방언, " +
+        "(8) 살아 있는 연예인·가수·배우·방송인·스포츠 스타가 중심인 소재, 유명인의 죽음을 둘러싸고 유족·관계자가 지금도 다투는 소재(예: 김광석 사망 의혹), 생존한 일반인의 사생활(채무·가족·연애·이혼)이 중심인 소재(예: 연예계 가족 채무 논란). " +
+        "단 수십 년 전 실종·사고처럼 기록으로 남은 사건에 생존한 관계자가 있는 것만으로는 (8)에 해당하지 않는다. " +
         "(5) 성범죄가 사건의 중심인 사건(연쇄 성폭행·강간살인·아동 성범죄 등 — 피해자 2차 가해 소지가 커서 다루지 않는다, 10/17 사장님 결정). " +
         "★(5)는 다른 어떤 예외보다 우선한다 — 누명·조작·재심으로 바로잡힌 사건이라도 성범죄가 중심이면 controversial=true. " +
         "수백 년 전 왕실 의문사 같은 역사 논쟁, 정치와 무관한 미제 사건은 해당하지 않는다.",
@@ -338,7 +342,7 @@ export async function politicalControversy(
       temperature: 0,
       maxRetries: 2,
     });
-    console.log(`  ${v.controversial ? "↩︎" : "✅"} 정치·성범죄 소재 확인: ${v.controversial ? "논란 있음" : "문제없음"} — ${v.reason}`);
+    console.log(`  ${v.controversial ? "↩︎" : "✅"} 소재 안전 확인(정치·성범죄·아동·장르·생존 유명인): ${v.controversial ? "쓰지 않음" : "문제없음"} — ${v.reason}`);
     return v.controversial ? v.reason : null;
   } catch (e) {
     // 확인 못 한 소재는 쓰지 않는다. 11/6 실제 실행: 미야자키 쓰토무(아동 연쇄 살해·시신 훼손) 원문을 Gemini 가
@@ -359,6 +363,8 @@ const SameCaseSchema = z.object({ matchIndex: z.number().int(), reason: z.string
 export async function sameCaseInHistory(
   caseInfo: { title: string; premise: string; caseKey: string },
   posts: Array<{ title: string; caseKey: string }>,
+  /** 롱폼: 확인 실패 시 막는다(11/8 — 게이트는 실패하면 닫는다). 쇼츠는 예전대로 통과 */
+  opts?: { failClosed?: boolean },
 ): Promise<string | null> {
   if (!posts.length) return null;
   try {
@@ -379,6 +385,10 @@ export async function sameCaseInHistory(
     console.log(`  ${hit ? "♻️" : "✅"} 이력 대조(AI): ${hit ? `이미 게시함 — ${hit.title}` : "새 사건"} — ${v.reason}`);
     return hit ? hit.title : null;
   } catch (e) {
+    if (opts?.failClosed) {
+      console.warn(`  ⚠️ 이력 대조(AI) 실패 — 이 후보를 쓰지 않음: ${e instanceof Error ? e.message : e}`);
+      return "이력 대조 실패";
+    }
     console.warn(`  ⚠️ 이력 대조(AI) 실패(통과 처리): ${e instanceof Error ? e.message : e}`);
     return null;
   }
@@ -485,8 +495,11 @@ function looksLikeIndexPage(title: string): boolean {
  * 10/21 롱폼 후보에 'Unsolved Mysteries season 16'·'Lists of problems'·'실종자 목록'·애니메이션이 섞여
  * 슬롯 하나를 통째로 날렸다. 발굴 후보와 모델이 고른 후보 양쪽에 쓴다.
  */
-export function isNonCaseTitle(title: string): boolean {
+export function isNonCaseTitle(title: string, caseKey?: string): boolean {
   return (
+    // 11/8: 방송·작품·개념·학문 문서가 사건으로 뚫렸다(10/23 심야괴담회·넷플릭스 시리즈, 10/26 괴담 레스토랑·7대 난제, 11/2 동남 방언)
+    /방송 프로그램|텔레비전 프로그램|드라마 시리즈|예능|넷플릭스|애니메이션|괴담회|레스토랑|난제|방언|miscarriage of justice|cold case|urban legend/i.test(title) ||
+    (!!caseKey && isNonCaseKey(caseKey)) ||
     /^(lists? of|index of|outline of|timeline of|glossary of|category:)/i.test(title) ||
     /(목록|일람|연표)$/.test(title.trim()) ||
     /\b(season|series)\s*\d+|\bepisodes?\b|\((tv series|tv program|film|novel|book|album|song|anime|manga|video game|miniseries|documentary|web series)\)/i.test(title) ||
@@ -498,15 +511,48 @@ export function isNonCaseTitle(title: string): boolean {
 }
 
 /**
+ * caseKey 가 사건이 아니라 일반 개념·목록·작품을 가리키는지(11/8 — cold-case·urban-legend·miscarriage-of-justice·
+ * lists-of-problems·unsolved-mysteries-season-15·school-ghost-stories-anime 가 이력에 들어갔다).
+ * 'cold-case-hammarskjold-1961' 처럼 사건명이 붙은 키는 막지 않는다 — 키 전체가 일반어일 때만.
+ */
+const GENERIC_CASE_KEYS = new Set([
+  "cold-case", "cold-cases", "urban-legend", "urban-legends", "miscarriage-of-justice", "wrongful-conviction",
+  "unsolved-mysteries", "unsolved-murders", "unsolved", "mystery", "mysteries", "ghost-story", "ghost-stories",
+  "disappearance", "missing-person", "missing-persons", "conspiracy-theory", "conspiracy-theories",
+]);
+export function isNonCaseKey(caseKey: string): boolean {
+  const k = caseKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return (
+    GENERIC_CASE_KEYS.has(k) ||
+    /^(lists?|index|outline|timeline|glossary|category)-of(-|$)/.test(k) ||
+    /(^|-)season-\d+(-|$)|(^|-)(anime|manga|tv-series|novel|netflix)(-|$)|disambiguation/.test(k)
+  );
+}
+
+/**
  * 성범죄가 중심인 사건인지 낱말로 먼저 거른다(AI 판정 전에 코드로).
  * 10/31 실제 쇼츠: '춘천 강간살인 조작 사건'이 AI 판정에서 '재심으로 바로잡힌 사건이라 진영 다툼 아님'을 이유로 통과했다
  * — (5) 성범죄 조항을 (2) 예외가 덮어 버렸다. 제목·개요에 이런 낱말이 있으면 판정과 무관하게 버린다.
  */
-export function isSexCrimeCase(title: string, premise = ""): boolean {
-  const t = `${title}\n${premise}`;
+export function isSexCrimeCase(title: string, premise = "", caseKey = ""): boolean {
+  const t = `${title}\n${premise}\n${caseKey.replace(/-/g, " ")}`;
   // 아동 피해 살인·극도로 잔혹한 사건도 같은 이유(피해자 2차 가해·연령제한)로 코드에서 먼저 거른다(11/6)
   if (/(유아|아동|어린이|소녀|소년|여아|남아)[^\n]{0,8}(유괴|살인|살해)|연속\s*유괴|시신\s*훼손|식인|시간\s*범|child\s*(murder|killer|abduction)|cannibal|necrophil/i.test(t)) return true;
-  return /강간|성폭행|성폭력|성추행|성범죄|추행|윤간|성매매|아동\s*성|rape|sexual\s*(assault|abuse|violence)|molest|pedophil/i.test(`${title}\n${premise}`);
+  // 11/8: 아동 시신·아동 실종·유괴(상자 속 소년 10/12, 매들린 매캔 11/4)와 화성 연쇄살인(이춘재 10/16)이 낱말 검사를 빠져나갔다
+  if (
+    /(?<![가-힣])(유아|아동|어린이|소녀|소년|여아|아기)[^\n]{0,8}(시신|유골|사체)|(?<![가-힣])(유아|아동|어린이|아이|아기|여아)(?:가|를|이|의|들)?(?![가-힣])[^\n]{0,6}(실종|유괴|납치)|(\d{1,2}|한|두|세|네|다섯|여섯|일곱)\s*살\s*(아이|아기|여아|소녀|소년)[^\n]{0,15}(사라|실종|유괴|납치)|(사라진|실종된|유괴된|납치된)\s*(\d{1,2}\s*살\s*|(한|두|세|네|다섯)\s*살\s*)?(아이|아기|여아|어린이)(?![가-힣]{2})/.test(t)
+  ) return true;
+  if (/화성\s*연쇄|이춘재|lee choon jae|hwaseong serial|(\d+|여러|수십)\s*명의\s*(여성|부녀자|여자)[^\n]{0,10}(해친|살해|살인)/i.test(t)) return true;
+  return /강간|성폭행|성폭력|성추행|성범죄|추행|윤간|성매매|아동\s*성|rape|sexual\s*(assault|abuse|violence)|molest|pedophil/i.test(t);
+}
+
+/**
+ * 제목의 'YYYY년'이 수집한 원문에 없으면 그 연도들을 돌려준다(코드 검사, LLM 없음).
+ * 9/30 수에즈 키에 '1815년' 제목, 10/21 버클랜드 키에 '1869년' 제목 — 제목 연도가 원문과 어긋난 채 게시됐다.
+ */
+export function yearsMissingFromSource(title: string, sourceText: string): string[] {
+  const years = [...title.matchAll(/(1\d{3}|20\d\d)\s*년(?!대)/g)].map((m) => m[1]);
+  return [...new Set(years)].filter((y) => !sourceText.includes(y));
 }
 
 const CaseIdentitySchema = z.object({ same: z.boolean(), caseKey: z.string(), caseName: z.string() });

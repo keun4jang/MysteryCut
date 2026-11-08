@@ -26,6 +26,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { mergePosts } from "./historyMerge.mjs";
 
 const [branch, message] = process.argv.slice(2);
 if (!branch || !message) {
@@ -43,11 +44,14 @@ const STATE_FILES = [
   "data/igGraphVersion.txt",
   "data/latestLongform.json",
   "data/longformPlaylist.json",
+  "data/longformTitles.json", // 11/8 롱폼 최근 제목(제목 유사도 검사용)
+  "data/longformConfig.json", // 11/8 수요일 롱폼 형식(single/compilation)
 ];
 
 interface Post {
   caseKey: string;
   at: string;
+  format?: string;
   [k: string]: unknown;
 }
 /**
@@ -123,10 +127,9 @@ for (let attempt = 1; attempt <= 5 && !done; attempt++) {
     git("reset", "--hard", `origin/${branch}`);
 
     // 이력 합집합: 원격에 이미 있는 항목 + 이번 실행 항목 중 원격에 없는 것.
-    // 식별자는 caseKey+날짜 — 같은 사건을 같은 날 두 번 넣는 일은 없다.
+    // 식별자는 caseKey+날짜+형식(historyMerge.mts) — 같은 날 같은 사건의 쇼츠·롱폼은 둘 다 남긴다.
     const remotePosts = readPosts(HISTORY);
-    const seen = new Set(remotePosts.map((p) => `${p.caseKey} ${p.at}`));
-    const merged = [...remotePosts, ...localPosts.filter((p) => !seen.has(`${p.caseKey} ${p.at}`))];
+    const merged = mergePosts(remotePosts, localPosts);
     fs.mkdirSync(path.dirname(HISTORY), { recursive: true });
     fs.writeFileSync(HISTORY, `${JSON.stringify({ posts: merged }, null, 2)}\n`, "utf8");
 

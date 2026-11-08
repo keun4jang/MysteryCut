@@ -350,3 +350,115 @@ export function pickStylePack(opts?: { warm?: boolean }): StylePack {
     regionAngle: weightedPick(warm ? WARM_REGION_ANGLES : REGION_ANGLES),
   };
 }
+
+// ── 롱폼 변주(11/8) ─────────────────────────────────────────────────────
+
+/** 문자열 시드 → 0~1 난수열(같은 시드면 같은 선택 — 재실행해도 회차 구성이 흔들리지 않게) */
+export function seededRandom(seed: string): () => number {
+  let h = 1779033703 ^ seed.length;
+  for (let i = 0; i < seed.length; i++) {
+    h = Math.imul(h ^ seed.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  let a = h >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export const seededPick = <T>(arr: readonly T[], seed: string): T => arr[Math.floor(seededRandom(seed)() * arr.length)];
+
+/** 사건별 지역 각도만 따로 — 몰아보기는 스타일 팩을 회차당 한 번 뽑고 지역만 사건마다 바꾼다 */
+export function pickRegionAngle(): string {
+  return weightedPick(REGION_ANGLES);
+}
+
+/**
+ * 토요일 몰아보기 테마 — 한 회차 = 한 테마(11/8). '기록으로 남은 미스터리 N가지'식 잡탕은 회차가 갈수록
+ * 시청시간이 123→0분으로 줄었고, 실종 테마 두 편만 327·256분(중앙값 72분)을 벌었다.
+ */
+export interface CompilationTheme {
+  id: string;
+  /** 제목·배지·해시태그에 쓰는 이름 */
+  label: string;
+  /** proposeCase 에 넘기는 소재 지시 */
+  seedHint: string;
+  /** 썸네일 배지(4~8자) */
+  badge: string;
+}
+
+export const COMPILATION_THEMES: CompilationTheme[] = [
+  {
+    id: "vanished-people",
+    label: "사라진 사람들",
+    seedHint: "테마: '사라진 사람들' — 기록으로 남은 실제 실종 사건(성인). 아동 실종·유괴는 고르지 마라.",
+    badge: "사라진 사람들",
+  },
+  {
+    id: "lost-at-sea-sky",
+    label: "바다와 하늘에서 사라진 것들",
+    seedHint: "테마: '바다·하늘에서 사라진 것들' — 실종된 배·비행기·승무원, 유령선처럼 바다나 하늘에서 행방이 끊긴 실제 기록.",
+    badge: "바다의 실종",
+  },
+  {
+    id: "joseon-records",
+    label: "조선의 기이한 기록",
+    seedHint: "테마: '조선의 기이한 기록' — 조선왕조실록 등 조선 시대 문헌에 남은 기이한 사건·현상·인물. 정치 당파 다툼 자체는 피하라.",
+    badge: "조선 기록",
+  },
+  {
+    id: "codes-artifacts",
+    label: "풀리지 않은 암호와 유물",
+    seedHint: "테마: '풀리지 않은 암호·유물' — 해독되지 않은 문서·암호문, 정체가 밝혀지지 않은 유물·비석·지도.",
+    badge: "미해독 기록",
+  },
+  {
+    id: "cryptids",
+    label: "미확인 생물의 기록",
+    seedHint: "테마: '미확인 생물' — 목격 기록이 문서로 남은 미확인 생물·멸종 동물 목격담과 그 검증.",
+    badge: "미확인 생물",
+  },
+  {
+    id: "miracle-survival",
+    label: "기적의 생존 기록",
+    seedHint: "테마: '기적의 생존' — 조난·사고·고립에서 상식 밖으로 살아남은 실제 생존 기록과 그 수수께끼.",
+    badge: "생존 기록",
+  },
+];
+
+/** 최근 2회 몰아보기에 쓴 테마는 건너뛰고 시드(날짜)로 고른다 */
+export function pickCompilationTheme(recentThemeIds: string[], seed: string): CompilationTheme {
+  const recent = new Set(recentThemeIds.slice(-2));
+  const pool = COMPILATION_THEMES.filter((t) => !recent.has(t.id));
+  return seededPick(pool.length ? pool : COMPILATION_THEMES, seed);
+}
+
+/**
+ * 단일 사건 롱폼 제목 구조 — 예전엔 전부 '[연도]+[사물]+[질문]｜[분류]' 한 틀이었다(템플릿 대량생산 신호).
+ * 쇼츠 titleStyle 처럼 회차마다 하나를 고른다.
+ */
+export const LONGFORM_TITLE_STYLES = [
+  "제목 구조: [연도·장소] + [구체적 사물·현상] + [핵심 질문]. 예: '1872년 대서양 한가운데서 발견된 빈 배, 선원들은 어디로 갔나'. 끝에 '｜분류' 꼬리표를 붙이지 마라.",
+  "제목 구조: [기록이 말하는 사실 한 문장], [그런데 남은 의문]. 예: '구명정 하나가 사라졌다, 그런데 아무도 배를 떠난 흔적이 없었다'. 끝에 '｜분류' 꼬리표를 붙이지 마라.",
+  "제목 구조: [사건 고유 명칭] + [이 영상이 따져볼 쟁점]. 예: '메리 셀레스트호 사건, 세 가지 가설을 기록으로 따져보다'. 끝에 '｜분류' 꼬리표를 붙이지 마라.",
+  "제목 구조: [핵심 인물·사물의 역할] + [기록과 어긋나는 점]. 예: '항해일지는 멀쩡했다 — 선장의 마지막 기록이 말해주지 않는 것'. 끝에 '｜분류' 꼬리표를 붙이지 마라.",
+  "제목 구조: [숫자 하나(원문에 있는 것)] + [그 숫자가 만든 수수께끼]. 예: '열흘 치 식량과 물을 남기고 사라진 열 명'. 끝에 '｜분류' 꼬리표를 붙이지 마라.",
+] as const;
+
+export function pickLongformTitleStyle(seed: string): string {
+  return seededPick(LONGFORM_TITLE_STYLES, `title-${seed}`);
+}
+
+/** 몰아보기 사건 전환 멘트(1단계) — 고정 '다음 사건입니다.' 대신 회차·사건마다 다르게 */
+export const CASE_TRANSITIONS: ReadonlyArray<{ text: string; textEn: string }> = [
+  { text: "이번에는 다른 기록으로 넘어가 보겠습니다.", textEn: "Now, let's turn to another record." },
+  { text: "다음 이야기는 전혀 다른 곳에서 시작됩니다.", textEn: "The next story begins somewhere else entirely." },
+  { text: "이제 또 하나의 기록을 펼쳐 보겠습니다.", textEn: "Let's open another record." },
+  { text: "장소와 시대를 바꿔 보겠습니다.", textEn: "Let's change the place and the era." },
+  { text: "여기서 또 다른 사건으로 이어가겠습니다.", textEn: "From here, we move on to another case." },
+  { text: "다음 기록은 이렇게 시작합니다.", textEn: "The next record begins like this." },
+];

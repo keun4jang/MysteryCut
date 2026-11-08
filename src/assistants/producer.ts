@@ -72,10 +72,8 @@ export interface PlanOptions {
   signoffStyle?: string;
   /** 버라이어티 팩이 고른 제목 구조 (같은 접미사 반복 방지) */
   titleStyle?: string;
-  /** 사실 검증에서 나온 지적 — 다시 쓸 때 사용자 메시지 끝에 붙인다 */
-  extraFeedback?: string;
-  /** 패키징 먼저(designPackaging) 결과 — 있으면 제목·썸네일을 고정하고 첫 컷에서 약속을 지키게 한다 */
-  packaging?: Packaging;
+  /** 몰아보기 테마(11/8, variety.ts COMPILATION_THEMES 의 seedHint) — 있으면 이 테마에 맞는 사건만 */
+  theme?: string;
   /** 1단계에서 확정된 사건 — 있으면 모델은 이 사건으로만 써야 한다 */
   forcedCase?: CaseProbe;
   /** 위키백과에서 받아온 사건 원문 — 대본의 사실은 여기서만 나와야 한다 */
@@ -149,6 +147,7 @@ export async function proposeCase(
     "",
     `[★이번 회차 소재 각도] ${opts?.topicAngle ?? "자유"}`,
     `[★이번 회차 지역] ${opts?.regionAngle ?? "자유"}`,
+    opts?.theme ? `[★★이번 영상 테마 — 반드시 이 테마에 맞는 사건만] ${opts.theme}` : "",
     "",
     "[안전] 실존 생존 인물의 명예를 훼손할 수 있는 최근 사건(대략 5년 이내), 신원이 특정되는 사적 개인 사건은 고르지 마라. 정치인·민주화 인사의 의문사(국가기관 개입 의혹), 진영이 지금도 다투는 사건, 5·18처럼 왜곡을 법으로 처벌하는 사건, 성범죄가 중심인 사건(연쇄 성폭행·강간살인·아동 성범죄 — 화성 연쇄살인 등)도 고르지 마라.",
     avoid && (avoid.caseKeys.length || avoid.titles.length)
@@ -198,84 +197,6 @@ export async function proposeCase(
     `★방금 '${probe.title}'은 목록 밖이라 버렸다. 반드시 목록의 문서 제목 하나를 골라 searchTerms 첫 항목에 그대로 써라.\n`,
   );
   return again;
-}
-
-const PackagingSchema = z.object({
-  candidates: z.array(
-    z.object({
-      title: z.string(),
-      thumbTitle: z.string(),
-      promise: z.string(),
-      clarity: z.number(),
-      curiosity: z.number(),
-      truth: z.number(),
-    }),
-  ),
-});
-export interface Packaging {
-  title: string;
-  thumbTitle: string;
-  /** 제목·썸네일이 시청자에게 한 약속 — 첫 1~2 세그먼트에서 바로 보여줘야 할 장면 */
-  promise: string;
-}
-
-/**
- * 미스터비스트식 '패키징 먼저'(10/31 사장님 "미스터비스트의 영상제작 철학을 바탕으로 우리도 제작해줘").
- * 그는 영상보다 제목·썸네일을 먼저 정하고, 클릭 이유가 1초 안에 이해되지 않는 기획은 찍지 않는다.
- * 확정된 사건으로 제목·썸네일 후보 5쌍을 만들어 스스로 채점(한눈에 이해·궁금증·원문 사실성)하고,
- * 원문에 없는 숫자가 들어간 후보는 버린 뒤 최고점을 고른다. 실패하면 null(기존 방식으로 진행).
- */
-export async function designPackaging(forced: CaseProbe, sourceText: string, warm: boolean): Promise<Packaging | null> {
-  try {
-    const v = await generateStructured({
-      schema: PackagingSchema,
-      system: [
-        `너는 ${config.channel.language} 쇼츠 채널의 패키징(제목·썸네일) 담당이다. 영상보다 패키징을 먼저 정한다.`,
-        warm
-          ? "이번 회차는 '감동 실화(선과 악)' 편이다. 공포 대신 놀라움·뭉클함으로 클릭을 만든다."
-          : "채널 톤은 실화 미스터리. 공포를 과장하지 말고 '이게 어떻게 가능해?'라는 궁금증으로 클릭을 만든다.",
-        "후보 5쌍을 만든다. 각 후보:",
-        "- title: 25자 안팎, 사건을 특정할 수 있게, 쉬운 우리말(시청자 87%가 45세 이상).",
-        "- thumbTitle: 6~14자, 필요하면 실제 개행으로 2줄. 물음표·마침표 없이. 이 사건만의 가장 강한 한 장면·모순.",
-        "- promise: 이 패키징을 보고 클릭한 사람이 영상 첫 3초에 '바로 이거'라고 확인할 장면 한 문장.",
-        "- clarity(1~10): 1초 만에 무슨 얘기인지 이해되는가. curiosity(1~10): 안 누르고 못 배기는 궁금증이 생기는가.",
-        "  truth(1~10): 원문 사실 그대로인가(과장·추측을 사실처럼 쓰면 낮게). 숫자는 원문에 그대로 있는 것만.",
-        "원칙: 단순하고 극단적인 한 가지(가장 이상한 한 사실)를 앞세워라. 설명형·나열형·'미스터리' 반복 금지. 낚시(영상이 지키지 못할 약속) 금지.",
-      ].join("\n"),
-      user: `[사건] ${forced.title} (${forced.caseKey})\n[개요] ${forced.premise}\n\n[원문]\n${sourceText.slice(0, 6000)}\n\n{candidates:[{title, thumbTitle, promise, clarity, curiosity, truth}]} 5개로 답하라.`,
-      temperature: 1.0,
-      maxRetries: 1,
-    });
-    const scored = v.candidates
-      .map((c) => ({ ...c, thumbTitle: c.thumbTitle.replace(/\\n/g, "\n").trim(), title: c.title.trim() }))
-      .filter((c) => c.title && c.thumbTitle && c.truth >= 7)
-      .filter((c) => numbersInText(`${c.title}\n${c.thumbTitle}`).every((n) => numberInSource(n, sourceText)))
-      .sort((a, b) => b.clarity + b.curiosity - (a.clarity + a.curiosity));
-    // 자체 채점(truth)은 믿을 수 없다(10/31 드라이런: 사실 10점 후보 '왕이 탄 배가 가라앉았다'가 원문에 없음).
-    // 점수 순으로 최대 3개를 원문과 대조해 어긋남이 없는 첫 후보를 쓴다.
-    let best: (typeof scored)[number] | undefined;
-    for (const c of scored.slice(0, 3)) {
-      const issues = await findIssues(
-        [
-          { id: "title", text: c.title, apply: () => {} },
-          { id: "thumb", text: c.thumbTitle, apply: () => {} },
-        ],
-        sourceText,
-        forced.title,
-      );
-      if (issues === null || !issues.length) {
-        best = c;
-        break;
-      }
-      console.log(`   ↩︎ 패키징 후보 탈락(원문과 어긋남): "${c.thumbTitle.replace(/\n/g, " / ")}" — ${issues[0].problem}`);
-    }
-    if (!best) return null;
-    console.log(`   📦 패키징 먼저: "${best.title}" / 썸네일 "${best.thumbTitle.replace(/\n/g, " / ")}" (이해 ${best.clarity}·궁금증 ${best.curiosity}·사실 ${best.truth}, 후보 ${v.candidates.length}개 중)`);
-    return { title: best.title, thumbTitle: best.thumbTitle, promise: best.promise };
-  } catch (e) {
-    console.warn(`   ⚠️ 패키징 단계 생략(기존 방식으로 진행): ${e instanceof Error ? e.message.slice(0, 150) : e}`);
-    return null;
-  }
 }
 
 export async function writeReelPlan(

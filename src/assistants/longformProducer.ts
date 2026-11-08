@@ -6,6 +6,7 @@ import { numbersInText, numberInSource } from "../lib/visual/gates.js";
 import { normalizeVisuals } from "../lib/visual/normalize.js";
 import { sourcesPromptBlock, type SourceDoc } from "../lib/sources.js";
 import { LongformScriptSchema, type LongformScript } from "../types.js";
+import { BANNED_TITLE_PHRASES, checkTitle } from "../lib/titleGuard.js";
 import type { CaseProbe } from "./producer.js";
 
 /**
@@ -61,7 +62,54 @@ export interface LongformOptions {
    * 한 편에 여러 사건을 담을 때, 사건당 분량을 줄여야 총 러닝타임이 적당해진다.
    */
   charLimits?: { min: number; max: number };
+  /**
+   * 11/8: 'single' = 단일 사건 심층(수요일) — 정해진 챕터 순서·분석 비중·제목 구조 변주.
+   * 'compilation' = 몰아보기의 한 꼭지. 없으면 예전 프롬프트 그대로.
+   */
+  format?: "single" | "compilation";
+  /** 몰아보기 첫 사건이면 true — 영상 맨 앞이라 콜드 오픈으로 연다 */
+  lead?: boolean;
+  /** 단일 사건 제목 구조(variety.ts pickLongformTitleStyle) */
+  titleStyle?: string;
 }
+
+/** 예전 구성 지시(몰아보기 꼭지·형식 미지정) — 사건 성격에 맞는 구조 하나를 고른다 */
+const STRUCTURE_CHOICES = [
+  "[★구성 — 사건 성격에 맞는 이야기 구조를 골라라]",
+  "모든 영상을 같은 8챕터 틀에 넣으면 1년에 100편이 서로 대체 가능해 보인다.",
+  "유튜브가 수익창출 부적합 사례로 드는 '템플릿 대량생산'이 바로 그것이다.",
+  "아래 넷 중 **이 사건에 가장 맞는 하나**를 골라 그 구조로 써라.",
+  "",
+  "A) 연대기형 — 시간 흐름이 사건의 핵심일 때 (재난·실종·연쇄사건)",
+  "   이전 상황 → 첫 이상 징후 → 확산 → 조사 → 결론 → 남은 문제",
+  "B) 조사형 — 단서와 모순이 핵심일 때 (미제사건)",
+  "   질문 → 단서 → 모순 → 가설 1 → 가설 2 → 판단",
+  "C) 판결 기록형 — 다툼과 판단이 핵심일 때 (법정·유산·명예)",
+  "   주장 → 기록 → 반대 기록 → 핵심 쟁점 → 판단 → 이후 영향",
+  "D) 전설 검증형 — 전해지는 이야기와 기록이 어긋날 때 (괴담·민담)",
+  "   전승 → 변형된 이야기 → 확인된 기록 → 가능한 설명 → 남은 공백",
+  "",
+];
+
+/**
+ * 단일 사건 심층(11/8) — 정해진 순서 + 분석 비중. 요약·번역 슬라이드쇼가 아니라 '해설'이어야
+ * 수익창출 심사의 재사용 콘텐츠·이미지 슬라이드쇼 기준을 넘는다.
+ */
+const SINGLE_STRUCTURE = [
+  "[★구성 — 단일 사건 심층. 이 순서를 지켜라(단계마다 챕터 1~3개)]",
+  "1) 콜드 오픈(30초 이내, 약 200자 이하) — 이 사건에서 가장 구체적이고 강한 순간. 인사·채널 소개·'오늘은' 금지.",
+  "2) 배경과 타임라인 — 무슨 일이 언제 어떤 순서로 있었나.",
+  "3) 증거 — 기록에 남은 단서와 그 출처.",
+  "4) 엇갈리는 가설 — 각 가설의 근거와 약점을 나란히.",
+  "5) '기록이 말해주지 않는 것' — 원문으로 확인되지 않는 공백과 흔한 오해. 이 챕터 heading 은 그 뜻이 드러나게.",
+  "6) 우리의 판단 — 기록에 비춰 어느 설명이 더 무게가 있는지, 단정하지 않고 근거로. 마지막은 번호로 답하는 선택형 질문.",
+  "★4)~6) 분석 챕터의 글자수 합이 전체의 15% 이상이어야 한다.",
+  "★원문 문장을 옮기거나 번역하지 마라. 원문이 둘 이상이면 서로 대조해 자기 말로 종합하라(어느 기록이 무엇을 말하는지 밝혀라).",
+  "",
+];
+
+const LONGFORM_TITLE_FALLBACK =
+  "제목 구조: [연도·장소] + [구체적 사물·현상] + [핵심 질문]. 끝에 '｜분류' 꼬리표를 붙이지 마라.";
 
 export async function writeLongform(opts: LongformOptions): Promise<LongformScript> {
   const minChars = opts.charLimits?.min ?? MIN_CHARS;
@@ -74,6 +122,7 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
   const chapterCount = Math.min(12, Math.max(5, Math.round(targetCuts / 17)));
   const cutsPerChapter = Math.round(targetCuts / chapterCount);
 
+  const single = opts.format === "single";
   const system = [
     `너는 ${config.channel.language} 시사·사건 다큐멘터리의 작가다. 방송 다큐(그것이 알고 싶다, PD수첩, BBC Panorama)의 구성법으로 '사건 분석' 대본을 쓴다.`,
     `이번 회차 목표는 원문 분량(${sourceVolume}자)에 맞춘 ${idealChars}자(약 ${idealMinutes}분)다 — 회차마다 원문이 뒷받침하는 만큼만 늘어나거나 줄어든다.`,
@@ -128,20 +177,18 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "  문장 A (frame evidence, label '증거 02') '찻잔에서 독성 물질이 검출됐습니다.'",
     "  문장 B (frame problem,  label '남은 문제') '하지만 지문은 하나도 나오지 않았습니다.'",
     "",
-    "[★구성 — 사건 성격에 맞는 이야기 구조를 골라라]",
-    "모든 영상을 같은 8챕터 틀에 넣으면 1년에 100편이 서로 대체 가능해 보인다.",
-    "유튜브가 수익창출 부적합 사례로 드는 '템플릿 대량생산'이 바로 그것이다.",
-    "아래 넷 중 **이 사건에 가장 맞는 하나**를 골라 그 구조로 써라.",
-    "",
-    "A) 연대기형 — 시간 흐름이 사건의 핵심일 때 (재난·실종·연쇄사건)",
-    "   이전 상황 → 첫 이상 징후 → 확산 → 조사 → 결론 → 남은 문제",
-    "B) 조사형 — 단서와 모순이 핵심일 때 (미제사건)",
-    "   질문 → 단서 → 모순 → 가설 1 → 가설 2 → 판단",
-    "C) 판결 기록형 — 다툼과 판단이 핵심일 때 (법정·유산·명예)",
-    "   주장 → 기록 → 반대 기록 → 핵심 쟁점 → 판단 → 이후 영향",
-    "D) 전설 검증형 — 전해지는 이야기와 기록이 어긋날 때 (괴담·민담)",
-    "   전승 → 변형된 이야기 → 확인된 기록 → 가능한 설명 → 남은 공백",
-    "",
+    ...(single ? SINGLE_STRUCTURE : STRUCTURE_CHOICES),
+    ...(opts.format === "compilation"
+      ? [
+          "[★몰아보기 한 꼭지 — 이 사건만으로 완결된 덩어리]",
+          "이 대본은 여러 사건을 이어 붙인 영상의 한 꼭지다. 다른 사건을 언급하거나 '다음 사건'을 예고하지 마라.",
+          "인사·채널 소개·'오늘은' 같은 진행 멘트 없이 사건으로 바로 들어가라.",
+          opts.lead
+            ? "★이 사건이 영상 맨 앞이다. 첫 20~30초(약 150~200자)는 콜드 오픈 — 이 사건에서 가장 구체적이고 강한 순간으로 시작하라."
+            : "",
+          "",
+        ]
+      : []),
     `- 챕터 수는 **약 ${chapterCount}개**(회차 목표 분량에 맞춘 값. 원문에 그만한 사건 전개가`,
     "  없으면 억지로 채우지 말고 줄여도 된다). 구조에 맞게 정하되 개수를 억지로 맞추지 마라.",
     "- 첫 챕터는 배경 설명으로 열지 마라. '○○년 ○○에서 ~한 일이 있었다' 식 요약은",
@@ -234,12 +281,22 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "- 등장인물의 속마음·동기를 사실처럼 서술하지 마라. '법원은 …라고 판단했습니다' 처럼 판단 주체를 밝혀라.",
     "",
     "[★제목·썸네일]",
-    "- title: **38~55자.** 형식은 다음과 같다.",
-    "  [연도/시대] + [구체적 사물·현상] + [핵심 질문]｜[분류]",
-    "  ★검색 가능한 일반 명사를 **앞 22~28자 안에** 넣어라. 뒤로 밀면 검색에 안 걸린다.",
-    "  예: '1986년 호수에서 나온 기체는 왜 마을을 덮쳤나｜자연재난 기록'",
-    "      '닫힌 방에 남은 두 기록, 어느 쪽이 사실이었나｜판결 기록'",
-    "  분류는 '미제사건 기록' / '판결 기록' / '역사 기록' / '전승 검증' 중 하나.",
+    ...(single
+      ? [
+          "- title: **30~55자.** ★이번 회차 " + (opts.titleStyle ?? LONGFORM_TITLE_FALLBACK),
+          "  ★검색 가능한 사건 고유 명칭이나 일반 명사를 **앞 22~28자 안에** 넣어라.",
+          "  ★제목이 약속한 것(질문·사물·숫자)은 영상 첫 60초 안에 반드시 나와야 한다. 낚시 제목은 시청 지속시간을 무너뜨린다.",
+          `  ★다음 표현은 쓰지 마라: ${BANNED_TITLE_PHRASES.join(", ")}`,
+        ]
+      : [
+          "- title: **38~55자.** 형식은 다음과 같다.",
+          "  [연도/시대] + [구체적 사물·현상] + [핵심 질문]｜[분류]",
+          "  ★검색 가능한 일반 명사를 **앞 22~28자 안에** 넣어라. 뒤로 밀면 검색에 안 걸린다.",
+          "  예: '1986년 호수에서 나온 기체는 왜 마을을 덮쳤나｜자연재난 기록'",
+          "      '닫힌 방에 남은 두 기록, 어느 쪽이 사실이었나｜판결 기록'",
+          "  분류는 '미제사건 기록' / '판결 기록' / '역사 기록' / '전승 검증' 중 하나.",
+        ]),
+    "- ★제목에 연도를 쓰면 반드시 위 원문에 그 연도가 그대로 있어야 한다(코드가 대조한다).",
     "- ★'미스터리'로 끝나는 틀을 쓰지 마라. 답이 밝혀진 사건을 미스터리라고 부르지 마라.",
     "- ★제목과 thumbTitle 이 같은 말을 반복하면 안 된다.",
     "  제목은 **무슨 영상인지 설명**하고, thumbTitle 은 **가장 강한 모순 하나**를 던진다.",
@@ -286,8 +343,10 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "- 성행위·신체 묘사 금지. 불륜은 '부정한 관계', '내연 관계' 같은 판결문 어투로.",
     "- 생존 인물이 특정되는 최근 사건은 다루지 마라. 실명·정확한 지역명(시·군·구·동)·정확한 날짜는 피하고 연도까지만.",
     "",
-    "[description] 사건 요약 3~4문장 + 이 영상에서 다루는 쟁점. 해시태그(#) 금지. 마지막 줄에 '※ 실제 사건 기록을 바탕으로 재구성했습니다. 영상 속 이미지는 자료 이미지입니다.'",
-    "[tags] # 없이 검색 키워드 8~12개.",
+    // 11/8: 설명란 나머지(챕터·출처·AI 음성 고지·해시태그 3개)는 코드가 붙인다 — 여기선 첫 문단만
+    "[description] 설명란 첫 문단 — 이 영상이 무엇을 따지는지 2~4문장(사건 요약 + 쟁점). 해시태그(#)·출처·고지 문구는 쓰지 마라(코드가 붙인다).",
+    "[tags] # 없이 검색 키워드 8~12개. 사건 고유 명칭(한국어·영어 표기 둘 다)을 먼저, 범용어는 뒤에. 같은 말 반복 금지.",
+    "[titleEn] title 의 자연스러운 영어 제목(100자 이내, 고유명사는 영어권 표기). [descriptionEn] description 의 영어판(2~4문장).",
     opts.avoidTitles?.length
       ? `\n[이미 다룬 사건 — 겹치지 마라] ${opts.avoidTitles.slice(-40).join(" / ")}`
       : "",
@@ -538,8 +597,10 @@ function sanitize(s: LongformScript): void {
   s.thumbBadge = toSpace(s.thumbBadge);
   s.centralQuestion = toSpace(s.centralQuestion);
   s.thumbQuery = toSpace(s.thumbQuery ?? "");
-  s.description = toBreaks(s.description);
+  s.description = toBreaks(s.description).replace(/#/g, "");
   s.tags = (s.tags ?? []).map((t) => toSpace(t).replace(/^#/, ""));
+  s.titleEn = toSpace(s.titleEn ?? "");
+  s.descriptionEn = toBreaks(s.descriptionEn ?? "").replace(/#/g, "");
   for (const c of s.chapters) {
     c.heading = toSpace(c.heading);
     c.visualQuery = toSpace(c.visualQuery);
@@ -571,75 +632,84 @@ const CompilationMetaSchema = z.object({
   teaser: z.array(z.object({ text: z.string(), textEn: z.string() })),
   description: z.string(),
   tags: z.array(z.string()),
+  /** 영어 제목·설명(localizations.en — 11/8) */
+  titleEn: z.string().optional(),
+  descriptionEn: z.string().optional(),
 });
 export type CompilationMeta = z.infer<typeof CompilationMetaSchema>;
 
 /**
- * 몰아보기(여러 사건 모음) 롱폼 — 영상 전체를 아우르는 title/description/tags 를 짓는다.
+ * 몰아보기(테마 모음) 롱폼 — 영상 전체를 아우르는 title/description/tags 를 짓는다.
  *
- * thumbTitle/thumbBadge/thumbQuery 는 여기서 새로 짓지 않고 1번째 사건 것을 그대로
- * 쓴다(longform.ts 참고) — 이미 thumbTitleIssues() 검증·재시도를 거쳐 통과한
- * 결과라 여기서 또 처음부터 같은 검증 루프를 만들 필요가 없고, 애초에 썸네일은
- * '가장 강한 훅 하나'가 국룰이라 여러 사건을 다 욱여넣으면 오히려 약해진다.
+ * 11/8: 제목이 '기록으로 남은 미스터리 N가지'·'사소한 단서 하나로 … 몰아보기' 틀로 굳어 있었다(18편 중 대부분).
+ * 이제 제목은 **첫 사건의 구체적 훅 + 테마**로 짓고, 코드(titleGuard.checkTitle)로 상투 표현·최근 제목 유사도를
+ * 검사해 2번까지 다시 짓는다. 그래도 안 되면 '첫 사건 제목 — 테마'로 정한다.
+ *
+ * thumbTitle/thumbQuery 는 여기서 새로 짓지 않고 1번째 사건 것을 그대로 쓴다(longform.ts 참고).
  */
 export async function writeCompilationMeta(
-  cases: Array<{ title: string; centralQuestion: string; description: string }>,
-  theme?: string,
+  cases: Array<{ title: string; centralQuestion: string; description: string; caseName?: string }>,
+  opts?: { themeLabel?: string; recentTitles?: string[] },
 ): Promise<CompilationMeta> {
+  const recent = (opts?.recentTitles ?? []).slice(-20);
+  const theme = opts?.themeLabel;
   const system = [
     `너는 ${config.channel.language} 시사·사건 다큐멘터리 채널의 편성 담당자다.`,
-    `이번 영상은 서로 다른 실제 사건 ${cases.length}개를 한 편에 묶은 '모음' 영상이다.`,
-    theme ? `이번 회차 주제: '${theme}' — 사건들은 이 주제로 골랐다. 제목·썸네일은 이 주제 하나로 1초 만에 이해되게 묶어라(미스터비스트 원칙: 한 문장 기획).` : "",
+    `이번 영상은 ${theme ? `'${theme}' 테마로 ` : ""}서로 다른 실제 사건 ${cases.length}개를 한 편에 묶은 영상이다. 1번 사건이 영상 맨 앞(콜드 오픈)이다.`,
     "",
-    "[thumbTitle] 썸네일 대형 문구. 4~8자씩 최대 2줄(실제 개행). 물음표·마침표 없이. 영상 전체를 관통하는 가장 강한 한 방(주제+숫자도 좋다. 예: '사라진 5명' 류 — 베끼지 말 것).",
+    "[title] 30~60자. ★1번 사건의 구체적인 훅(고유 명칭·장소·연도 중 하나 이상 + 그 사건의 핵심 질문)을 앞세우고, 뒤에 테마를 붙여라.",
+    "  예: '1929년 타마히네호는 어디로 사라졌나 — 바다에서 사라진 배들'",
+    "  ★제목이 약속한 내용(1번 사건의 질문)은 영상 첫 60초 안에 나온다 — 다른 사건이나 영상에 없는 내용을 약속하지 마라.",
+    "  ★사건 수를 세는 제목('N가지', 'N선')이나 '모음'·'몰아보기' 같은 묶음 표현을 쓰지 마라.",
+    `  ★금지 표현: ${BANNED_TITLE_PHRASES.join(", ")} / 충격, 경악, 소름, 역대급, 실화냐, 미친, 대반전, 무서운, 레전드.`,
+    "  ★제목의 연도·고유명사는 아래 사건 목록에 있는 것만.",
+    recent.length ? `  ★다음 최근 제목들과 비슷하게 짓지 마라(낱말·구조 모두):\n${recent.map((t) => `    - ${t}`).join("\n")}` : "",
     "",
-    "[teaser] 첫 사건 전에 나올 20초 남짓한 예고(콜드 오픈) 3~5줄. 각 줄 text(한국어 20~38자 구어체)와 textEn(자연스러운 영어).",
-    "- 첫 줄: 제목이 약속한 주제를 바로 말한다(인사·'안녕하세요'·채널 소개 금지).",
-    "- 가운데 줄들: 서로 다른 사건의 가장 이상한 장면을 하나씩 사실로 던진다(질문은 최대 1번). 아래 사건 요약에 있는 사실만 써라.",
-    "- 마지막 줄: '첫 번째 사건부터 갈게요.'처럼 바로 본편으로 넘긴다.",
-    "- 자살·자해 등 연령제한 표현 금지.",
+    "[description] 설명란 첫 문단 — 이번 영상이 무엇을 다루는지 2~4문장(1번 사건으로 시작, 테마로 묶음). 해시태그(#)·출처·고지 문구는 쓰지 마라(코드가 붙인다).",
     "",
-    "[title] 38~60자. '여러 사건을 모았다'는 게 드러나야 한다 — '모음'/'몰아보기' 류 표현은",
-    "국내 실화 미스터리 채널에서 이미 자리잡은 관습이라 자연스럽게 써도 된다.",
-    "다만 사건을 단순 나열('A, B, C 사건')하지 말고 공통된 결로 묶어라 — 이 사건들을",
-    "관통하는 감상(예: 다들 사소한 단서 하나로 뒤집혔다, 전부 판결까지 수년이 걸렸다)이",
-    "있으면 그걸 앞세우고, 없으면 가장 강한 사건 하나를 앞세운 뒤 나머지를 자연스럽게 이어라.",
-    "★묶는 결은 '모든' 사건에 맞아야 한다. 일부 사건에만 맞는 말(예: 실종 사건이 1건뿐인데 '사라진 사람들')로 전체를 부르지 마라",
-    "(10/19 '흔적도 없이 사라진 사람들' 제목에 연쇄살인·책·비행기 추락이 섞였다). 모두에 맞는 결이 없으면 '기록으로 남은 미스터리 N가지'처럼 넓게 써라.",
-    "★금지어: 충격, 경악, 소름, 역대급, 실화냐, 미친, 대반전, 무서운, 레전드.",
-    "",
-    "[description] 이번 영상에 들어간 사건을 순서대로 한 줄씩 소개(제목 반복이 아니라",
-    "그 사건이 뭔지 한 문장 요약). 해시태그(#) 금지.",
-    "마지막 줄: '※ 실제 사건 기록을 바탕으로 재구성했습니다. 영상 속 이미지는 자료 이미지입니다.'",
-    "",
-    "[tags] # 없이 검색 키워드 10~15개. 개별 사건 키워드 + '미스터리모음' 류 컬렉션 키워드 혼합.",
+    "[tags] # 없이 검색 키워드 10~15개. 각 사건의 고유 명칭(한국어·영어 표기)을 먼저, 테마 키워드를 뒤에. 같은 말 반복 금지.",
+    "[titleEn] title 의 자연스러운 영어 제목(100자 이내). [descriptionEn] description 의 영어판.",
   ].join("\n");
 
   const user = cases
     .map(
-      (c, i) => `${i + 1}. ${c.title}\n   핵심 질문: ${c.centralQuestion}\n   요약: ${c.description}`,
+      (c, i) => `${i + 1}. ${c.caseName ? `[${c.caseName}] ` : ""}${c.title}\n   핵심 질문: ${c.centralQuestion}\n   요약: ${c.description}`,
     )
     .join("\n\n");
 
-  const meta = (await generateStructured({
-    schema: CompilationMetaSchema,
-    system,
-    user: `아래 ${cases.length}개 사건을 묶은 모음 영상의 title/thumbTitle/teaser/description/tags 를 만들어줘.\n\n${user}`,
-    temperature: 0.9,
-  })) as CompilationMeta;
-
-  // 줄바꿈 정리(쇼츠·단일 롱폼과 동일 문제 — LLM 이 개행을 '\n' 두 글자로 뱉는다)
-  meta.title = meta.title.replace(/\\+n/g, " ").replace(/\s*\n\s*/g, " ").trim();
-  meta.description = meta.description.replace(/\\+n/g, "\n").trim();
-  meta.tags = (meta.tags ?? []).map((t) => t.replace(/^#/, "").trim());
-  meta.thumbTitle = (meta.thumbTitle ?? "").replace(/\\+n/g, "\n").trim();
-  meta.teaser = (meta.teaser ?? []).filter((t) => t.text?.trim()).slice(0, 5);
-  if (findSensitiveTerms(meta.teaser.map((t) => t.text)).length) meta.teaser = []; // 위험 표현이 섞이면 예고 생략
+  let meta: CompilationMeta | undefined;
+  let feedback = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const m = (await generateStructured({
+      schema: CompilationMetaSchema,
+      system,
+      user: `아래 ${cases.length}개 사건을 묶은 영상의 title/description/tags/titleEn/descriptionEn 을 만들어줘.${feedback}\n\n${user}`,
+      temperature: 0.9,
+    })) as CompilationMeta;
+    // 줄바꿈 정리(쇼츠·단일 롱폼과 동일 문제 — LLM 이 개행을 '\n' 두 글자로 뱉는다)
+    m.title = m.title.replace(/\\+n/g, " ").replace(/\s*\n\s*/g, " ").trim();
+    m.description = m.description.replace(/\\+n/g, "\n").replace(/#/g, "").trim();
+    m.tags = (m.tags ?? []).map((t) => t.replace(/^#/, "").trim());
+    m.titleEn = (m.titleEn ?? "").replace(/\s*\n\s*/g, " ").trim();
+    m.descriptionEn = (m.descriptionEn ?? "").replace(/\\+n/g, "\n").replace(/#/g, "").trim();
+    meta = m;
+    const check = checkTitle(m.title, recent);
+    if (check.ok) break;
+    console.warn(`   ⚠️ 종합 제목 탈락(${check.reason}): ${m.title}`);
+    feedback = `\n★직전 제목 '${m.title}'은 쓸 수 없다(${check.reason}). 1번 사건의 고유한 훅으로 완전히 새로 지어라.`;
+    if (attempt === 2) {
+      // 정해진 대체 제목 — 첫 사건 제목 + 테마
+      const lead = cases[0].title.split(/[｜|]/)[0].trim();
+      m.title = theme ? `${lead} — ${theme}` : lead;
+      m.titleEn = "";
+      console.warn(`   ↩︎ 대체 제목 사용: ${m.title} (${checkTitle(m.title, recent).ok ? "검사 통과" : "검사 미통과 — 그래도 상투 틀보다 낫다"})`);
+    }
+  }
 
   // 위험 표현 순화 — 단일 사건 대본과 동일한 안전장치
-  if (findSensitiveTerms([meta.title, meta.description]).length) {
-    meta.title = softenText(meta.title);
-    meta.description = softenText(meta.description);
+  if (findSensitiveTerms([meta!.title, meta!.description]).length) {
+    meta!.title = softenText(meta!.title);
+    meta!.description = softenText(meta!.description);
   }
-  return meta;
+  return meta!;
 }

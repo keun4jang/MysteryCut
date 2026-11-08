@@ -114,6 +114,9 @@ export async function publishYouTube(
     description: await buildDescription(metadata),
     categoryId: config.youtube.categoryId,
     tags: metadata.hashtags.map((t) => t.replace(/^#/, "")).slice(0, 15),
+    // 11/8: 언어 표시(롱폼은 이미 씀). 거부되면 startUpload 가 빼고 다시 시도한다
+    defaultLanguage: "ko",
+    defaultAudioLanguage: "ko",
   };
   const status = {
     privacyStatus: config.youtube.privacyStatus,
@@ -121,25 +124,7 @@ export async function publishYouTube(
   };
 
   // 1) resumable 업로드 세션 시작
-  const initRes = await fetchRetry(
-    "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json; charset=UTF-8",
-        "X-Upload-Content-Type": "video/mp4",
-        "X-Upload-Content-Length": String(bytes.byteLength),
-      },
-      body: JSON.stringify({ snippet, status }),
-    },
-    "업로드 세션 생성",
-  );
-  if (!initRes.ok) {
-    throw new Error(`YouTube 업로드 세션 생성 실패: ${await initRes.text()}`);
-  }
-  const uploadUrl = initRes.headers.get("location");
-  if (!uploadUrl) throw new Error("YouTube 업로드 URL(Location 헤더)을 못 받았습니다.");
+  const uploadUrl = await startUpload(accessToken, bytes.byteLength, { snippet, status }, undefined, "YouTube 업로드 세션 생성 실패");
 
   // 2) 영상 바이트 업로드
   const upRes = await fetchRetry(
@@ -194,6 +179,26 @@ export async function publishYouTube(
  * YPP 4,000시간에 산입된다). 썸네일도 첫 프레임이 아니라 전용 1280x720 이미지를
  * 올린다.
  */
+/** 설명란은 5,000'바이트' 한도 — 한글은 3바이트라 글자 수로 자르면 넘칠 수 있다(11/8 검토). 줄 단위로 뒤에서부터 줄인다. */
+function fitBytes(text: string, max = 4800): string {
+  if (Buffer.byteLength(text, "utf8") <= max) return text;
+  const lines = text.split("\n");
+  while (lines.length > 1 && Buffer.byteLength(lines.join("\n"), "utf8") > max) lines.splice(-2, 1); // 마지막 줄(해시태그)은 남긴다
+  let out = lines.join("\n");
+  while (Buffer.byteLength(out, "utf8") > max) out = out.slice(0, -10);
+  return out;
+}
+
+/** 위키 주소의 %EC%9D... 를 사람이 읽는 한글로(길이도 줄어든다). 실패하면 원래 주소. */
+function readableUrl(url: string): string {
+  const u = url.split("#")[0];
+  try {
+    return decodeURI(u);
+  } catch {
+    return u;
+  }
+}
+
 export async function publishLongform(
   videoPath: string,
   script: LongformScript,
@@ -204,19 +209,24 @@ export async function publishLongform(
   srt?: string,
   /** 영어 자막(SRT) — 시청자의 22%가 미국이라 별도 트랙으로 올린다 */
   srtEn?: string,
+  /**
+   * 11/8: description = 완성된 설명란(buildLongformDescription — 챕터·출처·고지·해시태그 포함, 있으면 citation 무시),
+   * tags = 정리된 태그(normalizeTags), localizationEn = 영어 제목·설명(localizations.en, 거부되면 빼고 재시도)
+   */
+  opts?: { description?: string; tags?: string[]; localizationEn?: { title: string; description: string } },
 ): Promise<{ videoId: string }> {
   const accessToken = await getAccessToken();
   const bytes = await fs.readFile(videoPath);
 
-  const description = [script.description.trim(), citation?.trim()]
-    .filter(Boolean)
-    .join("\n\n———\n\n");
+  const description =
+    opts?.description ??
+    [script.description.trim(), citation?.trim()].filter(Boolean).join("\n\n———\n\n");
 
   const snippet = {
     title: script.title.slice(0, 100),
-    description: description.slice(0, 4900),
+    description: fitBytes(description),
     categoryId: config.youtube.categoryId,
-    tags: (script.tags ?? []).map((t) => t.replace(/^#/, "")).slice(0, 15),
+    tags: opts?.tags ?? (script.tags ?? []).map((t) => t.replace(/^#/, "")).slice(0, 15),
     defaultLanguage: "ko",
     defaultAudioLanguage: "ko",
   };
@@ -224,24 +234,19 @@ export async function publishLongform(
     privacyStatus: config.youtube.privacyStatus,
     selfDeclaredMadeForKids: false,
   };
+  const en = opts?.localizationEn;
+  const localizations =
+    en?.title.trim() && en.description.trim()
+      ? { en: { title: en.title.trim().slice(0, 100), description: fitBytes(en.description.trim()) } }
+      : undefined;
 
-  const initRes = await fetchRetry(
-    "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json; charset=UTF-8",
-        "X-Upload-Content-Type": "video/mp4",
-        "X-Upload-Content-Length": String(bytes.byteLength),
-      },
-      body: JSON.stringify({ snippet, status }),
-    },
-    "업로드 세션 생성",
+  const uploadUrl = await startUpload(
+    accessToken,
+    bytes.byteLength,
+    { snippet, status },
+    localizations,
+    "YouTube 롱폼 업로드 세션 생성 실패",
   );
-  if (!initRes.ok) throw new Error(`YouTube 롱폼 업로드 세션 생성 실패: ${await initRes.text()}`);
-  const uploadUrl = initRes.headers.get("location");
-  if (!uploadUrl) throw new Error("YouTube 업로드 URL(Location 헤더)을 못 받았습니다.");
 
   const upRes = await fetchRetry(
     uploadUrl,
@@ -286,6 +291,142 @@ export async function publishLongform(
   if (srtEn) await uploadCaptionTrack(json.id, srtEn, accessToken, "English", "en");
 
   return { videoId: json.id };
+}
+
+/**
+ * resumable 업로드 세션 시작 → 업로드 URL.
+ *
+ * 11/8: localizations(영어 제목·설명)와 defaultLanguage 를 함께 보낸다. API 문서를 직접 확인하지 못해(developers.google.com
+ * 접속 불가) 거부 가능성이 있으므로, HTTP 400 이 localizations·defaultLanguage 를 언급하면 그 필드를 빼고 한 번 더 보낸다
+ * — 이 기능 때문에 업로드가 실패하는 일은 없어야 한다. 세션 생성 단계라 재시도해도 영상이 중복으로 생기지 않는다.
+ */
+async function startUpload(
+  accessToken: string,
+  byteLength: number,
+  body: { snippet: Record<string, unknown>; status: Record<string, unknown> },
+  localizations: Record<string, { title: string; description: string }> | undefined,
+  failLabel: string,
+): Promise<string> {
+  const send = (b: Record<string, unknown>, parts: string) =>
+    fetchRetry(
+      `https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=${parts}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json; charset=UTF-8",
+          "X-Upload-Content-Type": "video/mp4",
+          "X-Upload-Content-Length": String(byteLength),
+        },
+        body: JSON.stringify(b),
+      },
+      "업로드 세션 생성",
+    );
+  let res = await send(localizations ? { ...body, localizations } : body, localizations ? "snippet,status,localizations" : "snippet,status");
+  if (res.status === 400) {
+    const text = await res.text();
+    if (/localization|defaultLanguage|defaultAudioLanguage|language/i.test(text)) {
+      console.warn(`   ⚠️ 업로드 세션이 언어·현지화 필드를 거부(HTTP 400) — 그 필드를 빼고 다시 시도: ${text.replace(/\s+/g, " ").slice(0, 200)}`);
+      const { defaultLanguage: _dl, defaultAudioLanguage: _dal, ...plainSnippet } = body.snippet;
+      void _dl;
+      void _dal;
+      res = await send({ snippet: plainSnippet, status: body.status }, "snippet,status");
+    } else {
+      throw new Error(`${failLabel}: ${text}`);
+    }
+  }
+  if (!res.ok) throw new Error(`${failLabel}: ${await res.text()}`);
+  const uploadUrl = res.headers.get("location");
+  if (!uploadUrl) throw new Error("YouTube 업로드 URL(Location 헤더)을 못 받았습니다.");
+  if (localizations && /localizations/.test(res.url)) console.log("   🌐 영어 제목·설명(localizations.en) 포함");
+  return uploadUrl;
+}
+
+// ── 롱폼 설명란·태그(11/8) ───────────────────────────────────────────────
+
+/** 고지 문구 — 뜻(실제 기록 재구성·자료 이미지)은 같게, 표현만 회차마다 바꾼다 */
+const LONGFORM_FOOTERS = [
+  "※ 실제 사건 기록을 바탕으로 재구성했습니다. 영상 속 이미지는 실제 사건 자료가 아닌 자료 이미지입니다.",
+  "※ 공개된 기록을 토대로 다시 구성한 영상입니다. 화면의 사진은 이해를 돕는 자료 이미지이며 실제 현장·인물이 아닙니다.",
+  "※ 이 영상은 실제 기록을 재구성한 해설입니다. 사진은 분위기를 위한 자료 이미지로, 사건과 직접 관련된 자료가 아닙니다.",
+];
+
+/** 해시태그용 — 공백·기호 제거 */
+const tagWord = (s: string) => s.replace(/[｜|].*$/, "").replace(/[^0-9A-Za-z가-힣]/g, "");
+
+/**
+ * 롱폼 설명란: 첫 문단 → 챕터 → 출처(위키 URL·라이선스·사진) → AI 음성 고지 → 고지 문구 → 해시태그 정확히 3개.
+ * 순수 함수 — 드라이런에서도 그대로 찍어 본다.
+ */
+export function buildLongformDescription(p: {
+  hook: string;
+  chaptersBlock?: string;
+  sources: Array<{ title: string; url: string }>;
+  /** 두 번째 해시태그(테마 또는 분류) */
+  category: string;
+  /** 세 번째 해시태그(사건명) */
+  caseName: string;
+  seed: string;
+}): string {
+  const hook = p.hook.replace(/#/g, "").replace(/※[^\n]*/g, "").trim();
+  const seen = new Set<string>();
+  const srcLines = p.sources
+    .filter((d) => d.url && !seen.has(d.url) && seen.add(d.url))
+    .map((d) => `· ${d.title.replace(/#/g, "")} — ${readableUrl(d.url)}`);
+  const sources = [
+    "참고 자료",
+    ...srcLines,
+    "위키백과(CC BY-SA 4.0, https://creativecommons.org/licenses/by-sa/4.0/deed.ko) 등 공개 자료를 바탕으로 내용을 재구성했습니다.",
+    "사진: Pexels",
+  ].join("\n");
+  let h = 0;
+  for (const ch of p.seed) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const footer = LONGFORM_FOOTERS[h % LONGFORM_FOOTERS.length];
+  const tags = ["미스터리", tagWord(p.category) || "미제사건", tagWord(p.caseName) || "실화"];
+  // 세 태그가 겹치면 정확히 3개가 안 된다 — 겹치면 대체어
+  if (tags[1] === tags[0]) tags[1] = "미제사건";
+  if (tags[2] === tags[0] || tags[2] === tags[1]) tags[2] = "실화다큐";
+  return [
+    hook,
+    p.chaptersBlock?.trim() ? `챕터\n${p.chaptersBlock.trim()}` : "",
+    sources,
+    "AI 음성 내레이션을 사용했습니다.",
+    footer,
+    tags.map((t) => `#${t}`).join(" "),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** 영어 설명란(localizations.en) — 첫 문단 + 출처·고지(영어) */
+export function buildLongformDescriptionEn(hookEn: string, sources: Array<{ url: string }>): string {
+  const urls = [...new Set(sources.map((d) => readableUrl(d.url)).filter(Boolean))].map((u) => `· ${u}`);
+  return [
+    hookEn.replace(/#/g, "").trim(),
+    ["Sources", ...urls, "Reconstructed from Wikipedia (CC BY-SA 4.0) and other public records. Photos: Pexels."].join("\n"),
+    "Narrated with an AI voice. Images are illustrative stock photos, not case materials.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** 태그 정리 — 사건명(한·영) 먼저, 중복 제거, 최대 15개·합계 450자(공백 있는 태그는 따옴표 2자 포함) */
+export function normalizeTags(caseNames: string[], llmTags: string[], stable = ["미스터리", "실화 다큐"]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  let total = 0;
+  // 고정 장르 태그는 사건명 바로 뒤에 둬서 자리가 모자라도 빠지지 않게 한다
+  for (const raw of [...caseNames, ...stable, ...llmTags]) {
+    const t = raw.replace(/^#/, "").replace(/[<>",]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
+    const key = t.toLowerCase().replace(/\s+/g, "");
+    if (!t || seen.has(key)) continue;
+    const cost = t.length + (t.includes(" ") ? 2 : 0) + (out.length ? 1 : 0);
+    if (out.length >= 15 || total + cost > 450) continue;
+    seen.add(key);
+    out.push(t);
+    total += cost;
+  }
+  return out;
 }
 
 /**

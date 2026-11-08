@@ -74,10 +74,10 @@ async function main() {
     rejectReason = "";
     // 규칙 비교 → 통과하면 AI 로 전체 이력과 한 번 더 대조(caseKey·제목을 매번 다르게 지어내는 경우)
     probeIsDup = false;
-    if (isNonCaseTitle(probe.title)) {
+    if (isNonCaseTitle(probe.title, probe.caseKey)) {
       rejectReason = "실제 사건이 아닌 문서(목록·작품)";
       console.log(`   ↩︎ 실제 사건이 아닌 문서(${probe.title}) — 다른 사건으로`);
-    } else if (isSexCrimeCase(probe.title, probe.premise)) {
+    } else if (isSexCrimeCase(probe.title, probe.premise, probe.caseKey)) {
       rejectReason = "채널 기준 위반: 성범죄 중심 사건";
       console.log(`   ↩︎ 성범죄 중심 사건이라 쓰지 않음(${probe.title}) — 다른 사건으로`);
     } else if (
@@ -317,7 +317,12 @@ async function main() {
     }
 
     // 한 곳이라도 실제 게시됐으면 이력에 기록 (소재·해시태그 회피용)
-    if (anyPublished) await appendPost(idea, metadata.hashtags, pack.topicAngle.split(" — ")[0].replace(/^소재 각도: /, ""));
+    if (anyPublished)
+      await appendPost(idea, metadata.hashtags, pack.topicAngle.split(" — ")[0].replace(/^소재 각도: /, ""), {
+        format: "short",
+        videoId: ytVideoId,
+        sourceUrl: sources[0]?.url,
+      });
 
     // 썸네일 카드를 저장소 thumbnails/ 폴더에 보관 — 유튜브가 쇼츠 썸네일
     // API 를 열기 전까지 수동 지정용 원본으로 사용 (워크플로가 커밋)
