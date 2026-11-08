@@ -235,6 +235,9 @@ export const LongformScriptSchema = z.object({
   description: z.string(),
   /** 유튜브 내부 검색 태그 (# 없이) */
   tags: z.array(z.string()),
+  /** 영어 제목·설명(유튜브 localizations.en — 11/8). 비면 현지화 생략 */
+  titleEn: z.string().optional(),
+  descriptionEn: z.string().optional(),
   chapters: z.array(
     z.object({
       /** 챕터 제목 — 챕터 시작 0.8초 동안만 크게 표시하고 사라진다 */

@@ -145,3 +145,42 @@ export function longformDurationInFrames(
 ): number {
   return Math.max(1, chapters.reduce((n, c) => n + longformChapterFrames(c, fps), 0));
 }
+
+/** 초 → M:SS (60분 이상이면 H:MM:SS) */
+export function formatTimestamp(sec: number, long = false): string {
+  const s = Math.max(0, Math.floor(sec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = String(s % 60).padStart(2, "0");
+  return long ? `${h}:${String(m).padStart(2, "0")}:${r}` : `${h * 60 + m}:${r}`;
+}
+
+/**
+ * 설명란 챕터 타임스탬프(11/8). 렌더와 같은 longformChapterFrames 로 계산해 영상과 어긋나지 않는다.
+ * groups = 한 줄이 될 묶음(단일 사건: 챕터 하나씩 / 몰아보기: 사건 하나씩).
+ * 유튜브 규칙: 첫 줄 0:00, 3개 이상, 오름차순, 각 10초 이상 — 10초 미만 묶음은 앞 줄에 합치고, 3줄 미만이면 "".
+ */
+export function longformChapterTimestamps(
+  groups: Array<{ label: string; chapters: Array<{ segments: LongformSegmentLike[] }> }>,
+  fps: number,
+): string {
+  const total = longformDurationInFrames(groups.flatMap((g) => g.chapters), fps) / fps;
+  const rows: Array<{ label: string; start: number; len: number }> = [];
+  let t = 0;
+  for (const g of groups) {
+    const len = g.chapters.reduce((n, c) => n + longformChapterFrames(c, fps), 0) / fps;
+    if (!g.chapters.length) continue;
+    if (rows.length && len < 10) rows[rows.length - 1].len += len;
+    else rows.push({ label: g.label.replace(/\s+/g, " ").trim(), start: t, len });
+    t += len;
+  }
+  // 첫 줄이 10초 미만이면 다음 줄을 0:00 으로 당긴다
+  while (rows.length > 1 && rows[0].len < 10) {
+    rows[1].start = 0;
+    rows[1].len += rows[0].len;
+    rows.shift();
+  }
+  if (rows.length < 3) return "";
+  const long = total >= 3600;
+  return rows.map((r) => `${formatTimestamp(r.start, long)} ${r.label}`).join("\n");
+}
