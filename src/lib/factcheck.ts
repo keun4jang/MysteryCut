@@ -63,10 +63,19 @@ async function findIssues(items: FactItem[], sourceText: string, caseTitle: stri
 }
 
 /** 원고를 검증·교정한다. 통과(또는 검사 불가)면 true, 고친 뒤에도 틀린 줄이 남으면 false. */
-export async function verifyFacts(items: FactItem[], sourceText: string, caseTitle: string): Promise<boolean> {
-  if (!sourceText.trim() || !items.length) return true;
+export async function verifyFacts(
+  items: FactItem[],
+  sourceText: string,
+  caseTitle: string,
+  /** 롱폼 사건(11/8): 검증 호출 자체가 실패하면 통과가 아니라 탈락 — 게이트는 실패하면 닫는다 */
+  opts?: { failClosed?: boolean },
+): Promise<boolean> {
+  if (!sourceText.trim() || !items.length) return !opts?.failClosed || !!sourceText.trim();
   const first = await findIssues(items, sourceText, caseTitle);
-  if (first === null) return true;
+  if (first === null) {
+    if (opts?.failClosed) console.warn("  ⚠️ 사실 검증을 못 함 — 이 사건을 쓰지 않음");
+    return !opts?.failClosed;
+  }
   if (!first.length) {
     console.log("  ✅ 사실 검증: 원문과 어긋난 줄 없음");
     return true;
@@ -82,6 +91,10 @@ export async function verifyFacts(items: FactItem[], sourceText: string, caseTit
     it.text = fix;
   }
   const second = await findIssues(items, sourceText, caseTitle);
+  if (second === null && opts?.failClosed) {
+    console.warn("  ⚠️ 교정 후 재검증을 못 함 — 이 사건을 쓰지 않음");
+    return false;
+  }
   if (second === null || !second.length) {
     console.log(`  ✅ 사실 검증: ${first.length}줄 교정 후 통과`);
     return true;

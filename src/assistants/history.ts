@@ -13,6 +13,28 @@ export interface HistoryPost {
   hashtags?: string[];
   /** 소재 각도 이름(예: '감동 실화(선과 악)') — 각도별 성과 비교용 */
   angle?: string;
+  // ↓ 11/8 추가(전부 선택 필드 — 옛 항목은 없음). 쇼츠↔롱폼 구분·시드 쇼츠 추적·원문 URL 중복 검사용
+  format?: "short" | "longform";
+  videoId?: string;
+  /** 단일 사건 롱폼의 원본 쇼츠 videoId */
+  sourceShort?: string;
+  /** 주 원문(위키백과 등) URL — 다른 caseKey 로 같은 문서를 다시 쓰는 것을 막는다 */
+  sourceUrl?: string;
+  /** 몰아보기 테마 id(variety.ts COMPILATION_THEMES) */
+  theme?: string;
+  mode?: "single" | "compilation";
+}
+
+/** appendPost 의 추가 기록 필드 */
+export type HistoryExtra = Pick<HistoryPost, "format" | "videoId" | "sourceShort" | "sourceUrl" | "theme" | "mode">;
+
+/**
+ * 롱폼 항목인가. 새 항목은 format 으로, 옛 항목(format 없음)은 제목의 '｜분류' 꼬리표로 판단한다
+ * (옛 롱폼 단일·몰아보기 사건 제목은 전부 '…｜미제사건 기록' 꼴, 쇼츠 제목엔 ｜ 가 없다).
+ */
+export function isLongformPost(p: HistoryPost): boolean {
+  if (p.format) return p.format === "longform";
+  return /[｜|]/.test(p.title);
 }
 interface HistoryFile {
   posts: HistoryPost[];
@@ -138,6 +160,14 @@ export function isSameCase(a: string, b: string): boolean {
   const na = normalizeKey(a);
   const nb = normalizeKey(b);
   if (na === nb) return true;
+  // 키 전체 철자 2자 이내 차이 + 연도 같음(둘 다 없음 포함) — 오타 키(merdith↔meredith). 짧은 키는 오탐이 커서 10자 이상만
+  {
+    const ya = keyYear(a);
+    const yb = keyYear(b);
+    const ba = na.replace(/\b(1\d{3}|20\d\d)\b/g, "");
+    const bb = nb.replace(/\b(1\d{3}|20\d\d)\b/g, "");
+    if (ya === yb && Math.min(ba.length, bb.length) >= 10 && editDistance(na, nb) <= 2) return true;
+  }
   const ta = keyNameTokens(a);
   const tb = keyNameTokens(b);
   if (!ta.size || !tb.size) return false;
@@ -184,14 +214,37 @@ export function isSameTitle(a: string, b: string): boolean {
   return shared.length >= 2;
 }
 
-export function isDuplicate(hist: HistoryFile, caseKey: string, title?: string): boolean {
-  return hist.posts.some((p) => isSameCase(p.caseKey, caseKey) || (!!title && isSameTitle(p.title, title)));
+export function isDuplicate(hist: HistoryFile, caseKey: string, title?: string, sourceUrls?: string[]): boolean {
+  const urls = new Set((sourceUrls ?? []).map(normUrl).filter(Boolean));
+  return hist.posts.some(
+    (p) =>
+      isSameCase(p.caseKey, caseKey) ||
+      (!!title && isSameTitle(p.title, title)) ||
+      (!!p.sourceUrl && urls.has(normUrl(p.sourceUrl))),
+  );
+}
+
+/** 위키 문서 URL 비교용 — 프로토콜·모바일 도메인·인코딩·밑줄/공백 차이 무시 */
+function normUrl(u: string): string {
+  let s = u.trim();
+  try {
+    s = decodeURIComponent(s);
+  } catch {
+    /* 그대로 */
+  }
+  return s.toLowerCase().replace(/^https?:\/\//, "").replace(/\.m\./, ".").replace(/[_\s]+/g, " ").replace(/\/+$/, "");
 }
 
 /** 이력에 1건 추가하고 파일 저장 (게시 성공 후 호출) */
-export async function appendPost(idea: StoryIdea, hashtags?: string[], angle?: string): Promise<void> {
+export async function appendPost(
+  idea: StoryIdea,
+  hashtags?: string[],
+  angle?: string,
+  extra?: HistoryExtra,
+): Promise<void> {
   const hist = await loadHistory();
   const at = new Date().toISOString().slice(0, 10);
+  const more = Object.fromEntries(Object.entries(extra ?? {}).filter(([, v]) => v !== undefined && v !== ""));
   hist.posts.push({
     caseKey: idea.caseKey,
     title: idea.title,
@@ -199,6 +252,7 @@ export async function appendPost(idea: StoryIdea, hashtags?: string[], angle?: s
     at,
     hashtags,
     ...(angle ? { angle } : {}),
+    ...more,
   });
   await fs.mkdir(path.dirname(HISTORY_PATH), { recursive: true });
   // 제자리 writeFile 은 쓰는 도중 크래시하면 잘린 JSON을 남긴다(위 loadHistory 의

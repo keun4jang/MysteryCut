@@ -35,12 +35,27 @@ on:
         type: boolean
         required: false
         default: false
+      # 11/8: 수요일 단일 사건(쇼츠 성과 상위 사건 심층) / 토요일 테마 몰아보기. auto = 수요일 KST 는 data/longformConfig.json 의 wedMode, 그 외 몰아보기
+      mode:
+        description: "형식(auto=요일 기준 / single=단일 사건 / compilation=테마 몰아보기)"
+        type: choice
+        required: false
+        default: auto
+        options:
+          - auto
+          - single
+          - compilation
+      seed_video_id:
+        description: "단일 사건 시드로 쓸 쇼츠 videoId(선택)"
+        required: false
+        default: ""
 
-# ★'publish' 그룹은 post-reel.yml 과 이름을 공유한다 — 두 워크플로가 겹치는
+# ★게시 그룹은 post-reel.yml 과 글자 그대로 같은 'mystery-cut-publish' — 두 워크플로가 겹치는
 # 날 서로 다른 소재를 동시에 골라 같은 사건이 두 번 게시되는 레이스를 막는다
-# (자세한 사고 시나리오는 post-reel.yml 의 같은 블록 주석 참고).
+# (11/8: 예전엔 접두사가 달라 실제로는 공유되지 않았다. 사고 시나리오는 post-reel.yml 의 같은 블록 주석 참고).
+# 드라이런은 워크플로별 별도 그룹. 대기열에서 기다리는 동안은 runner 시간·timeout 을 쓰지 않는다.
 concurrency:
-  group: post-longform-${{ github.event.inputs.dry_run == 'true' && 'dryrun' || 'mystery-cut-publish' }}
+  group: ${{ github.event.inputs.dry_run == 'true' && format('dryrun-{0}', github.workflow) || 'mystery-cut-publish' }}
   cancel-in-progress: false
 
 permissions:
@@ -142,11 +157,14 @@ jobs:
           TTS_VOICE: ${{ vars.TTS_VOICE }}
           YT_PRIVACY: ${{ vars.YT_PRIVACY }}
           YT_CATEGORY_ID: ${{ vars.YT_CATEGORY_ID }}
+          LF_SEED: ${{ github.event.inputs.seed }}
+          LF_MODE: ${{ github.event.inputs.mode || 'auto' }}
+          LF_SEED_VIDEO: ${{ github.event.inputs.seed_video_id }}
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            npm run longform -- --no-publish --seed="${{ github.event.inputs.seed }}"
+            npm run longform -- --no-publish --seed="$LF_SEED" --mode="$LF_MODE" --seed-video-id="$LF_SEED_VIDEO"
           else
-            npm run longform -- --seed="${{ github.event.inputs.seed }}"
+            npm run longform -- --seed="$LF_SEED" --mode="$LF_MODE" --seed-video-id="$LF_SEED_VIDEO"
           fi
 
       # ★쇼츠 워크플로와 같은 브랜치에 푸시가 겹칠 수 있다 — 레이스 없는

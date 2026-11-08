@@ -47,10 +47,11 @@ on:
 # 서로 다른 체크아웃 시점의 history.json 으로 각자 소재를 골라 같은 사건이
 # 같은 날 두 번 게시될 수 있었다(감사에서 발견). 같은 그룹을 쓰면 뒤에 시작한
 # 쪽이 대기열에서 기다렸다가 앞선 실행의 이력 커밋이 끝난 뒤 시작해 레이스가
-# 원천적으로 사라진다(대기는 runner 시간을 소모하지 않아 180분 타임아웃과
 # 무관하다).
+# 11/8: 예전 그룹 이름은 'post-reel-…'/'post-longform-…' 접두사가 달라 실제로는 공유되지 않았다(토요일 두 잡이 동시에 돎).
+# 실제 게시는 두 워크플로가 글자 그대로 같은 'mystery-cut-publish' 를 쓰고, 드라이런만 워크플로별 그룹으로 나눈다.
 concurrency:
-  group: post-reel-${{ github.event.inputs.dry_run == 'true' && 'dryrun' || 'mystery-cut-publish' }}
+  group: ${{ github.event.inputs.dry_run == 'true' && format('dryrun-{0}', github.workflow) || 'mystery-cut-publish' }}
   cancel-in-progress: false
 
 # 인스타 업로드용 임시 공개 호스팅(릴리스 생성/삭제)에 필요
@@ -137,11 +138,14 @@ jobs:
       # 게시 시각을 매번 다르게, 한국 시간 저녁 창 안으로(11/3 사장님: "업로드 시간은 항상 달라야 해", 창은 17~23시 KST).
       # GitHub 스케줄은 정시 혼잡으로 3~7시간씩 늦게 시작한다(10월 실측: 19시 예약 → 22:24~02:28 KST 게시). 그래서 일찍 깨우고,
       # 그날의 목표 시각(시작 17:00~22:45 KST)을 무작위로 뽑아 그때까지 기다린다. 이미 지났으면 바로 진행. 수동 실행은 대기 없음.
+      # 11/8: 토요일(KST)은 롱폼(시작 17:00~21:20 KST)과 몇 분 간격으로 붙지 않게 21:00~22:45 KST 에서만 뽑는다.
       - name: 게시 시각 맞추기 (스케줄 실행만)
         if: github.event_name == 'schedule'
         run: |
           DAY0=$(date -u -d 'today 00:00' +%s)
-          TARGET=$(( DAY0 + (480 + (RANDOM * 32768 + RANDOM) % (825 - 480 + 1)) * 60 ))
+          LO=480
+          if [ "$(TZ=Asia/Seoul date +%u)" = "6" ]; then LO=720; fi
+          TARGET=$(( DAY0 + (LO + (RANDOM * 32768 + RANDOM) % (825 - LO + 1)) * 60 ))
           NOW=$(date -u +%s)
           WAIT=$(( TARGET - NOW ))
           [ "$WAIT" -gt 18000 ] && WAIT=18000
