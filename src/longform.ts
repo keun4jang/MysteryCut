@@ -189,7 +189,7 @@ async function runSingle(ctx: {
       const same = isSameCase(p.caseKey, cand.post.caseKey);
       const fixedProbe: CaseProbe = {
         caseKey: cand.post.caseKey,
-        title: same ? p.title : cand.post.title,
+        title: same ? p.title : keyToWords(cand.post.caseKey), // 다른 사건이 오면 쇼츠 낚시 제목 대신 사건 키 낱말
         premise: cand.post.premise || (same ? p.premise : cand.post.title),
         searchTerms: [...(same ? p.searchTerms : []), keyToWords(cand.post.caseKey)].filter(Boolean),
       };
@@ -293,6 +293,7 @@ async function runCompilation(ctx: {
 
   const avoid: AvoidList = recentAvoidList({ posts: workingHistory.posts });
   const cases: ProducedCase[] = [];
+  avoid.rejected ??= []; // 첫 칸용 사본(caseAvoid)과 버린 목록을 공유한다
   for (let slot = 0; slot < MAX_CASE_SLOTS && cases.length < CASES_PER_COMPILATION; slot++) {
     if (cases.length + (MAX_CASE_SLOTS - slot) < MIN_CASES) break; // 남은 칸으로 최소 건수를 못 채우면 Gemini 를 더 쓰지 않는다
     const lead = cases.length === 0;
@@ -326,6 +327,11 @@ async function runCompilation(ctx: {
     } catch (e) {
       // 사건 하나의 제작 오류로 이미 만든 사건까지 버리지 않는다(2026-10-05 RECITATION 사고)
       console.warn(`   ⚠️ 사건 제작 중 오류 — 이 칸만 건너뜀: ${e instanceof Error ? e.message : e}`);
+    }
+    // 첫 칸에서 버린 후보를 다음 칸도 피하게 원래 회피 목록에 되돌려 넣는다(11/8 검토)
+    if (caseAvoid !== avoid) {
+      for (const k of caseAvoid.caseKeys) if (!avoid.caseKeys.includes(k)) avoid.caseKeys.push(k);
+      for (const t of caseAvoid.titles) if (!avoid.titles.includes(t)) avoid.titles.push(t);
     }
     if (!produced) {
       console.log("   ↩︎ 이 칸 사건 확보 실패 — 건너뜀");
@@ -525,6 +531,7 @@ async function finishAndPublish(p: {
   await persistLatestLongform({ videoId, title: p.title, publishedAt: new Date().toISOString().slice(0, 10) }).catch(() => {});
   await appendLongformTitle(
     { title: p.title, at: new Date().toISOString().slice(0, 10), mode, videoId },
+    p.recentTitles,
   ).catch((e) => console.warn(`   ⚠️ 롱폼 제목 기록 실패(게시는 완료됨): ${e instanceof Error ? e.message : e}`));
 
   // 이력엔 사건별로 남긴다 — 사건 단위 중복 회피(쇼츠 포함)가 계속 동작해야 한다
@@ -719,7 +726,7 @@ async function produceOneCase(opts: {
   const badYears = yearsMissingFromSource(script.title, sourceText);
   if (badYears.length) {
     const before = script.title;
-    for (const y of badYears) script.title = script.title.replace(new RegExp(`${y}\\s*년\\s*`, "g"), "").trim();
+    for (const y of badYears) script.title = script.title.replace(new RegExp(`${y}\\s*년(?!대)\\s*`, "g"), "").trim();
     script.titleEn = "";
     console.log(`   ✂️ 제목 연도(${badYears.join(", ")})가 원문에 없어 뺌: ${before} → ${script.title}`);
   }

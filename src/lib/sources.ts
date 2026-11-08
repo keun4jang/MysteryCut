@@ -498,7 +498,7 @@ function looksLikeIndexPage(title: string): boolean {
 export function isNonCaseTitle(title: string, caseKey?: string): boolean {
   return (
     // 11/8: 방송·작품·개념·학문 문서가 사건으로 뚫렸다(10/23 심야괴담회·넷플릭스 시리즈, 10/26 괴담 레스토랑·7대 난제, 11/2 동남 방언)
-    /방송|프로그램|시리즈|예능|넷플릭스|애니메이션|드라마|괴담회|레스토랑|난제|방언|miscarriage of justice|cold case|urban legend/i.test(title) ||
+    /방송 프로그램|텔레비전 프로그램|드라마 시리즈|예능|넷플릭스|애니메이션|괴담회|레스토랑|난제|방언|miscarriage of justice|cold case|urban legend/i.test(title) ||
     (!!caseKey && isNonCaseKey(caseKey)) ||
     /^(lists? of|index of|outline of|timeline of|glossary of|category:)/i.test(title) ||
     /(목록|일람|연표)$/.test(title.trim()) ||
@@ -525,7 +525,7 @@ export function isNonCaseKey(caseKey: string): boolean {
   return (
     GENERIC_CASE_KEYS.has(k) ||
     /^(lists?|index|outline|timeline|glossary|category)-of(-|$)/.test(k) ||
-    /(^|-)season-\d+(-|$)|(^|-)(anime|manga|tv-series|film|novel|netflix)(-|$)|disambiguation/.test(k)
+    /(^|-)season-\d+(-|$)|(^|-)(anime|manga|tv-series|novel|netflix)(-|$)|disambiguation/.test(k)
   );
 }
 
@@ -540,7 +540,7 @@ export function isSexCrimeCase(title: string, premise = "", caseKey = ""): boole
   if (/(유아|아동|어린이|소녀|소년|여아|남아)[^\n]{0,8}(유괴|살인|살해)|연속\s*유괴|시신\s*훼손|식인|시간\s*범|child\s*(murder|killer|abduction)|cannibal|necrophil/i.test(t)) return true;
   // 11/8: 아동 시신·아동 실종·유괴(상자 속 소년 10/12, 매들린 매캔 11/4)와 화성 연쇄살인(이춘재 10/16)이 낱말 검사를 빠져나갔다
   if (
-    /(유아|아동|어린이|소녀|소년|여아|남아|아기)[^\n]{0,8}(시신|유골|사체)|(유아|아동|어린이|아이|아기|여아|남아)[^\n]{0,6}(실종|유괴|납치)|(\d{1,2}|한|두|세|네|다섯|여섯|일곱)\s*살\s*(아이|아기|여아|남아|소녀|소년)[^\n]{0,15}(사라|실종|유괴|납치)|(사라진|실종된|유괴된|납치된)\s*(\d{1,2}\s*살\s*|(한|두|세|네|다섯)\s*살\s*)?(아이|아기|여아|남아|어린이)/.test(t)
+    /(?<![가-힣])(유아|아동|어린이|소녀|소년|여아|아기)[^\n]{0,8}(시신|유골|사체)|(?<![가-힣])(유아|아동|어린이|아이|아기|여아)(?:가|를|이|의|들)?(?![가-힣])[^\n]{0,6}(실종|유괴|납치)|(\d{1,2}|한|두|세|네|다섯|여섯|일곱)\s*살\s*(아이|아기|여아|소녀|소년)[^\n]{0,15}(사라|실종|유괴|납치)|(사라진|실종된|유괴된|납치된)\s*(\d{1,2}\s*살\s*|(한|두|세|네|다섯)\s*살\s*)?(아이|아기|여아|어린이)(?![가-힣]{2})/.test(t)
   ) return true;
   if (/화성\s*연쇄|이춘재|lee choon jae|hwaseong serial|(\d+|여러|수십)\s*명의\s*(여성|부녀자|여자)[^\n]{0,10}(해친|살해|살인)/i.test(t)) return true;
   return /강간|성폭행|성폭력|성추행|성범죄|추행|윤간|성매매|아동\s*성|rape|sexual\s*(assault|abuse|violence)|molest|pedophil/i.test(t);
@@ -551,7 +551,7 @@ export function isSexCrimeCase(title: string, premise = "", caseKey = ""): boole
  * 9/30 수에즈 키에 '1815년' 제목, 10/21 버클랜드 키에 '1869년' 제목 — 제목 연도가 원문과 어긋난 채 게시됐다.
  */
 export function yearsMissingFromSource(title: string, sourceText: string): string[] {
-  const years = [...title.matchAll(/(1\d{3}|20\d\d)\s*년/g)].map((m) => m[1]);
+  const years = [...title.matchAll(/(1\d{3}|20\d\d)\s*년(?!대)/g)].map((m) => m[1]);
   return [...new Set(years)].filter((y) => !sourceText.includes(y));
 }
 

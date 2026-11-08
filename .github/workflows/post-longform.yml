@@ -72,7 +72,10 @@ jobs:
       - name: 게시 시각 맞추기 (스케줄 실행만)
         run: |
           DAY0=$(date -u -d 'today 00:00' +%s)
-          TARGET=$(( DAY0 + (480 + (RANDOM * 32768 + RANDOM) % (740 - 480 + 1)) * 60 ))
+          LO=480
+          # 11/8: 토요일은 쇼츠(17:00~18:30 시작)가 먼저 끝나도록 19:00~21:20 KST 에서 뽑는다
+          if [ "$(TZ=Asia/Seoul date +%u)" = "6" ]; then LO=600; fi
+          TARGET=$(( DAY0 + (LO + (RANDOM * 32768 + RANDOM) % (740 - LO + 1)) * 60 ))
           NOW=$(date -u +%s)
           WAIT=$(( TARGET - NOW ))
           [ "$WAIT" -gt 13800 ] && WAIT=13800

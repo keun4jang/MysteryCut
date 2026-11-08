@@ -179,6 +179,26 @@ export async function publishYouTube(
  * YPP 4,000시간에 산입된다). 썸네일도 첫 프레임이 아니라 전용 1280x720 이미지를
  * 올린다.
  */
+/** 설명란은 5,000'바이트' 한도 — 한글은 3바이트라 글자 수로 자르면 넘칠 수 있다(11/8 검토). 줄 단위로 뒤에서부터 줄인다. */
+function fitBytes(text: string, max = 4800): string {
+  if (Buffer.byteLength(text, "utf8") <= max) return text;
+  const lines = text.split("\n");
+  while (lines.length > 1 && Buffer.byteLength(lines.join("\n"), "utf8") > max) lines.splice(-2, 1); // 마지막 줄(해시태그)은 남긴다
+  let out = lines.join("\n");
+  while (Buffer.byteLength(out, "utf8") > max) out = out.slice(0, -10);
+  return out;
+}
+
+/** 위키 주소의 %EC%9D... 를 사람이 읽는 한글로(길이도 줄어든다). 실패하면 원래 주소. */
+function readableUrl(url: string): string {
+  const u = url.split("#")[0];
+  try {
+    return decodeURI(u);
+  } catch {
+    return u;
+  }
+}
+
 export async function publishLongform(
   videoPath: string,
   script: LongformScript,
@@ -204,7 +224,7 @@ export async function publishLongform(
 
   const snippet = {
     title: script.title.slice(0, 100),
-    description: description.slice(0, 4900),
+    description: fitBytes(description),
     categoryId: config.youtube.categoryId,
     tags: opts?.tags ?? (script.tags ?? []).map((t) => t.replace(/^#/, "")).slice(0, 15),
     defaultLanguage: "ko",
@@ -217,7 +237,7 @@ export async function publishLongform(
   const en = opts?.localizationEn;
   const localizations =
     en?.title.trim() && en.description.trim()
-      ? { en: { title: en.title.trim().slice(0, 100), description: en.description.trim().slice(0, 4900) } }
+      ? { en: { title: en.title.trim().slice(0, 100), description: fitBytes(en.description.trim()) } }
       : undefined;
 
   const uploadUrl = await startUpload(
@@ -352,7 +372,7 @@ export function buildLongformDescription(p: {
   const seen = new Set<string>();
   const srcLines = p.sources
     .filter((d) => d.url && !seen.has(d.url) && seen.add(d.url))
-    .map((d) => `· ${d.title.replace(/#/g, "")} — ${d.url.split("#")[0]}`);
+    .map((d) => `· ${d.title.replace(/#/g, "")} — ${readableUrl(d.url)}`);
   const sources = [
     "참고 자료",
     ...srcLines,
@@ -380,7 +400,7 @@ export function buildLongformDescription(p: {
 
 /** 영어 설명란(localizations.en) — 첫 문단 + 출처·고지(영어) */
 export function buildLongformDescriptionEn(hookEn: string, sources: Array<{ url: string }>): string {
-  const urls = [...new Set(sources.map((d) => d.url.split("#")[0]).filter(Boolean))].map((u) => `· ${u}`);
+  const urls = [...new Set(sources.map((d) => readableUrl(d.url)).filter(Boolean))].map((u) => `· ${u}`);
   return [
     hookEn.replace(/#/g, "").trim(),
     ["Sources", ...urls, "Reconstructed from Wikipedia (CC BY-SA 4.0) and other public records. Photos: Pexels."].join("\n"),
