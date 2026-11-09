@@ -322,6 +322,7 @@ async function runCompilation(ctx: {
         charLimits: () => CASE_CHAR_LIMITS,
         topicAngle: theme.seedHint,
         theme: theme.seedHint,
+        themeQueries: theme.queries,
         transitionSeed: `${kstDate}-${slot}`,
       });
     } catch (e) {
@@ -592,6 +593,7 @@ async function produceOneCase(opts: {
   charLimits: (sourceChars: number) => { min: number; max: number };
   topicAngle: string;
   theme?: string;
+  themeQueries?: Array<{ lang: "ko" | "en"; q: string }>;
   titleStyle?: string;
   transitionSeed?: string;
 }): Promise<ProducedCase | null> {
@@ -599,8 +601,11 @@ async function produceOneCase(opts: {
   const maxTries = opts.fixedProbe ? 1 : 5;
   const planOpts = () => ({
     topicAngle: opts.topicAngle || undefined,
-    regionAngle: pickRegionAngle(), // 지역은 사건마다 바꾼다(9/25 5건이 전부 한국 상속 분쟁)
+    // 지역은 사건마다 바꾼다(9/25 5건이 전부 한국 상속 분쟁). 테마 회차는 테마가 우선 — '한국'+'미해독 암호'처럼
+    // 둘이 부딪치면 모델이 엉뚱한 사건을 지어냈다(11/9 드라이런)
+    regionAngle: opts.themeQueries?.length ? "지역: 자유 — 테마에 맞는 사건이 우선" : pickRegionAngle(),
     theme: opts.theme,
+    themeQueries: opts.themeQueries,
   });
   const rejectAndLog = (probe: CaseProbe, why: string) => {
     avoid.caseKeys.push(probe.caseKey);

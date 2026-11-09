@@ -73,6 +73,8 @@ export interface PlanOptions {
   titleStyle?: string;
   /** 몰아보기 테마(11/8, variety.ts COMPILATION_THEMES 의 seedHint) — 있으면 이 테마에 맞는 사건만 */
   theme?: string;
+  /** 몰아보기 테마의 후보 검색어 — 있으면 후보 목록을 테마 문서로 채운다 */
+  themeQueries?: Array<{ lang: "ko" | "en"; q: string }>;
   /** 1단계에서 확정된 사건 — 있으면 모델은 이 사건으로만 써야 한다 */
   forcedCase?: CaseProbe;
   /** 위키백과에서 받아온 사건 원문 — 대본의 사실은 여기서만 나와야 한다 */
@@ -95,15 +97,29 @@ export async function proposeCase(
   const warm = isWarmAngle(opts?.topicAngle);
   const rejectedCount = avoid?.rejected?.length ?? 0;
   // 버린 사건이 쌓이면 검색어를 늘려 이력과 안 겹치는 후보를 더 많이 확보한다(11/7: 유명 사건 10연속 중복)
-  const candidates = await discoverCandidateTitles(rejectedCount >= 2 ? 48 : 24, warm, rejectedCount >= 2 ? 10 : 4).catch(
+  const candidates = await discoverCandidateTitles(
+    rejectedCount >= 2 ? 48 : 24,
+    warm,
+    rejectedCount >= 2 ? 10 : 4,
+    opts?.themeQueries,
+  ).catch(
     () => [] as string[],
   );
   const avoidTitlesLower = new Set((avoid?.titles ?? []).map((t) => t.toLowerCase()));
   // 문서 제목을 caseKey 꼴로 바꿔 이력과 대조한다 — 'Dyatlov Pass incident' ↔ dyatlov-pass-1959
   const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "");
+  // 한국어 문서 제목('개구리 소년 사건')은 영어 caseKey 와 대조가 안 돼 이미 게시한 사건이 후보로 남았다(11/9 드라이런).
+  // 사건명 핵심어가 게시 제목에 그대로 들어 있으면 뺀다.
+  const core = (t: string) =>
+    t.replace(/\s*\(.*?\)\s*/g, "").replace(/\s*(사건|살인 사건|실종 사건|미스터리|의 수수께끼)$/, "").trim().toLowerCase();
+  const inPostedTitle = (t: string) => {
+    const c = core(t);
+    return c.length >= 3 && /[가-힣]/.test(c) && [...avoidTitlesLower].some((pt) => pt.includes(c));
+  };
   const freshCandidates = candidates.filter(
     (t) =>
       !avoidTitlesLower.has(t.toLowerCase()) &&
+      !inPostedTitle(t) &&
       !(avoid?.caseKeys ?? []).some((k) => isSameCase(slug(t), k)),
   );
   // 버린 사건이 2건 이상 쌓이면 모델이 같은 유명 사건으로 계속 돌아간다(10/13 드라이런: 댜틀로프 4연속,
