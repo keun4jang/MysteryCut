@@ -389,6 +389,8 @@ export interface CompilationTheme {
   seedHint: string;
   /** 썸네일 배지(4~8자) */
   badge: string;
+  /** 테마에 맞는 실제 문서 후보를 찾을 위키백과 검색어(11/9: 일반 후보 목록엔 테마 사건이 없어 3칸 실패) */
+  queries: Array<{ lang: "ko" | "en"; q: string }>;
 }
 
 export const COMPILATION_THEMES: CompilationTheme[] = [
@@ -397,36 +399,42 @@ export const COMPILATION_THEMES: CompilationTheme[] = [
     label: "사라진 사람들",
     seedHint: "테마: '사라진 사람들' — 기록으로 남은 실제 실종 사건(성인). 아동 실종·유괴는 고르지 마라.",
     badge: "사라진 사람들",
+    queries: [{ lang: "ko", q: "실종 사건" }, { lang: "en", q: "missing person case unsolved disappearance" }, { lang: "en", q: "mysterious disappearance adult" }, { lang: "en", q: "disappeared without trace" }],
   },
   {
     id: "lost-at-sea-sky",
     label: "바다와 하늘에서 사라진 것들",
     seedHint: "테마: '바다·하늘에서 사라진 것들' — 실종된 배·비행기·승무원, 유령선처럼 바다나 하늘에서 행방이 끊긴 실제 기록.",
     badge: "바다의 실종",
+    queries: [{ lang: "ko", q: "실종된 선박" }, { lang: "en", q: "ghost ship found abandoned" }, { lang: "en", q: "aircraft disappearance unsolved" }, { lang: "en", q: "ship disappeared without trace crew" }],
   },
   {
     id: "joseon-records",
     label: "조선의 기이한 기록",
     seedHint: "테마: '조선의 기이한 기록' — 조선왕조실록 등 조선 시대 문헌에 남은 기이한 사건·현상·인물. 정치 당파 다툼 자체는 피하라.",
     badge: "조선 기록",
+    queries: [{ lang: "ko", q: "조선왕조실록 기록 괴이" }, { lang: "ko", q: "조선 시대 미스터리" }, { lang: "ko", q: "조선 시대 사건 의문" }, { lang: "ko", q: "실록 기이한 현상" }],
   },
   {
     id: "codes-artifacts",
     label: "풀리지 않은 암호와 유물",
     seedHint: "테마: '풀리지 않은 암호·유물' — 해독되지 않은 문서·암호문, 정체가 밝혀지지 않은 유물·비석·지도.",
     badge: "미해독 기록",
+    queries: [{ lang: "en", q: "undeciphered manuscript" }, { lang: "en", q: "unsolved cipher" }, { lang: "en", q: "out-of-place artifact" }, { lang: "en", q: "undeciphered writing system inscription" }, { lang: "ko", q: "해독되지 않은 문자" }],
   },
   {
     id: "cryptids",
     label: "미확인 생물의 기록",
     seedHint: "테마: '미확인 생물' — 목격 기록이 문서로 남은 미확인 생물·멸종 동물 목격담과 그 검증.",
     badge: "미확인 생물",
+    queries: [{ lang: "en", q: "cryptid sighting" }, { lang: "en", q: "lake monster reported sightings" }, { lang: "en", q: "extinct animal reported sightings" }, { lang: "ko", q: "미확인 생물" }],
   },
   {
     id: "miracle-survival",
     label: "기적의 생존 기록",
     seedHint: "테마: '기적의 생존' — 조난·사고·고립에서 상식 밖으로 살아남은 실제 생존 기록과 그 수수께끼.",
     badge: "생존 기록",
+    queries: [{ lang: "en", q: "sole survivor plane crash" }, { lang: "en", q: "survived stranded days rescue" }, { lang: "en", q: "castaway survival" }, { lang: "ko", q: "생존자 구조 기적" }],
   },
 ];
 
