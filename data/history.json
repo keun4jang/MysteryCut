@@ -3893,6 +3893,26 @@
         "감동스토리"
       ],
       "angle": "'감동 실화(선과 악)'"
+    },
+    {
+      "caseKey": "whitehall-mystery-1888",
+      "title": "런던 경찰청 공사장 금고에서 발견된 소포의 진실",
+      "premise": "새로 짓는 경찰청 본부 건물 안에서 정체불명의 시신 부위가 연이어 발견된 1888년의 미해결 사건이에요.",
+      "at": "2026-11-10",
+      "hashtags": [
+        "미스터리",
+        "실화",
+        "미제사건",
+        "사건기록",
+        "런던",
+        "역사",
+        "다큐",
+        "법정기록"
+      ],
+      "angle": "'뒤집힌 상식'",
+      "format": "short",
+      "videoId": "tZgsp6Ouo5c",
+      "sourceUrl": "https://ko.wikipedia.org/wiki/%ED%99%94%EC%9D%B4%ED%8A%B8%ED%99%80_%EB%AF%B8%EC%A0%9C%EC%82%AC%EA%B1%B4"
     }
   ]
 }
