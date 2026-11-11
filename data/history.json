@@ -3913,6 +3913,27 @@
       "format": "short",
       "videoId": "tZgsp6Ouo5c",
       "sourceUrl": "https://ko.wikipedia.org/wiki/%ED%99%94%EC%9D%B4%ED%8A%B8%ED%99%80_%EB%AF%B8%EC%A0%9C%EC%82%AC%EA%B1%B4"
+    },
+    {
+      "caseKey": "phantom-of-heilbronn-2009",
+      "title": "하일브론의 유령 미스터리, 40곳의 범죄 현장에 남은 단 하나의 DNA 진실",
+      "premise": "15년 동안 유럽 수십 곳의 범죄 현장에서 발견된 연쇄살인마의 DNA, 그 감춰진 기묘한 진실.",
+      "at": "2026-11-11",
+      "hashtags": [
+        "하일브론의 유령",
+        "Phantom of Heilbronn",
+        "미제사건",
+        "DNA 오염",
+        "독일 경찰",
+        "미스터리",
+        "법과학",
+        "수사 기록"
+      ],
+      "format": "longform",
+      "videoId": "uum3ZrVIpQc",
+      "sourceUrl": "https://ko.wikipedia.org/wiki/%ED%95%98%EC%9D%BC%EB%B8%8C%EB%A1%A0%EC%9D%98_%EC%9C%A0%EB%A0%B9",
+      "mode": "single",
+      "sourceShort": "sIqPZHTWw7c"
     }
   ]
 }
