@@ -16,6 +16,7 @@ import {
   buildLongformDescription,
   buildLongformDescriptionEn,
   normalizeTags,
+  commentOnSourceShorts,
 } from "./assistants/youtubePublisher.js";
 import {
   loadHistory,
@@ -44,6 +45,7 @@ import { dropUnreadableVisuals } from "./lib/visual/normalize.js";
 import {
   pickRegionAngle,
   pickCompilationTheme,
+  COMPILATION_THEMES,
   pickLongformTitleStyle,
   seededPick,
   CASE_TRANSITIONS,
@@ -52,7 +54,7 @@ import {
 } from "./lib/variety.js";
 import { deriveGrade } from "./lib/grade.js";
 import { checkTitle, loadRecentLongformTitles, appendLongformTitle } from "./lib/titleGuard.js";
-import { pickSeedShorts, type SeedCandidate } from "./lib/shortPerformance.js";
+import { pickSeedShorts, mapCaseVideoIds, type SeedCandidate } from "./lib/shortPerformance.js";
 import { longformDurationInFrames, longformChapterTimestamps } from "./remotion/timing.js";
 import type { LongformInputProps, LongformScript, NarratedChapter, StoryIdea } from "./types.js";
 
@@ -524,6 +526,10 @@ async function finishAndPublish(p: {
     description,
     tags,
     localizationEn,
+    themePlaylist: (() => {
+      const t = COMPILATION_THEMES.find((x) => x.id === p.historyExtra.theme);
+      return t ? { id: t.id, label: t.label } : undefined;
+    })(),
   });
   console.log(`   ✅ 롱폼(${mode === "single" ? "단일 사건" : `몰아보기 ${cases.length}건`}) 게시 완료: https://youtu.be/${videoId}`);
   if (localizationEn) console.log(`   🔍 첫 업로드 확인용(읽기 전용 1 unit): videos.list?part=snippet,localizations&id=${videoId}`);
@@ -556,6 +562,20 @@ async function finishAndPublish(p: {
       sourceUrl: c.sources[0]?.url,
       ...p.historyExtra,
     });
+  }
+
+  // 같은 사건 쇼츠에 롱폼 안내 댓글(11/12) — 쇼츠 시청자를 수익창출 시청시간이 쌓이는 롱폼으로 데려온다.
+  // 옛 영상·비공개는 commentOnSourceShorts 가 건너뛴다. 실패해도 게시엔 영향 없음.
+  try {
+    const posts = (await loadHistory()).posts;
+    const idMap = await mapCaseVideoIds(posts);
+    const shortIds: string[] = [];
+    if (p.historyExtra.sourceShort) shortIds.push(p.historyExtra.sourceShort);
+    for (const c of cases)
+      for (const [k, ids] of idMap) if (isSameCase(k, c.probe.caseKey)) shortIds.push(...ids.slice(-1));
+    await commentOnSourceShorts(shortIds, { videoId, title: p.title, single: mode === "single" });
+  } catch (e) {
+    console.warn(`   ⚠️ 쇼츠 안내 댓글 생략(게시는 완료됨): ${e instanceof Error ? e.message : e}`);
   }
 
   // 썸네일 보관 (쇼츠와 동일하게 저장소에 남긴다)

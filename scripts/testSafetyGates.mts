@@ -16,6 +16,7 @@ import { longformChapterTimestamps, longformDurationInFrames } from "../src/remo
 import { buildLongformDescription, normalizeTags } from "../src/assistants/youtubePublisher.js";
 import { seedEligible, mapCaseVideoIds, LEGACY_CUTOFF as SRC_CUTOFF } from "../src/lib/shortPerformance.js";
 import { pickCompilationTheme, COMPILATION_THEMES } from "../src/lib/variety.js";
+import { sourceOverlap, MAX_SOURCE_OVERLAP } from "../src/lib/originality.js";
 import { LEGACY_CUTOFF } from "./legacyGuard.mjs";
 import { mergePosts } from "./historyMerge.mjs";
 
@@ -174,6 +175,23 @@ check("유사도 검사: 거의 같은 제목은 탈락", !checkTitle("1929년 �
   check("시드: 썸네일 파일명으로 videoId 매핑", ids.get("voynich-manuscript-1912")?.[0] === "XII_AGAMFKo", `${ids.size}개 사건`);
   const t1 = pickCompilationTheme(["vanished-people", "lost-at-sea-sky"], "2026-11-14");
   check("테마: 최근 2회 테마는 건너뜀", !["vanished-people", "lost-at-sea-sky"].includes(t1.id) && COMPILATION_THEMES.includes(t1), t1.label);
+}
+
+{
+  // 원문 베끼기 검사(11/12) — 위키 문장을 그대로 읽으면 걸리고, 같은 사실을 새로 쓴 문장은 통과
+  const src = [
+    "하일브론의 유령은 1993년부터 2009년까지 유럽 여러 나라의 범죄 현장 40여 곳에서 같은 여성의 DNA가 검출되면서 붙은 이름이다. 수사 결과 이 DNA는 증거 채취용 면봉을 포장하던 공장 직원의 것으로 밝혀졌다.",
+  ];
+  const copied = ["하일브론의 유령은 1993년부터 2009년까지 유럽 여러 나라의 범죄 현장 40여 곳에서 같은 여성의 DNA가 검출되면서 붙은 이름입니다."];
+  const own = [
+    "16년 동안 경찰이 쫓은 사람은 한 명의 여성이었습니다.",
+    "마흔 곳이 넘는 현장에서 똑같은 유전자가 나왔기 때문입니다.",
+    "그런데 그 흔적을 남긴 건 범인이 아니라 면봉을 포장하던 공장 직원이었습니다.",
+  ];
+  const a = sourceOverlap(copied, src), b = sourceOverlap(own, src);
+  check("원문 겹침: 위키 문장 낭독은 기준 초과", a > MAX_SOURCE_OVERLAP, `${(a * 100).toFixed(1)}%`);
+  check("원문 겹침: 같은 사실을 새로 쓰면 기준 이하", b <= MAX_SOURCE_OVERLAP, `${(b * 100).toFixed(1)}%`);
+  check("원문 겹침: 영어 원문만 있으면 0", sourceOverlap(copied, ["Phantom of Heilbronn was a hypothetical woman"]) === 0);
 }
 
 console.log(failed ? `\n❌ 실패 ${failed}건` : "\n✅ 전부 통과");
