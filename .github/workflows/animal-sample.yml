@@ -10,7 +10,7 @@ permissions:
 jobs:
   sample:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,7 +22,9 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: npx tsx scripts/animalSample.mts
+        continue-on-error: true
       - name: 샘플 브랜치에 올리기
+        if: always()
         run: |
           git config user.name "mystery-cut-bot"
           git config user.email "actions@users.noreply.github.com"

@@ -71,7 +71,7 @@ async function viaHorde(prompt: string, w: number, h: number): Promise<Buffer | 
       return null;
     }
     const t0 = Date.now();
-    while (Date.now() - t0 < 15 * 60_000) {
+    while (Date.now() - t0 < 40 * 60_000) {
       await new Promise((r) => setTimeout(r, 10_000));
       const c = (await (await fetch(`https://aihorde.net/api/v2/generate/check/${sj.id}`, { headers: H })).json()) as {
         done?: boolean;
@@ -118,22 +118,22 @@ async function viaPollinations(prompt: string, w: number, h: number, seed: numbe
 }
 
 const made: string[] = [];
-for (const [i, s] of SCENES.entries()) {
-  const prompt = `${s.prompt}. ${STYLE}. ${s.w > s.h ? "16:9 wide frame" : "9:16 vertical frame"}`;
-  console.log(`🎨 ${s.file}`);
-  // Horde 는 픽셀 수 제한이 있어 1024x576 / 576x1024 로 요청(샘플용)
-  const [hw, hh] = s.w > s.h ? [1024, 576] : [576, 1024];
-  const img =
-    (await viaHorde(prompt, hw, hh)) ?? (await viaGemini(prompt)) ?? (await viaPollinations(prompt, s.w, s.h, 4100 + i));
-  if (!img) {
-    console.log("   ❌ 두 방법 모두 실패");
-    continue;
-  }
-  const ext = img[0] === 0x89 ? "png" : img.subarray(8, 12).toString() === "WEBP" ? "webp" : "jpg";
-  await fs.writeFile(`samples/animal/${s.file}.${ext}`, img);
-  made.push(`${s.file}.${ext} — ${log[log.length - 1]}`);
-  console.log(`   ✅ ${s.file}.${ext} (${log[log.length - 1]}, ${(img.length / 1024).toFixed(0)}KB)`);
-}
+// Horde 는 대기열이 길어(장당 수 분) 5장을 동시에 요청한다
+await Promise.all(
+  SCENES.map(async (s, i) => {
+    const prompt = `${s.prompt}. ${STYLE}. ${s.w > s.h ? "16:9 wide frame" : "9:16 vertical frame"}`;
+    const [hw, hh] = s.w > s.h ? [1024, 576] : [576, 1024];
+    const img = (await viaHorde(prompt, hw, hh)) ?? (await viaPollinations(prompt, s.w, s.h, 4100 + i));
+    if (!img) {
+      console.log(`❌ ${s.file} 실패`);
+      return;
+    }
+    const ext = img[0] === 0x89 ? "png" : img.subarray(8, 12).toString() === "WEBP" ? "webp" : "jpg";
+    await fs.writeFile(`samples/animal/${s.file}.${ext}`, img);
+    made.push(`${s.file}.${ext}`);
+    console.log(`✅ ${s.file}.${ext} (${(img.length / 1024).toFixed(0)}KB)`);
+  }),
+);
 await fs.writeFile(
   "samples/animal/README.md",
   `# 동물 캐릭터 그림체 샘플 (하일브론의 유령)\n\n${made.map((m) => `- ${m}`).join("\n")}\n\n스타일: ${STYLE}\n`,
