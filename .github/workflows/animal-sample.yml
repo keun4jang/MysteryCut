@@ -1,0 +1,33 @@
+name: "🦊 동물 그림체 샘플(시험용)"
+
+# 게시와 무관. 무료 이미지 AI 로 샘플 5장을 만들어 samples-animal 브랜치에 올린다.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 샘플 생성
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: npx tsx scripts/animalSample.mts
+      - name: 샘플 브랜치에 올리기
+        run: |
+          git config user.name "mystery-cut-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git checkout --orphan samples-animal
+          git rm -rq --cached .
+          git add -f samples/animal
+          git commit -qm "동물 그림체 샘플 [skip ci]"
+          git push -f origin samples-animal
