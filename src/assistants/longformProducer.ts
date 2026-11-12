@@ -7,6 +7,7 @@ import { normalizeVisuals } from "../lib/visual/normalize.js";
 import { sourcesPromptBlock, type SourceDoc } from "../lib/sources.js";
 import { LongformScriptSchema, type LongformScript } from "../types.js";
 import { BANNED_TITLE_PHRASES, checkTitle } from "../lib/titleGuard.js";
+import { MAX_SOURCE_OVERLAP, mostCopiedLines, sourceOverlap } from "../lib/originality.js";
 import type { CaseProbe } from "./producer.js";
 
 /**
@@ -372,6 +373,10 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
       script.thumbTitle,
       opts.sources.map((d) => d.extract).join("\n"),
     );
+    const narration = script.chapters.flatMap((c) => c.segments.map((g) => g.text));
+    const sourceTexts = opts.sources.map((d) => d.extract);
+    const overlap = sourceOverlap(narration, sourceTexts);
+    const copied = overlap > MAX_SOURCE_OVERLAP;
     const gap = Math.abs(chars - idealChars);
     if (gap < bestGap) {
       best = script;
@@ -381,7 +386,8 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
       `   📝 롱폼 대본 ${chars}자 / 챕터 ${script.chapters.length}개 / 컷 ${countSegments(script)}개`,
     );
     console.log(`   🖼️  썸네일 문구 "${script.thumbTitle.replace(/\n/g, " / ")}" (${script.thumbBadge})`);
-    if (!flagged.length && !thumbIssues.length && chars >= minChars && chars <= maxChars) {
+    console.log(`   🧾 원문 문장 겹침 ${(overlap * 100).toFixed(1)}% (기준 ${MAX_SOURCE_OVERLAP * 100}% 이하)`);
+    if (!flagged.length && !thumbIssues.length && !copied && chars >= minChars && chars <= maxChars) {
       applyVisualGates(script, opts.sources, opts.forcedCase.title);
       return script;
     }
@@ -395,6 +401,14 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
       console.warn(`   ⚠️ 썸네일 문구 문제: ${thumbIssues.join(" / ")} — 재생성`);
       feedback += `\n★직전 thumbTitle "${script.thumbTitle.replace(/\n/g, "\\n")}"에 문제가 있었다: ${thumbIssues.join(" / ")}.
 thumbTitle 규칙을 다시 읽고 고쳐라. 대본 내용은 그대로 둬도 된다.`;
+    }
+    if (copied) {
+      // 수익창출 심사의 '재사용·비독창 콘텐츠' 신호 — 위키 문장을 그대로 읽으면 해설이 아니라 낭독이다
+      const lines = mostCopiedLines(narration, sourceTexts);
+      console.warn(`   ⚠️ 원문 문장을 그대로 옮긴 비율이 높음(${(overlap * 100).toFixed(1)}%) — 재생성`);
+      feedback += `\n★직전 대본은 원문 문장을 거의 그대로 옮긴 부분이 많았다(${(overlap * 100).toFixed(0)}%). 사실은 그대로 두되 문장은 네 말로 새로 써라. 원문 문장 순서를 따라가지 말고, 각 사실이 왜 중요한지 해설을 붙여라.${
+        lines.length ? `\n예: ${lines.map((l) => `"${l}"`).join(" / ")}` : ""
+      }`;
     }
     if (chars < minChars || chars > maxChars) {
       const dir = chars < minChars ? "부족" : "초과";
@@ -415,6 +429,13 @@ thumbTitle 규칙을 다시 읽고 고쳐라. 대본 내용은 그대로 둬도 
   // 단일 사건은 한 번에 2,000~2,500자밖에 안 나온다(11/8 드라이런: 5,000자 목표에 2,453자 → 6분 18초).
   // 원문에 아직 안 쓴 사실로 챕터를 덧붙여 목표 분량까지 늘린다(최대 2회, 덧붙인 게 적으면 멈춤).
   if (single && totalChars(best!) < minChars) await extendSingle(best!, system, idealChars, minChars, maxChars);
+
+  const finalOverlap = sourceOverlap(
+    best!.chapters.flatMap((c) => c.segments.map((g) => g.text)),
+    opts.sources.map((d) => d.extract),
+  );
+  console.log(`   🧾 최종 원문 문장 겹침 ${(finalOverlap * 100).toFixed(1)}%`);
+  if (finalOverlap > MAX_SOURCE_OVERLAP) console.warn("   ⚠️ 재생성 후에도 원문 겹침이 기준을 넘음 — 가장 분량이 맞는 대본을 쓴다");
 
   applyVisualGates(best!, opts.sources, opts.forcedCase.title);
   const leftover = findSensitiveTerms(collectTexts(best!));

@@ -1,0 +1,27 @@
+name: "💰 수익창출 준비 리포트"
+
+# 매주 월요일 아침 자동 실행(읽기 전용·무료). 결과는 실행 요약(Summary)에 표로 남는다.
+# 조건 진행(구독자·공개 롱폼 시청시간), 형식별 성과, 최근 롱폼 20편 심사 대비 점검, 신청 가능 여부.
+# 영상은 하나도 건드리지 않는다.
+on:
+  schedule:
+    - cron: "41 0 * * 1"
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 리포트
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: npx tsx scripts/yppReport.mts

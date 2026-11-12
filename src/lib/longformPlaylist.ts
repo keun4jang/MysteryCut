@@ -27,11 +27,34 @@ export async function loadLongformPlaylistId(): Promise<string | null> {
   return cached;
 }
 
+async function readState(): Promise<{ playlistId?: string; themes?: Record<string, string> }> {
+  try {
+    return JSON.parse(await fs.readFile(STATE_FILE, "utf8")) as { playlistId?: string; themes?: Record<string, string> };
+  } catch {
+    return {};
+  }
+}
+
+async function writeState(state: { playlistId?: string; themes?: Record<string, string> }): Promise<void> {
+  await fs.mkdir(path.dirname(STATE_FILE), { recursive: true });
+  const tmp = `${STATE_FILE}.tmp-${process.pid}`;
+  await fs.writeFile(tmp, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  await fs.rename(tmp, STATE_FILE);
+}
+
 export async function persistLongformPlaylistId(playlistId: string): Promise<void> {
   if (cached === playlistId) return;
   cached = playlistId;
-  await fs.mkdir(path.dirname(STATE_FILE), { recursive: true });
-  const tmp = `${STATE_FILE}.tmp-${process.pid}`;
-  await fs.writeFile(tmp, `${JSON.stringify({ playlistId }, null, 2)}\n`, "utf8");
-  await fs.rename(tmp, STATE_FILE);
+  // 테마 재생목록(themes)을 지우지 않게 기존 내용에 합친다(11/12)
+  await writeState({ ...(await readState()), playlistId });
+}
+
+/** 테마별 재생목록 ID(11/12) — { playlistId, themes: { [themeId]: playlistId } } 꼴, 옛 파일도 그대로 읽힌다 */
+export async function loadThemePlaylistId(themeId: string): Promise<string | undefined> {
+  return (await readState()).themes?.[themeId];
+}
+
+export async function persistThemePlaylistId(themeId: string, playlistId: string): Promise<void> {
+  const state = await readState();
+  await writeState({ ...state, themes: { ...(state.themes ?? {}), [themeId]: playlistId } });
 }

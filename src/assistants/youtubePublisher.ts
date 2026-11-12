@@ -1,8 +1,18 @@
 import fs from "node:fs/promises";
 import { config } from "../config.js";
 import { loadLatestLongform } from "../lib/latestLongform.js";
-import { loadLongformPlaylistId, persistLongformPlaylistId } from "../lib/longformPlaylist.js";
+import {
+  loadLongformPlaylistId,
+  persistLongformPlaylistId,
+  loadThemePlaylistId,
+  persistThemePlaylistId,
+} from "../lib/longformPlaylist.js";
 import type { StoryIdea, ReelMetadata, LongformScript } from "../types.js";
+import { isSameCase, loadHistory } from "./history.js";
+import { longformTitleFor } from "../lib/titleGuard.js";
+
+/** 2026-01-01 이전 영상(옛 '새미했다')은 어떤 경우에도 건드리지 않는다 — scripts/legacyGuard.mts 와 같은 기준 */
+const LEGACY_CUTOFF_MS = Date.parse("2026-01-01T00:00:00Z");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -111,7 +121,7 @@ export async function publishYouTube(
 
   const snippet = {
     title: buildTitle(idea),
-    description: await buildDescription(metadata),
+    description: await buildDescription(metadata, idea.caseKey),
     categoryId: config.youtube.categoryId,
     tags: metadata.hashtags.map((t) => t.replace(/^#/, "")).slice(0, 15),
     // 11/8: 언어 표시(롱폼은 이미 씀). 거부되면 startUpload 가 빼고 다시 시도한다
@@ -167,7 +177,7 @@ export async function publishYouTube(
   if (srtEn) await uploadCaptionTrack(json.id, srtEn, accessToken, "English", "en");
 
   // 5) 롱폼 유도 댓글 자동 작성 (고정은 Studio 에서 수동 — postPromoComment 참고)
-  await postPromoComment(json.id, accessToken);
+  await postPromoComment(json.id, accessToken, idea.caseKey);
 
   return { videoId: json.id };
 }
@@ -213,7 +223,13 @@ export async function publishLongform(
    * 11/8: description = 완성된 설명란(buildLongformDescription — 챕터·출처·고지·해시태그 포함, 있으면 citation 무시),
    * tags = 정리된 태그(normalizeTags), localizationEn = 영어 제목·설명(localizations.en, 거부되면 빼고 재시도)
    */
-  opts?: { description?: string; tags?: string[]; localizationEn?: { title: string; description: string } },
+  opts?: {
+    description?: string;
+    tags?: string[];
+    localizationEn?: { title: string; description: string };
+    /** 몰아보기 테마 재생목록(11/12) — 같은 테마 회차끼리 이어 보게 한다 */
+    themePlaylist?: { id: string; label: string };
+  },
 ): Promise<{ videoId: string }> {
   const accessToken = await getAccessToken();
   const bytes = await fs.readFile(videoPath);
@@ -283,6 +299,10 @@ export async function publishLongform(
   // buildDescription 참고). 실패해도 게시 자체는 이미 완료된 상태라 계속한다.
   const playlistId = await ensureLongformPlaylist(accessToken);
   if (playlistId) await addToLongformPlaylist(playlistId, json.id, accessToken);
+  if (opts?.themePlaylist) {
+    const themeId = await ensureThemePlaylist(opts.themePlaylist, accessToken);
+    if (themeId) await addToLongformPlaylist(themeId, json.id, accessToken);
+  }
 
   // 한국어 자막 트랙은 올리지 않는다 — 화면 자막과 겹쳐 두 번 보인다(11/4 사장님 요청).
   void srt;
@@ -604,6 +624,52 @@ async function ensureLongformPlaylist(accessToken: string): Promise<string | und
   }
 }
 
+/**
+ * 테마 재생목록 확보(11/12). 같은 테마 회차를 이어 보게 해 회차당 시청시간을 늘린다.
+ * 상태 파일 → 같은 이름 재생목록 → 새로 만들기 순. 실패하면 undefined(게시는 계속).
+ */
+async function ensureThemePlaylist(theme: { id: string; label: string }, accessToken: string): Promise<string | undefined> {
+  const saved = await loadThemePlaylistId(theme.id);
+  if (saved) return saved;
+  const title = `미스터리 컷 | ${theme.label}`;
+  const H = { Authorization: `Bearer ${accessToken}` };
+  try {
+    const listRes = await fetch("https://www.googleapis.com/youtube/v3/playlists?part=snippet&mine=true&maxResults=50", {
+      headers: H,
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (listRes.ok) {
+      const found = ((await listRes.json()) as { items?: Array<{ id: string; snippet?: { title?: string } }> }).items?.find(
+        (p) => p.snippet?.title === title,
+      );
+      if (found) {
+        await persistThemePlaylistId(theme.id, found.id);
+        return found.id;
+      }
+    }
+    const res = await fetch("https://www.googleapis.com/youtube/v3/playlists?part=snippet,status", {
+      method: "POST",
+      headers: { ...H, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify({
+        snippet: { title, description: `'${theme.label}' 테마의 실제 기록을 공개 출처에 근거해 정리한 사건 분석 다큐.` },
+        status: { privacyStatus: config.youtube.privacyStatus },
+      }),
+    });
+    const j = (await res.json()) as { id?: string };
+    if (!res.ok || !j.id) {
+      console.warn(`   ⚠️ 테마 재생목록 생성 실패(게시는 완료됨): ${JSON.stringify(j).slice(0, 200)}`);
+      return undefined;
+    }
+    await persistThemePlaylistId(theme.id, j.id);
+    console.log(`   📃 테마 재생목록 신규 생성: ${title}`);
+    return j.id;
+  } catch (e) {
+    console.warn(`   ⚠️ 테마 재생목록 확보 실패(게시는 완료됨): ${e instanceof Error ? e.message : e}`);
+    return undefined;
+  }
+}
+
 /** 방금 게시한 롱폼을 재생목록 맨 위(position 0)에 추가 — 최신이 항상 먼저 보이게 */
 async function addToLongformPlaylist(playlistId: string, videoId: string, accessToken: string): Promise<void> {
   try {
@@ -637,16 +703,25 @@ async function addToLongformPlaylist(playlistId: string, videoId: string, access
  * 롱폼(재생목록/최신 영상)이 아직 하나도 없으면 홍보할 대상이 없으므로 조용히
  * 건너뛴다. 실패해도 게시 자체는 이미 끝난 상태라 계속한다.
  */
-async function postPromoComment(videoId: string, accessToken: string): Promise<void> {
+async function postPromoComment(videoId: string, accessToken: string, caseKey?: string): Promise<void> {
+  // 같은 사건을 다룬 롱폼이 있으면 그 영상으로 바로 보낸다(재생목록보다 클릭 한 번이 적다, 11/12)
+  const own = caseKey ? await findLongformFor(caseKey) : undefined;
   const playlistId = await loadLongformPlaylistId();
   let text: string;
-  if (playlistId) {
+  if (own) {
+    text = `🎬 이 사건, 다큐로 더 깊이 파고들었어요\n"${own.title}"\nhttps://youtu.be/${own.videoId}`;
+  } else if (playlistId) {
     text = `🎬 이 사건, 더 깊이 파고든 다큐도 있어요\n전체보기: https://www.youtube.com/playlist?list=${playlistId}`;
   } else {
     const longform = await loadLatestLongform();
     if (!longform) return;
     text = `🎬 더 깊이 파고든 사건 분석 다큐: "${longform.title}"\nhttps://youtu.be/${longform.videoId}`;
   }
+  if (await insertComment(videoId, text, accessToken)) console.log("   💬 롱폼 유도 댓글 작성 완료 (Studio 에서 고정은 수동으로)");
+}
+
+/** 댓글 1개 작성(commentThreads.insert, 50 units). 실패해도 게시는 이미 끝났으므로 경고만 */
+async function insertComment(videoId: string, text: string, accessToken: string): Promise<boolean> {
   try {
     const res = await fetch("https://www.googleapis.com/youtube/v3/commentThreads?part=snippet", {
       method: "POST",
@@ -656,14 +731,60 @@ async function postPromoComment(videoId: string, accessToken: string): Promise<v
         snippet: { videoId, topLevelComment: { snippet: { textOriginal: text } } },
       }),
     });
-    if (res.ok) {
-      console.log("   💬 롱폼 유도 댓글 작성 완료 (Studio 에서 고정은 수동으로)");
-      return;
-    }
-    console.warn(`   ⚠️ 롱폼 유도 댓글 작성 실패(게시는 완료됨): HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
+    if (res.ok) return true;
+    console.warn(`   ⚠️ 댓글 작성 실패(게시는 완료됨): HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
   } catch (e) {
-    console.warn(`   ⚠️ 롱폼 유도 댓글 작성 실패(게시는 완료됨): ${e instanceof Error ? e.message : e}`);
+    console.warn(`   ⚠️ 댓글 작성 실패(게시는 완료됨): ${e instanceof Error ? e.message : e}`);
   }
+  return false;
+}
+
+/** 이 사건을 다룬 가장 최근 롱폼(이력 기준). 몰아보기 꼭지도 포함 */
+async function findLongformFor(caseKey: string): Promise<{ videoId: string; title: string } | undefined> {
+  try {
+    const posts = (await loadHistory()).posts as Array<{ caseKey: string; title: string; at: string; format?: string; videoId?: string }>;
+    const hit = posts
+      .filter((p) => p.format === "longform" && p.videoId && isSameCase(p.caseKey, caseKey))
+      .sort((a, b) => b.at.localeCompare(a.at))[0];
+    if (!hit) return undefined;
+    return { videoId: hit.videoId!, title: (await longformTitleFor(hit.videoId!)) ?? hit.title };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 롱폼을 올린 뒤, 같은 사건의 쇼츠에 "다큐로 더 깊이" 댓글을 단다(11/12, 수익창출 시청시간 유입).
+ * 쇼츠 시청자는 채널 조회의 96%인데 롱폼으로 넘어올 길이 설명란 링크뿐이었다.
+ * - 옛 영상(2026-01-01 이전)·비공개 영상은 건너뛴다. 최대 4개(쿼터 50×4 + 조회 1).
+ */
+export async function commentOnSourceShorts(
+  shortIds: string[],
+  longform: { videoId: string; title: string; single: boolean },
+): Promise<number> {
+  const ids = [...new Set(shortIds)].slice(0, 4);
+  if (!ids.length) return 0;
+  const accessToken = await getAccessToken();
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=${ids.join(",")}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  }).catch(() => undefined);
+  if (!res?.ok) {
+    console.warn("   ⚠️ 쇼츠 정보 조회 실패 — 쇼츠 댓글 생략(게시는 완료됨)");
+    return 0;
+  }
+  const items = ((await res.json()) as {
+    items?: Array<{ id: string; snippet: { publishedAt: string }; status: { privacyStatus: string } }>;
+  }).items ?? [];
+  const text = longform.single
+    ? `🎬 이 사건을 다큐로 더 깊이 파고들었어요\n"${longform.title}"\nhttps://youtu.be/${longform.videoId}`
+    : `🎬 이 사건이 들어간 테마 다큐가 올라왔어요\n"${longform.title}"\nhttps://youtu.be/${longform.videoId}`;
+  let n = 0;
+  for (const v of items) {
+    if (Date.parse(v.snippet.publishedAt) < LEGACY_CUTOFF_MS || v.status.privacyStatus !== "public") continue;
+    if (await insertComment(v.id, text, accessToken)) n++;
+  }
+  console.log(`   💬 같은 사건 쇼츠 ${n}개에 롱폼 안내 댓글 작성`);
+  return n;
 }
 
 /** 리프레시 토큰으로 새 액세스 토큰 발급 */
@@ -725,7 +846,7 @@ function buildTitle(idea: StoryIdea): string {
  * 해시태그 없음(키워드는 본문에 녹아 있음). 검색용 키워드는 snippet.tags 로만.
  * 세로 1080x1920·3분 미만이라 #Shorts 없이도 쇼츠로 자동 분류됨.
  */
-async function buildDescription(m: ReelMetadata): Promise<string> {
+async function buildDescription(m: ReelMetadata, caseKey?: string): Promise<string> {
   const body = m.captionEn?.trim()
     ? `${m.caption}\n\n———\n\n${m.captionEn}`
     : m.caption;
@@ -741,6 +862,8 @@ async function buildDescription(m: ReelMetadata): Promise<string> {
   // 맨 위로 올라가면서도 과거 전체 카탈로그로의 접근이 유지된다. 재생목록이
   // 아직 없으면(막 붙인 기능이라 첫 롱폼 게시 전이거나 생성이 실패한 경우)
   // 예전 방식인 '최신 영상 1개' 링크로 자연스럽게 대체한다.
+  const own = caseKey ? await findLongformFor(caseKey) : undefined;
+  if (own) out += `\n\n———\n\n🎬 이 사건을 더 깊이 다룬 다큐: "${own.title}"\nhttps://youtu.be/${own.videoId}`;
   const playlistId = await loadLongformPlaylistId();
   if (playlistId) {
     out += `\n\n———\n\n🎬 사건 분석 다큐(롱폼) 전체보기: https://www.youtube.com/playlist?list=${playlistId}`;

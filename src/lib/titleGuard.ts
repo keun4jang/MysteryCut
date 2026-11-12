@@ -107,3 +107,13 @@ export async function appendLongformTitle(entry: TitleEntry, historyTitles: stri
   await fs.mkdir(path.dirname(TITLES_FILE), { recursive: true });
   await fs.writeFile(TITLES_FILE, `${JSON.stringify({ titles: titles.slice(-60) }, null, 2)}\n`, "utf8");
 }
+
+/** 게시된 롱폼 영상 제목(videoId 로). 몰아보기는 이력엔 꼭지 제목만 있어 실제 영상 제목은 여기서 찾는다 */
+export async function longformTitleFor(videoId: string): Promise<string | undefined> {
+  try {
+    const raw = JSON.parse(await fs.readFile(TITLES_FILE, "utf8")) as { titles?: TitleEntry[] };
+    return raw.titles?.find((t) => t.videoId === videoId)?.title;
+  } catch {
+    return undefined;
+  }
+}
