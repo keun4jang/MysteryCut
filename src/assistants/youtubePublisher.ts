@@ -853,6 +853,8 @@ async function buildDescription(m: ReelMetadata, caseKey?: string): Promise<stri
   // 참고자료는 유튜브 설명란에만 붙인다(인스타는 링크가 클릭되지 않아 노이즈만 된다).
   // 시청자 신뢰뿐 아니라, 수익창출 심사에서 '조사에 근거한 콘텐츠'임을 보이는 근거가 된다.
   let out = m.sourcesCitation?.trim() ? `${body}\n\n———\n\n${m.sourcesCitation}` : body;
+  // 11/12: 롱폼처럼 쇼츠에도 AI 음성 고지(수익창출 심사는 채널 전체를 본다)
+  out += "\n\nAI 음성 내레이션을 사용했습니다.";
   // ★쇼츠 시청자를 롱폼(수익창출 시청시간이 산입되는 유일한 포맷)으로 데려오는
   // 유일한 장치. Analytics 실측(2026-08-27): 채널 조회의 96%가 쇼츠 피드
   // 자체에서만 나고, 이 링크가 생기기 전엔 쇼츠에서 롱폼으로 넘어갈 경로가

@@ -101,7 +101,11 @@ const subs = Number(ch?.items?.[0]?.statistics.subscriberCount ?? 0);
 
 const min365 = await minutesByVideo(day(-365));
 const min28 = await minutesByVideo(day(-28));
-const info = await videos([...new Set([...min365.keys(), ...min28.keys()])]);
+// 시청이 아직 0분인 새 롱폼도 ③ 점검에 들어가게 이력의 롱폼 videoId 도 함께 조회한다
+const histIds = (JSON.parse(fs.readFileSync("data/history.json", "utf8")) as { posts: HistoryPost[] }).posts
+  .filter((p) => p.format === "longform" && p.videoId)
+  .map((p) => p.videoId!);
+const info = await videos([...new Set([...min365.keys(), ...min28.keys(), ...histIds])]);
 // 지금 공개 중이고 옛 영상이 아닌 롱폼만 센다(YPP 는 공개 영상 시청시간만 인정)
 const counts = (id: string) => {
   const v = info.get(id);
