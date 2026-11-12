@@ -2,8 +2,8 @@
  * 동물 캐릭터 그림체 샘플(11/12, 사장님 "일단 무료로 샘플보여줘") — 게시와 무관한 시험용.
  * 하일브론의 유령(11/11 롱폼) 장면 5컷을 어두운 누아르풍 동물 캐릭터로 그린다. 폭력 묘사 없음.
  *
- * 무료만 쓴다: ① Gemini 무료 등급 이미지 모델(키에 결제가 연결돼 있지 않아 과금 없음)
- *             ② 실패하면 키 없는 무료 서비스(image.pollinations.ai)
+ * 무료만 쓴다: ① AI Horde(자원봉사 GPU, 익명 키, SDXL) ② Gemini 무료 등급(11/12 기준 이미지 한도 0)
+ *             ③ 키 없는 Pollinations(익명은 1장 뒤 402 — 간격을 크게 둔다)
  * 결과: samples/animal/*.jpg + samples/animal/README.md(어느 쪽으로 만들었는지)
  */
 import fs from "node:fs/promises";
@@ -50,6 +50,54 @@ async function viaGemini(prompt: string): Promise<Buffer | null> {
   return null;
 }
 
+async function viaHorde(prompt: string, w: number, h: number): Promise<Buffer | null> {
+  const H = { apikey: "0000000000", "Content-Type": "application/json", "Client-Agent": "mystery-cut-sample:1.0:anon" };
+  try {
+    const start = await fetch("https://aihorde.net/api/v2/generate/async", {
+      method: "POST",
+      headers: H,
+      body: JSON.stringify({
+        prompt: `${prompt} ### photo, realistic human, gore, blood, text, watermark, extra ears, deformed`,
+        params: { width: w, height: h, steps: 28, cfg_scale: 6, sampler_name: "k_dpmpp_2m", n: 1, karras: true },
+        models: ["AlbedoBase XL (SDXL)", "Juggernaut XL"],
+        nsfw: false,
+        censor_nsfw: true,
+        r2: true,
+      }),
+    });
+    const sj = (await start.json()) as { id?: string; message?: string };
+    if (!sj.id) {
+      console.log(`   Horde 요청 실패: ${start.status} ${sj.message ?? ""}`);
+      return null;
+    }
+    const t0 = Date.now();
+    while (Date.now() - t0 < 15 * 60_000) {
+      await new Promise((r) => setTimeout(r, 10_000));
+      const c = (await (await fetch(`https://aihorde.net/api/v2/generate/check/${sj.id}`, { headers: H })).json()) as {
+        done?: boolean;
+        faulted?: boolean;
+        queue_position?: number;
+        wait_time?: number;
+      };
+      if (c.faulted) break;
+      if (!c.done) continue;
+      const st = (await (await fetch(`https://aihorde.net/api/v2/generate/status/${sj.id}`, { headers: H })).json()) as {
+        generations?: Array<{ img: string; model: string }>;
+      };
+      const g = st.generations?.[0];
+      if (!g) break;
+      const img = await fetch(g.img);
+      if (!img.ok) break;
+      log.push(`AI Horde(${g.model})`);
+      return Buffer.from(await img.arrayBuffer());
+    }
+    console.log("   Horde 시간 초과/실패");
+  } catch (e) {
+    console.log(`   Horde 실패: ${e instanceof Error ? e.message : e}`);
+  }
+  return null;
+}
+
 async function viaPollinations(prompt: string, w: number, h: number, seed: number): Promise<Buffer | null> {
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&nologo=true&seed=${seed}&model=flux`;
   for (let t = 0; t < 3; t++) {
@@ -64,7 +112,7 @@ async function viaPollinations(prompt: string, w: number, h: number, seed: numbe
     } catch (e) {
       console.log(`   Pollinations 실패: ${e instanceof Error ? e.message : e}`);
     }
-    await new Promise((r) => setTimeout(r, 5000 * (t + 1)));
+    await new Promise((r) => setTimeout(r, 60_000 * (t + 1)));
   }
   return null;
 }
@@ -73,12 +121,15 @@ const made: string[] = [];
 for (const [i, s] of SCENES.entries()) {
   const prompt = `${s.prompt}. ${STYLE}. ${s.w > s.h ? "16:9 wide frame" : "9:16 vertical frame"}`;
   console.log(`🎨 ${s.file}`);
-  const img = (await viaGemini(prompt)) ?? (await viaPollinations(prompt, s.w, s.h, 4100 + i));
+  // Horde 는 픽셀 수 제한이 있어 1024x576 / 576x1024 로 요청(샘플용)
+  const [hw, hh] = s.w > s.h ? [1024, 576] : [576, 1024];
+  const img =
+    (await viaHorde(prompt, hw, hh)) ?? (await viaGemini(prompt)) ?? (await viaPollinations(prompt, s.w, s.h, 4100 + i));
   if (!img) {
     console.log("   ❌ 두 방법 모두 실패");
     continue;
   }
-  const ext = img[0] === 0x89 ? "png" : "jpg";
+  const ext = img[0] === 0x89 ? "png" : img.subarray(8, 12).toString() === "WEBP" ? "webp" : "jpg";
   await fs.writeFile(`samples/animal/${s.file}.${ext}`, img);
   made.push(`${s.file}.${ext} — ${log[log.length - 1]}`);
   console.log(`   ✅ ${s.file}.${ext} (${log[log.length - 1]}, ${(img.length / 1024).toFixed(0)}KB)`);
