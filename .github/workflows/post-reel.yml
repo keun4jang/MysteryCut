@@ -34,6 +34,11 @@ on:
         type: boolean
         required: false
         default: false
+      animal_art:
+        description: "시험: 첫 장면·반전 장면을 동물 캐릭터 그림으로(무료 AI Horde)"
+        type: boolean
+        required: false
+        default: false
       skip_youtube:
         description: "유튜브 업로드 생략(인스타만 테스트)"
         type: boolean
@@ -194,6 +199,7 @@ jobs:
           SKIP_YOUTUBE: ${{ github.event.inputs.skip_youtube }}
           # 소재 각도 강제 지정(검증용). 비어 있으면 평소대로 랜덤 로테이션
           FORCE_ANGLE: ${{ github.event.inputs.angle }}
+          ANIMAL_ART: ${{ github.event.inputs.animal_art == 'true' && '1' || '' }}
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             echo "🧪 드라이런: 게시 없이 영상만 생성합니다."
@@ -221,6 +227,17 @@ jobs:
         # 0개 잡). 블록 스칼라(|)는 콜론이 있어도 그대로 리터럴로 읽는다.
         run: |
           npx tsx scripts/commitPostHistory.mts "${{ github.ref_name }}" "chore: 게시 이력·썸네일·API 버전 정보 업데이트 [skip ci]"
+
+      # 동물 그림 시험 드라이런: 영상·썸네일을 samples-animal-reel 브랜치에 올려 바로 볼 수 있게(게시 아님)
+      - name: Share animal-art test output
+        if: ${{ github.event.inputs.dry_run == 'true' && github.event.inputs.animal_art == 'true' }}
+        run: |
+          mkdir -p /tmp/share && cp out/reel.mp4 out/thumb.jpg /tmp/share/ 2>/dev/null || true
+          cp public/broll/animal-scene-* /tmp/share/ 2>/dev/null || true
+          cd /tmp/share && git init -q && git checkout -q -b samples-animal-reel
+          git config user.name "mystery-cut-bot" && git config user.email "actions@users.noreply.github.com"
+          git add -A && git commit -qm "동물 그림 시험 쇼츠 [skip ci]"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" samples-animal-reel
 
       # 드라이런이거나 실패 시 산출물(영상/JSON) 업로드해서 확인
       - name: Upload artifacts

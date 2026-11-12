@@ -7,6 +7,7 @@ import { writeReelPlan, proposeCase } from "./assistants/producer.js";
 import { gatherSources, sourcesCitation, warmStoryControversy, politicalControversy, sameCaseInHistory, isNonCaseTitle, isSexCrimeCase, confirmCaseIdentity, type SourceDoc } from "./lib/sources.js";
 import { narrate } from "./assistants/narrator.js";
 import { attachBroll } from "./assistants/broll.js";
+import { attachAnimalArt } from "./assistants/animalArt.js";
 import { renderReel } from "./render.js";
 import { publishReel } from "./assistants/publisher.js";
 import { publishYouTube } from "./assistants/youtubePublisher.js";
@@ -222,6 +223,11 @@ async function main() {
 
   console.log("④-b 배경 자료화면(Pexels)...");
   await attachBroll(segments);
+  // 11/12 시험: 첫 장면·반전 장면만 동물 캐릭터 그림으로(무료 AI Horde). 기준 미달이면 사진 유지
+  if (process.env.ANIMAL_ART === "1") {
+    console.log("④-c 동물 캐릭터 그림(시험)...");
+    await attachAnimalArt(segments, idea);
+  }
 
   const inputProps: ReelInputProps = {
     title: idea.title,
