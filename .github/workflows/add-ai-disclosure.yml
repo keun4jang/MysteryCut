@@ -1,0 +1,33 @@
+name: "🏷️ 기존 영상 AI 음성 고지 추가"
+
+# 2026-01-01 이후 올린 영상 설명란 끝에 'AI 음성 내레이션' 고지 한 줄을 붙인다(수익창출 심사 대비).
+# 옛 '새미했다' 영상은 건드리지 않는다. 기본은 미리보기, apply=true 여야 실제 수정. 무료(쿼터 50/편).
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "실제로 수정 (false 면 미리보기만)"
+        type: boolean
+        default: false
+      shorts:
+        description: "쇼츠도 포함 (기본은 롱폼만)"
+        type: boolean
+        default: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 고지 추가
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: npx tsx scripts/addAiDisclosure.mts ${{ inputs.apply && '--apply' || '' }} ${{ inputs.shorts && '--shorts' || '' }}
