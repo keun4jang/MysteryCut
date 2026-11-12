@@ -10,16 +10,16 @@ import fs from "node:fs/promises";
 import { GoogleGenAI } from "@google/genai";
 
 const STYLE =
-  "dark noir graphic novel illustration, anthropomorphic animals wearing 1990s-2000s European clothing, " +
+  "(anthropomorphic animal character with an animal head and fur:1.5), furry, dark noir graphic novel illustration, animals wearing 1990s-2000s European clothing, " +
   "muted desaturated colors with a single warm accent light, cinematic composition, serious adult documentary tone, " +
   "painterly texture, no gore, no blood, no weapons, no text, no letters, no watermark";
 
 const SCENES = [
-  { file: "01-evidence-board", w: 1280, h: 720, prompt: "a fox detective in a trench coat standing in front of a cork evidence board covered with photos and red string, late night German police office, desk lamp" },
-  { file: "02-dna-lab", w: 1280, h: 720, prompt: "an owl forensic scientist in a white lab coat holding up a DNA test strip under a lamp in a dim laboratory, test tubes on the table" },
-  { file: "03-europe-map", w: 1280, h: 720, prompt: "three wolf police investigators seen from behind studying a large map of Europe with many red pins, dark briefing room" },
-  { file: "04-swab-factory", w: 1280, h: 720, prompt: "a quiet factory packaging line of sterile cotton swabs, a rabbit worker in a hairnet seen from behind as a silhouette, cold fluorescent light" },
-  { file: "05-shorts-cover", w: 720, h: 1280, prompt: "vertical poster, a fox detective holding a single cotton swab up to the light, dramatic close-up, deep shadows" },
+  { file: "01-evidence-board", w: 1280, h: 720, prompt: "(fox head:1.4), a fox-headed detective in a trench coat standing in front of a cork evidence board covered with photos and red string, late night German police office, desk lamp" },
+  { file: "02-dna-lab", w: 1280, h: 720, prompt: "(owl head:1.4), an owl-headed forensic scientist in a white lab coat holding up a DNA test strip under a lamp in a dim laboratory, test tubes on the table" },
+  { file: "03-europe-map", w: 1280, h: 720, prompt: "(wolf heads:1.4), three wolf-headed police investigators seen from behind studying a large map of Europe with many red pins, dark briefing room" },
+  { file: "04-swab-factory", w: 1280, h: 720, prompt: "a quiet factory packaging line of sterile cotton swabs, a rabbit-headed worker with long ears in a hairnet seen from behind as a silhouette, cold fluorescent light" },
+  { file: "05-shorts-cover", w: 720, h: 1280, prompt: "(fox head:1.4), vertical poster, a fox-headed detective holding a single cotton swab up to the light, dramatic close-up, deep shadows" },
 ];
 
 await fs.mkdir("samples/animal", { recursive: true });
@@ -57,7 +57,7 @@ async function viaHorde(prompt: string, w: number, h: number): Promise<Buffer | 
       method: "POST",
       headers: H,
       body: JSON.stringify({
-        prompt: `${prompt} ### photo, realistic human, gore, blood, text, watermark, extra ears, deformed`,
+        prompt: `${prompt} ### human face, human head, human skin, photo, gore, blood, text, watermark, extra ears, deformed`,
         params: { width: w, height: h, steps: 28, cfg_scale: 6, sampler_name: "k_dpmpp_2m", n: 1, karras: true },
         models: ["AlbedoBase XL (SDXL)", "Juggernaut XL"],
         nsfw: false,
@@ -121,6 +121,7 @@ const made: string[] = [];
 // Horde 는 대기열이 길어(장당 수 분) 5장을 동시에 요청한다
 await Promise.all(
   SCENES.map(async (s, i) => {
+    await new Promise((r) => setTimeout(r, i * 2500)); // Horde 는 초당 2건 제한
     const prompt = `${s.prompt}. ${STYLE}. ${s.w > s.h ? "16:9 wide frame" : "9:16 vertical frame"}`;
     const [hw, hh] = s.w > s.h ? [1024, 576] : [576, 1024];
     const img = (await viaHorde(prompt, hw, hh)) ?? (await viaPollinations(prompt, s.w, s.h, 4100 + i));
