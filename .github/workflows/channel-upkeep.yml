@@ -1,0 +1,41 @@
+name: "🧹 채널 정리(제목·소개문)"
+
+# 수익창출 심사 대비 일회성 정리(11/12). 옛 '새미했다' 영상은 어떤 작업도 건드리지 않는다.
+#  retitle-plan  : 상투 제목 롱폼의 새 제목 제안만 출력(영상 안 건드림)
+#  retitle-apply : data/retitlePlan.json 대로 제목만 수정
+#  about-preview : 채널 소개문 바뀔 내용 미리보기
+#  about-apply   : 채널 소개문 교체
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "작업"
+        type: choice
+        options: [retitle-plan, retitle-apply, about-preview, about-apply]
+        default: retitle-plan
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 실행
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+        run: |
+          case "${{ inputs.task }}" in
+            retitle-plan)  npx tsx scripts/retitleLongforms.mts --plan ;;
+            retitle-apply) npx tsx scripts/retitleLongforms.mts --apply ;;
+            about-preview) npx tsx scripts/updateChannelAbout.mts ;;
+            about-apply)   npx tsx scripts/updateChannelAbout.mts --apply ;;
+          esac
