@@ -40,6 +40,7 @@ async function scenePrompt(idea: StoryIdea, narration: string, role: string): Pr
     system: [
       "You write a single English image-generation prompt (max 60 words) for one scene of a serious true-crime short.",
       "All characters are anthropomorphic animals (an animal head on a person's body, wearing period clothing). Pick fitting species (e.g. fox detective, owl scientist, badger clerk).",
+      "Clothing, objects and setting must match the year and country of the case exactly (a 2007 case means modern clothes and equipment).",
       "Never depict victims, bodies, violence, blood or weapons. A suspect is a silhouette or seen from behind.",
       "Describe concrete objects and the place from the narration, the era, lighting and camera angle. No text or signs in the image.",
       "If the scene role asks for a visible character, show the animal head clearly lit (not from behind, not hidden by a hat or darkness).",
