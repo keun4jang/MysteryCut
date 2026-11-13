@@ -17,6 +17,7 @@ import { buildLongformDescription, normalizeTags } from "../src/assistants/youtu
 import { seedEligible, mapCaseVideoIds, LEGACY_CUTOFF as SRC_CUTOFF } from "../src/lib/shortPerformance.js";
 import { pickCompilationTheme, COMPILATION_THEMES } from "../src/lib/variety.js";
 import { sourceOverlap, MAX_SOURCE_OVERLAP } from "../src/lib/originality.js";
+import { findSensitiveTerms, softenText } from "../src/lib/safeText.js";
 import { LEGACY_CUTOFF } from "./legacyGuard.mjs";
 import { mergePosts } from "./historyMerge.mjs";
 
@@ -192,6 +193,13 @@ check("유사도 검사: 거의 같은 제목은 탈락", !checkTitle("1929년 �
   check("원문 겹침: 위키 문장 낭독은 기준 초과", a > MAX_SOURCE_OVERLAP, `${(a * 100).toFixed(1)}%`);
   check("원문 겹침: 같은 사실을 새로 쓰면 기준 이하", b <= MAX_SOURCE_OVERLAP, `${(b * 100).toFixed(1)}%`);
   check("원문 겹침: 영어 원문만 있으면 0", sourceOverlap(copied, ["Phantom of Heilbronn was a hypothetical woman"]) === 0);
+}
+
+{
+  // 11/13: 성범죄 언급 차단(원문에 있어도 대본엔 안 씀)
+  check("성범죄 표현 탐지", findSensitiveTerms(["자매는 성폭행을 당한 흔적이 있었다", "The sisters had been raped"]).length === 2);
+  check("성범죄 표현 중립화", !/성폭행/.test(softenText("자매는 성폭행을 당한 흔적이 있었다")));
+  check("오탐 없음: '강간'이 없는 일반 문장", findSensitiveTerms(["강가에서 발견된 배", "grapes and drapes"]).length === 0);
 }
 
 console.log(failed ? `\n❌ 실패 ${failed}건` : "\n✅ 전부 통과");

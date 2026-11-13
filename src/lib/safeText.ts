@@ -17,6 +17,9 @@ export const SENSITIVE_PATTERNS: RegExp[] = [
   /(?:잠자리|정사)를\s*(?:가졌|맺었|했|나눴|벌였|같이)/g,
   /몸을\s*섞/g,
   /나체|알몸/g,
+  // 11/13: 원문에 성범죄 기록이 있어도(개턴 사건 등) 대본에는 쓰지 않는다 — 잡히면 재생성, 남으면 중립화
+  /성폭행|성폭력|강간|성추행|겁탈|능욕/g,
+  /\brap(?:e|ed|es|ing)\b|\bsexual(?:ly)?\s+assault\w*/gi,
   /\bsex(?:ual)?\s+(?:relations?|intercourse|encounter)/gi,
   /\bslept\s+with\b/gi,
   /자살/g,
@@ -55,6 +58,9 @@ export function softenText(s: string): string {
     .replace(/(?:성관계|육체관계|정사|잠자리)를\s*(?:가졌|맺었|했|나눴|벌였)/g, "부정한 관계를 맺었")
     // 서술어 없이 남은 낱말은 성적 의미가 확실한 것만 (잠자리=수면, 정사=正史 오탐 방지)
     .replace(/성관계|육체관계/g, "부정한 관계")
+    .replace(/성폭행|성폭력|강간|성추행|겁탈|능욕/g, "범죄 피해")
+    .replace(/\bsexual(?:ly)?\s+assault\w*/gi, "assault")
+    .replace(/\brap(?:e|ed|es|ing)\b/gi, "assault")
     .replace(/동침한/g, "함께 밤을 보낸")
     .replace(/동침했/g, "함께 밤을 보냈")
     .replace(/동침/g, "함께 밤을 보낸 일")
