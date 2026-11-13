@@ -427,7 +427,7 @@ thumbTitle 규칙을 다시 읽고 고쳐라. 대본 내용은 그대로 둬도 
   }
 
   // 단일 사건은 한 번에 2,000~2,500자밖에 안 나온다(11/8 드라이런: 5,000자 목표에 2,453자 → 6분 18초).
-  // 원문에 아직 안 쓴 사실로 챕터를 덧붙여 목표 분량까지 늘린다(최대 2회, 덧붙인 게 적으면 멈춤).
+  // 원문에 아직 안 쓴 사실로 챕터를 덧붙여 목표 분량까지 늘린다(최대 3회, 덧붙인 게 적으면 멈춤 — 11/13 2회로는 3,525자·8분 53초에 그침).
   if (single && totalChars(best!) < minChars) await extendSingle(best!, system, idealChars, minChars, maxChars);
 
   const finalOverlap = sourceOverlap(
@@ -450,7 +450,7 @@ const ExtensionSchema = z.object({ chapters: LongformScriptSchema.shape.chapters
 
 /** 단일 사건 대본 분량 늘리기 — 분석 챕터(뒤 3개) 앞에 원문의 새 사실로 된 챕터를 끼운다. */
 async function extendSingle(script: LongformScript, system: string, idealChars: number, minChars: number, maxChars: number) {
-  for (let round = 0; round < 2 && totalChars(script) < minChars; round++) {
+  for (let round = 0; round < 3 && totalChars(script) < minChars; round++) {
     const before = totalChars(script);
     const need = Math.min(idealChars, maxChars) - before;
     const written = script.chapters
