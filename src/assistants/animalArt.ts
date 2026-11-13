@@ -29,6 +29,7 @@ const JudgeSchema = z.object({
   violenceOrGore: z.boolean(),
   hasTextOrWatermark: z.boolean(),
   anatomyOk: z.boolean(),
+  readableAsAnimal: z.boolean(),
   matchesScene: z.boolean(),
   score: z.number(),
 });
@@ -41,6 +42,7 @@ async function scenePrompt(idea: StoryIdea, narration: string, role: string): Pr
       "All characters are anthropomorphic animals (an animal head on a person's body, wearing period clothing). Pick fitting species (e.g. fox detective, owl scientist, badger clerk).",
       "Never depict victims, bodies, violence, blood or weapons. A suspect is a silhouette or seen from behind.",
       "Describe concrete objects and the place from the narration, the era, lighting and camera angle. No text or signs in the image.",
+      "If the scene role asks for a visible character, show the animal head clearly lit (not from behind, not hidden by a hat or darkness).",
       "Do not include style words; they are added separately.",
     ].join("\n"),
     user: `Case: ${idea.title}\nScene role: ${role}\nNarration (Korean): ${narration}`,
@@ -57,12 +59,12 @@ async function judge(img: Buffer, scene: string): Promise<number> {
       schema: JudgeSchema,
       system:
         "You review an illustration for a serious adult true-crime channel. Answer strictly. score: 0-10 overall usability (composition, clarity, mood, no artifacts).",
-      user: `Intended scene: ${scene}\nAre the characters animal-headed (not human faces)? Does it look like children's content (cute, bright, toy-like)? Any violence/gore? Any text or watermark? Is anatomy coherent? Does it match the scene?`,
+      user: `Intended scene: ${scene}\nAre the characters animal-headed (not human faces)? Does it look like children's content (cute, bright, toy-like)? Any violence/gore? Any text or watermark? Is anatomy coherent? readableAsAnimal: at phone size, can a viewer tell instantly that the character is an animal (head visible, lit)? Does it match the scene?`,
       images: [{ mimeType: mime, data: img.toString("base64") }],
       temperature: 0.2,
       maxRetries: 1,
     })) as z.infer<typeof JudgeSchema>;
-    const ok = j.animalHeads && !j.looksForKids && !j.violenceOrGore && !j.hasTextOrWatermark && j.anatomyOk;
+    const ok = j.animalHeads && j.readableAsAnimal && !j.looksForKids && !j.violenceOrGore && !j.hasTextOrWatermark && j.anatomyOk;
     console.log(
       `   🦊 채점 ${j.score}/10 ${ok ? "통과 조건 충족" : "탈락"}(동물 ${j.animalHeads}, 아동용 ${j.looksForKids}, 폭력 ${j.violenceOrGore}, 글자 ${j.hasTextOrWatermark}, 형태 ${j.anatomyOk})`,
     );
@@ -73,10 +75,11 @@ async function judge(img: Buffer, scene: string): Promise<number> {
   }
 }
 
-export async function attachAnimalArt(segments: NarratedSegment[], idea: StoryIdea): Promise<void> {
+export async function attachAnimalArt(segments: NarratedSegment[], idea: StoryIdea): Promise<number> {
+  let applied = 0;
   const sceneOf = (s: NarratedSegment, i: number) => s.sceneIndex ?? i;
   const revealIdx = segments.findIndex((s) => s.emphasis === "reveal");
-  const targets = [{ scene: 0, role: "opening hook and thumbnail" }];
+  const targets = [{ scene: 0, role: "opening hook and thumbnail — the main animal character must face the camera (front or three-quarter view, head and shoulders clearly visible, readable as an animal at a glance)" }];
   if (revealIdx > 0 && sceneOf(segments[revealIdx], revealIdx) !== 0)
     targets.push({ scene: sceneOf(segments[revealIdx], revealIdx), role: "the twist / reveal moment" });
 
@@ -105,7 +108,9 @@ export async function attachAnimalArt(segments: NarratedSegment[], idea: StoryId
       const file = `animal-scene-${t.scene}.${ext}`;
       await fs.writeFile(path.join(dir, file), best.img);
       for (const [i, s] of segments.entries()) if (sceneOf(s, i) === t.scene) s.bgSrc = `broll/${file}`;
+      applied++;
       console.log(`   🦊 장면 ${t.scene + 1}: 동물 그림 적용(${best.score}/10) → broll/${file}`);
     }),
   );
+  return applied;
 }

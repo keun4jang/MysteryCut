@@ -199,7 +199,8 @@ jobs:
           SKIP_YOUTUBE: ${{ github.event.inputs.skip_youtube }}
           # 소재 각도 강제 지정(검증용). 비어 있으면 평소대로 랜덤 로테이션
           FORCE_ANGLE: ${{ github.event.inputs.angle }}
-          ANIMAL_ART: ${{ github.event.inputs.animal_art == 'true' && '1' || '' }}
+          # 11/13~12/4 시험: 정기 게시는 동물 그림 켬, 수동 실행은 체크박스로
+          ANIMAL_ART: ${{ (github.event_name == 'schedule' || github.event.inputs.animal_art == 'true') && '1' || '' }}
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             echo "🧪 드라이런: 게시 없이 영상만 생성합니다."

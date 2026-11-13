@@ -223,10 +223,16 @@ async function main() {
 
   console.log("④-b 배경 자료화면(Pexels)...");
   await attachBroll(segments);
-  // 11/12 시험: 첫 장면·반전 장면만 동물 캐릭터 그림으로(무료 AI Horde). 기준 미달이면 사진 유지
+  // 11/13~ 3주 시험: 첫 장면·반전 장면만 동물 캐릭터 그림으로(무료 AI Horde). 기준 미달이면 사진 유지.
+  // 실패해도 게시는 계속(사진 그대로). 이력에 visual 을 남겨 조회수를 비교한다(yppReport ⑤).
+  let visual: "animal" | "photo" = "photo";
   if (process.env.ANIMAL_ART === "1") {
     console.log("④-c 동물 캐릭터 그림(시험)...");
-    await attachAnimalArt(segments, idea);
+    try {
+      if ((await attachAnimalArt(segments, idea)) > 0) visual = "animal";
+    } catch (e) {
+      console.warn(`   ⚠️ 동물 그림 단계 실패 — 사진으로 진행: ${e instanceof Error ? e.message : e}`);
+    }
   }
 
   const inputProps: ReelInputProps = {
@@ -301,6 +307,7 @@ async function main() {
         format: "short",
         videoId: ytVideoId,
         sourceUrl: sources[0]?.url,
+        visual,
       });
 
     // 썸네일 카드를 저장소 thumbnails/ 폴더에 보관 — 유튜브가 쇼츠 썸네일

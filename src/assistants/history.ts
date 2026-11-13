@@ -23,10 +23,12 @@ export interface HistoryPost {
   /** 몰아보기 테마 id(variety.ts COMPILATION_THEMES) */
   theme?: string;
   mode?: "single" | "compilation";
+  /** 쇼츠 배경: 동물 캐릭터 그림을 썼는지(11/13~ 3주 비교 시험) */
+  visual?: "animal" | "photo";
 }
 
 /** appendPost 의 추가 기록 필드 */
-export type HistoryExtra = Pick<HistoryPost, "format" | "videoId" | "sourceShort" | "sourceUrl" | "theme" | "mode">;
+export type HistoryExtra = Pick<HistoryPost, "format" | "videoId" | "sourceShort" | "sourceUrl" | "theme" | "mode" | "visual">;
 
 /**
  * 롱폼 항목인가. 새 항목은 format 으로, 옛 항목(format 없음)은 제목의 '｜분류' 꼬리표로 판단한다

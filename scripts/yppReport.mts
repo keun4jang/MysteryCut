@@ -17,7 +17,7 @@ import { getYoutubeAccessToken } from "../src/assistants/youtubePublisher.js";
 import { BANNED_TITLE_RE } from "../src/lib/titleGuard.js";
 import { isLegacyVideo } from "./legacyGuard.mjs";
 
-type HistoryPost = { caseKey: string; title: string; at: string; format?: string; mode?: string; videoId?: string };
+type HistoryPost = { caseKey: string; title: string; at: string; format?: string; mode?: string; videoId?: string; visual?: string };
 
 const token = await getYoutubeAccessToken();
 const H = { Authorization: `Bearer ${token}` };
@@ -173,6 +173,25 @@ say(
     ? `- ${lintFail}편이 기준 미달. 11/8 이전 영상은 새 규칙 전이라 대부분 걸린다 — 비공개 전환 여부는 사장님 결정(시청시간 손실 vs 심사 위험).`
     : "- 전부 통과",
 );
+
+// ── ⑤ 쇼츠 동물 그림 시험(11/13~12/4): 게시 3일 이상 지난 쇼츠의 조회수 중앙값 비교 ──
+{
+  const shorts = hist.filter((p) => p.format === "short" && p.videoId && p.at >= "2026-11-13" && Date.now() - Date.parse(p.at) >= 3 * 86400000);
+  const animalIds = shorts.filter((p) => p.visual === "animal").map((p) => p.videoId!);
+  const photoIds = shorts.filter((p) => p.visual !== "animal").map((p) => p.videoId!);
+  const views = new Map<string, number>();
+  const ids = [...animalIds, ...photoIds];
+  for (let i = 0; i < ids.length; i += 50) {
+    const j = await api<{ items?: Array<{ id: string; statistics: { viewCount?: string } }> }>(
+      `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${ids.slice(i, i + 50).join(",")}`,
+    );
+    for (const v of j?.items ?? []) views.set(v.id, Number(v.statistics.viewCount ?? 0));
+  }
+  const med = (a: string[]) => median(a.map((id) => views.get(id) ?? 0));
+  say("\n## ⑤ 쇼츠 동물 그림 시험 (11/13~, 게시 3일 지난 쇼츠 조회수 중앙값)");
+  say(`- 동물 그림 ${animalIds.length}편: ${med(animalIds).toLocaleString("ko-KR")}회 / 사진 ${photoIds.length}편: ${med(photoIds).toLocaleString("ko-KR")}회`);
+  if (animalIds.length < 4) say("- 판정 보류: 동물 그림 쇼츠가 4편 이상 쌓이면 비교(12/4 최종 판단)");
+}
 
 // ── ④ 신청 가능 여부 ──
 const ready = subs >= 1000 && h365 >= 4000 && lintFail === 0;
