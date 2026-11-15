@@ -228,8 +228,12 @@ async function runSingle(ctx: {
   let title = c.script.title;
   let titleEn = c.script.titleEn ?? "";
   const tc = checkTitle(title, recentTitles);
-  if (!tc.ok) {
-    const fb = `${caseLabel(c)}, ${c.script.centralQuestion}`.slice(0, 90);
+  // 길이만 넘었고 대체 제목도 통과 못 하면 원래 제목을 둔다(대체 제목이 더 길고 밋밋하다)
+  const fbTry = `${caseLabel(c)}, ${c.script.centralQuestion}`.slice(0, 90);
+  const lengthOnly = !tc.ok && tc.reason.startsWith("제목이 너무 김") && !checkTitle(fbTry, recentTitles).ok;
+  if (lengthOnly) console.warn(`   ⚠️ 제목이 길지만 대체 제목도 미통과 — 원래 제목 유지: ${title}`);
+  if (!tc.ok && !lengthOnly) {
+    const fb = fbTry;
     console.warn(`   ⚠️ 제목 탈락(${tc.reason}): ${title} → ${fb} (${checkTitle(fb, recentTitles).ok ? "통과" : "검사 미통과"})`);
     title = fb;
     titleEn = "";

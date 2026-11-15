@@ -36,10 +36,14 @@ export function bigramJaccard(a: string, b: string): number {
 }
 
 export const TITLE_SIMILARITY_MAX = 0.4;
+/** 롱폼 제목 최대 글자수(공백 포함) */
+export const TITLE_MAX_CHARS = 45;
 
 export function checkTitle(t: string, recent: string[]): { ok: boolean; reason: string } {
   const title = (t ?? "").trim();
   if (!title) return { ok: false, reason: "제목이 비어 있음" };
+  // 11/15 구조 점검: 같은 장르 상위 롱폼 제목은 대부분 15~35자('13년만에 풀린 일본 미제사건'), 우리는 40~60자였다
+  if (title.length > TITLE_MAX_CHARS) return { ok: false, reason: `제목이 너무 김(${title.length}자 > ${TITLE_MAX_CHARS}자)` };
   const banned = BANNED_TITLE_RE.exec(title);
   if (banned) return { ok: false, reason: `상투 표현 '${banned[0]}'` };
   for (const r of recent.slice(-20)) {

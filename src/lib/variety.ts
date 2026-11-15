@@ -209,7 +209,8 @@ const KOREA_REGION = `지역: '한국' — 국내 소재를 골라라. 단 아�
 const REGION_ANGLES: Array<{ weight: number; pick: string }> = [
   // 시청자의 65%가 한국이라 국내 소재 비중을 가장 높게 둔다
   { weight: 4, pick: KOREA_REGION },
-  { weight: 2, pick: "지역: '아시아(한국 외)' — 일본·중국·대만·동남아·인도·중앙아시아 등의 사건이나 전승." },
+  // 11/15 구조 점검: 우리 쇼츠 상위와 같은 장르 상위 영상 모두 한국·일본 사건이 강했다 → 아시아 비중 상향
+  { weight: 3, pick: "지역: '아시아(한국 외)' — 일본(우선)·중국·대만·동남아·인도·중앙아시아 등의 사건이나 전승." },
   { weight: 2, pick: "지역: '유럽' — 영국·프랑스·독일·북유럽·동유럽·러시아 등의 사건이나 전승." },
   { weight: 2, pick: "지역: '미주' — 북미·중남미의 사건이나 전승. 미국에만 쏠리지 말고 캐나다·멕시코·브라질 등도." },
   { weight: 2, pick: "지역: '그 외 지역' — 아프리카·중동·오세아니아·극지·대양(선박·섬) 등 덜 다뤄진 지역." },
@@ -421,6 +422,13 @@ export const COMPILATION_THEMES: CompilationTheme[] = [
     seedHint: "테마: '풀리지 않은 암호·유물' — 해독되지 않은 문서·암호문, 정체가 밝혀지지 않은 유물·비석·지도.",
     badge: "미해독 기록",
     queries: [{ lang: "en", q: "undeciphered manuscript" }, { lang: "en", q: "unsolved cipher" }, { lang: "en", q: "out-of-place artifact" }, { lang: "en", q: "undeciphered writing system inscription" }, { lang: "ko", q: "해독되지 않은 문자" }],
+  },
+  {
+    id: "japan-unsolved",
+    label: "일본의 미제 사건",
+    seedHint: "테마: '일본의 미제 사건' — 일본에서 실제로 일어나 기록이 문서로 남은 미제·의문 사건(30년 이상 지난 것, 생존 인물이 특정되지 않는 것). 성범죄·아동 피해 사건은 고르지 마라.",
+    badge: "일본 미제",
+    queries: [{ lang: "ko", q: "일본 미제 사건" }, { lang: "en", q: "unsolved murder Japan" }, { lang: "en", q: "mysterious disappearance Japan" }, { lang: "en", q: "unsolved case Japan Showa era" }],
   },
   {
     id: "cryptids",
