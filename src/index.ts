@@ -289,6 +289,8 @@ async function main() {
           // 썸네일 카드가 맨 앞 1프레임을 차지하므로 컴포지션과 같은 조건을 써야 싱크가 맞는다
           reelSrt(segments, Boolean(inputProps.thumbTitle), 30),
           reelSrt(segments, Boolean(inputProps.thumbTitle), 30, "en"),
+          // 쇼츠 시리즈 꼬리표(11/15): 미스터리 편 '사건 기록', 감동 실화 편 '실화 기록'
+          grade.genre === "warm" ? "실화 기록" : "사건 기록",
         );
         ytVideoId = videoId;
         console.log(`   ✅ 유튜브 게시 완료: https://youtu.be/${videoId}`);

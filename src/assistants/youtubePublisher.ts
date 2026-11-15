@@ -115,12 +115,14 @@ export async function publishYouTube(
   srt?: string,
   /** 영어 자막(SRT) */
   srtEn?: string,
+  /** 쇼츠 시리즈 꼬리표(예: '사건 기록') — 제목 끝에 '｜'로 붙는다 */
+  series?: string,
 ): Promise<{ videoId: string }> {
   const accessToken = await getAccessToken();
   const bytes = await fs.readFile(videoPath);
 
   const snippet = {
-    title: buildTitle(idea),
+    title: buildTitle(idea, series),
     description: await buildDescription(metadata, idea.caseKey),
     categoryId: config.youtube.categoryId,
     tags: metadata.hashtags.map((t) => t.replace(/^#/, "")).slice(0, 15),
@@ -836,9 +838,14 @@ async function getAccessToken(): Promise<string> {
 }
 
 /** 유튜브 제목 (100자 제한). 제목 자체엔 해시태그를 넣지 않는다. */
-function buildTitle(idea: StoryIdea): string {
+function buildTitle(idea: StoryIdea, series?: string): string {
   const base = idea.title?.trim() || idea.hook.trim();
-  return base.length > 90 ? `${base.slice(0, 89)}…` : base;
+  // 11/15 구조 점검: 잘되는 쇼츠 채널은 고정 시리즈 꼬리표('… 50초 안에 설명하기')로 알아보게 한다.
+  // 쇼츠에만 붙인다(롱폼은 반복 제목이 YPP '템플릿' 신호라 붙이지 않는다).
+  const tail = series ? `｜${series}` : "";
+  const room = 100 - tail.length;
+  const head = base.length > room ? `${base.slice(0, room - 1)}…` : base;
+  return `${head}${tail}`;
 }
 
 /**
