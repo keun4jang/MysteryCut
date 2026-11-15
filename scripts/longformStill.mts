@@ -2,14 +2,38 @@
  * 롱폼 화면 검증용 스틸 렌더.
  * 두 모드(내레이션 자막 / 단일 자료 프레임)와 자료 종류별 화면을 눈으로 확인한다.
  * public/audio/lf-test.mp3 와 public/broll/lf-ch-0..3.jpg 가 있어야 한다.
+ *
+ *   npx tsx scripts/longformStill.mts <출력폴더> [팩목록]
+ *
+ * 팩목록(선택): "noir,archive,casefile" 처럼 쉼표로. 주면 팩마다 <출력폴더>/<팩>/ 에
+ * 따로 찍는다(썸네일은 팩과 무관해서 첫 팩에서만). 생략하면 예전처럼 제목 해시로
+ * 정해진 팩 하나로 <출력폴더>/ 에 찍는다.
+ * 브라우저: REMOTION_BROWSER_EXECUTABLE 이 있으면 그것, 없으면 로컬에 깔린
+ * headless shell 을 찾아 쓰고, 그것도 없으면 Remotion 이 내려받는다.
  */
+import fs from "node:fs";
 import path from "node:path";
 import { bundle } from "@remotion/bundler";
 import { selectComposition, renderStill } from "@remotion/renderer";
 import { config } from "../src/config.js";
 import { inputProps, frameAt } from "./longformFixture.js";
+import { STYLE_PACK_IDS, type StylePackId } from "../src/remotion/stylePacks.js";
 
 const outDir = process.argv[2] ?? "scratchpad";
+const packArg = process.argv[3];
+const packs: Array<StylePackId | undefined> = packArg
+  ? packArg.split(",").map((p) => {
+      const id = p.trim() as StylePackId;
+      if (!STYLE_PACK_IDS.includes(id)) throw new Error(`알 수 없는 팩: ${p} (${STYLE_PACK_IDS.join("/")})`);
+      return id;
+    })
+  : [undefined];
+
+const LOCAL_BROWSERS = [
+  "/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell",
+];
+const browserExecutable =
+  process.env.REMOTION_BROWSER_EXECUTABLE ?? LOCAL_BROWSERS.find((p) => fs.existsSync(p)) ?? null;
 
 const serveUrl = await bundle({
   entryPoint: config.paths.remotionEntry,
@@ -50,18 +74,24 @@ const thumbVariants: Record<string, { thumbTitle: string; thumbBadge: string }> 
   "lf-thumb-one.png": { thumbTitle: "사라진 목격자", thumbBadge: "미제 실화" },
 };
 
-for (const [id, out, frame] of jobs) {
-  // selectComposition 이 props 를 미리 확정하므로 변형도 여기서 같이 넘겨야 한다.
-  // renderStill 에만 넘기면 컴포지션이 들고 있는 기본 props 가 이긴다.
-  const props = { ...inputProps, ...(thumbVariants[out] ?? {}) };
-  const composition = await selectComposition({ serveUrl, id, inputProps: props });
-  const f = Math.min(frame, composition.durationInFrames - 1);
-  await renderStill({
-    composition,
-    serveUrl,
-    output: path.resolve(outDir, out),
-    inputProps: props,
-    frame: f,
-  });
-  console.log("STILL:", out, "frame", f, "/", composition.durationInFrames);
+for (const [pi, pack] of packs.entries()) {
+  const dir = pack && packArg ? path.resolve(outDir, pack) : path.resolve(outDir);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const [id, out, frame] of jobs) {
+    if (id === "LongformThumb" && pi > 0) continue; // 썸네일은 팩과 무관
+    // selectComposition 이 props 를 미리 확정하므로 변형도 여기서 같이 넘겨야 한다.
+    // renderStill 에만 넘기면 컴포지션이 들고 있는 기본 props 가 이긴다.
+    const props = { ...inputProps, ...(thumbVariants[out] ?? {}), ...(pack ? { stylePack: pack } : {}) };
+    const composition = await selectComposition({ serveUrl, id, inputProps: props, browserExecutable });
+    const f = Math.min(frame, composition.durationInFrames - 1);
+    await renderStill({
+      composition,
+      serveUrl,
+      output: path.join(dir, out),
+      inputProps: props,
+      frame: f,
+      browserExecutable,
+    });
+    console.log("STILL:", pack ?? "(auto)", out, "frame", f, "/", composition.durationInFrames);
+  }
 }

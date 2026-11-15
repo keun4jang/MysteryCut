@@ -111,6 +111,8 @@ export const inputProps: LongformInputProps = {
   centralQuestion: "그는 어떻게 모두를 속였을까",
   thumbBgSrc: "broll/lf-ch-3.jpg",
   chapters, grade, bgmSrc: undefined,
+  // 1챕터 오프너의 '기록 출처' 배지 확인용
+  sourceLabel: "위키백과",
 };
 
 

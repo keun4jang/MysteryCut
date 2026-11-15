@@ -36,6 +36,7 @@ import {
   isSexCrimeCase,
   confirmCaseIdentity,
   yearsMissingFromSource,
+  sourceProjectLabel,
   type SourceDoc,
 } from "./lib/sources.js";
 import { verifyFacts, type FactItem } from "./lib/factcheck.js";
@@ -483,6 +484,8 @@ async function finishAndPublish(p: {
     thumbBgSrc,
     bgmSrc: await findBgm(),
     grade,
+    // 1챕터 오프너 '기록 출처' 배지. 스타일 팩은 지정하지 않는다 — 렌더가 제목 해시로 고른다
+    sourceLabel: sourceProjectLabel(allSources) || undefined,
   };
 
   await fs.mkdir(config.paths.out, { recursive: true });

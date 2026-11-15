@@ -649,6 +649,16 @@ export function sourcesPromptBlock(docs: SourceDoc[]): string {
   ].join("\n");
 }
 
+/**
+ * 영상 1챕터 오프너의 '기록 출처' 배지 문구 — 실제로 쓴 위키미디어 프로젝트 이름만.
+ * 예: "위키백과" / "위키백과 · 위키뉴스". 문서가 없으면 "".
+ */
+export function sourceProjectLabel(docs: SourceDoc[]): string {
+  const seen: WikiProject[] = [];
+  for (const d of docs) if (!seen.includes(d.project)) seen.push(d.project);
+  return seen.map((p) => PROJECT_LABEL_KO[p]).join(" · ");
+}
+
 /** 설명란·캡션에 붙일 참고자료 목록 */
 export function sourcesCitation(docs: SourceDoc[]): string {
   if (!docs.length) return "";

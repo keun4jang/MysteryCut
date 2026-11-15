@@ -26,6 +26,7 @@ import { textEm } from "../lib/text.js";
 import { VisualQuantity } from "./VisualQuantity.js";
 import { FRAME_V_BOTTOM, FRAME_V_TOP, scrim } from "./visualTokens.js";
 import { ensureFonts, FONT_FAMILY } from "./fonts.js";
+import { FILE, PAPER, pickStylePack, STYLE_PACKS, type StylePack } from "./stylePacks.js";
 
 /**
  * 롱폼 사건 분석 다큐 (1920x1080).
@@ -121,9 +122,18 @@ function normalizeDateLabel(s: string): string {
 const labelColor = (kind: LongformFrameKind, accent: string) =>
   kind === "problem" ? WARN : accent;
 
-export const LongformDoc: React.FC<LongformInputProps> = ({ chapters, bgmSrc, grade }) => {
+export const LongformDoc: React.FC<LongformInputProps> = ({
+  title,
+  chapters,
+  bgmSrc,
+  grade,
+  stylePack,
+  sourceLabel,
+}) => {
   const { fps } = useVideoConfig();
   ensureFonts();
+  // 스타일 팩은 제목 해시로 결정적으로 고른다 — 같은 회차를 다시 렌더해도 같은 옷
+  const pack = STYLE_PACKS[pickStylePack(title ?? "", stylePack)];
 
   const lens = chapters.map((c) => longformChapterFrames(c, fps));
   const starts: number[] = [];
@@ -159,6 +169,8 @@ export const LongformDoc: React.FC<LongformInputProps> = ({ chapters, bgmSrc, gr
             frames={lens[i]}
             grade={grade}
             showWatermark={i === 0}
+            pack={pack}
+            sourceLabel={i === 0 ? sourceLabel?.trim() || undefined : undefined}
           />
         </Sequence>
       ))}
@@ -173,7 +185,9 @@ const ChapterView: React.FC<{
   frames: number;
   grade?: ReelGrade;
   showWatermark: boolean;
-}> = ({ chapter, chapterNumber, frames, grade, showWatermark }) => {
+  pack: StylePack;
+  sourceLabel?: string;
+}> = ({ chapter, chapterNumber, frames, grade, showWatermark, pack, sourceLabel }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const accent = grade?.accent ?? DEFAULT_ACCENT;
@@ -206,12 +220,13 @@ const ChapterView: React.FC<{
   });
 
   const bright = chapter.bgBrightness ?? 0.78;
-  const kenburns = interpolate(
-    frame,
-    [0, frames],
-    chapterNumber % 2 === 0 ? [1.11, 1.04] : [1.04, 1.11],
-    { extrapolateRight: "clamp" },
-  );
+  // 켄번즈는 팩이 정한다 (noir = 예전 값 그대로). 배율·이동만 바뀌고 길이는 챕터 길이 그대로
+  const kb = pack.kenBurns(chapterNumber);
+  const kenburns = interpolate(frame, [0, frames], kb.scale, { extrapolateRight: "clamp" });
+  const panX =
+    kb.panX[0] === 0 && kb.panX[1] === 0
+      ? 0
+      : interpolate(frame, [0, frames], kb.panX, { extrapolateRight: "clamp" });
   const settle = interpolate(frame, [0, 12], [1.016, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -227,8 +242,12 @@ const ChapterView: React.FC<{
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            transform: `scale(${kenburns * settle})`,
-            filter: `${grade?.bgFilter ?? ""} brightness(${bright}) saturate(0.88)`.trim(),
+            transform: panX
+              ? `scale(${kenburns * settle}) translateX(${panX}%)`
+              : `scale(${kenburns * settle})`,
+            filter: `${grade?.bgFilter ?? ""} brightness(${bright}) saturate(0.88)${
+              pack.extraFilter ? ` ${pack.extraFilter}` : ""
+            }`.trim(),
           }}
         />
       ) : (
@@ -239,6 +258,7 @@ const ChapterView: React.FC<{
         />
       )}
       {grade ? <AbsoluteFill style={{ background: grade.tintCss }} /> : null}
+      {pack.tintCss ? <AbsoluteFill style={{ background: pack.tintCss }} /> : null}
 
       {grade && grade.grainOpacity > 0 ? (
         <AbsoluteFill
@@ -251,7 +271,13 @@ const ChapterView: React.FC<{
         />
       ) : null}
 
-      <ChapterOpener number={chapterNumber} heading={chapter.heading} accent={accent} />
+      <ChapterOpener
+        number={chapterNumber}
+        heading={chapter.heading}
+        accent={accent}
+        pack={pack}
+        sourceLabel={sourceLabel}
+      />
       {showWatermark ? <Watermark /> : null}
 
       {/* 오프너가 걷힌 뒤에 컷 화면이 들어온다 (오디오는 opacity 와 무관하게 계속 흐른다) */}
@@ -270,9 +296,11 @@ const ChapterView: React.FC<{
                 emphasis={s.emphasis}
                 timelinePos={timelineIdx.get(i)}
                 timelineTotal={tCount}
+                pack={pack}
+                fileNo={`${String(chapterNumber).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`}
               />
             ) : (
-              <NarrationSubtitle text={s.text} emphasis={s.emphasis} accent={accent} />
+              <NarrationSubtitle text={s.text} emphasis={s.emphasis} accent={accent} pack={pack} />
             )}
           </Sequence>
         ))}
@@ -286,11 +314,13 @@ const ChapterView: React.FC<{
  * 상시 라벨로 계속 띄우면 시청자가 "핵심 증거와 모순"이라는 말을 8분 내내
  * 봐야 하고, 시선 중심만 하나 더 늘어난다.
  */
-const ChapterOpener: React.FC<{ number: number; heading: string; accent: string }> = ({
-  number,
-  heading,
-  accent,
-}) => {
+const ChapterOpener: React.FC<{
+  number: number;
+  heading: string;
+  accent: string;
+  pack: StylePack;
+  sourceLabel?: string;
+}> = ({ number, heading, accent, pack, sourceLabel }) => {
   const frame = useCurrentFrame();
   const inAmt = interpolate(frame, [2, 2 + OPENER_IN], [0, 1], {
     extrapolateLeft: "clamp",
@@ -310,7 +340,190 @@ const ChapterOpener: React.FC<{ number: number; heading: string; accent: string 
     extrapolateRight: "clamp",
     easing: easeOut,
   });
+  const num = String(number).padStart(2, "0");
 
+  // ── archive: 낡은 기록지 한 장 — 어두운 화면 위 미색 종이 카드 ──
+  if (pack.id === "archive") {
+    return (
+      <>
+        <AbsoluteFill style={{ background: "rgba(8,6,4,0.62)", opacity: vis }} />
+        <div
+          style={{
+            position: "absolute",
+            left: 120,
+            top: 300,
+            maxWidth: 1500,
+            minWidth: 820,
+            padding: "46px 72px 52px 72px",
+            background: PAPER.BG,
+            boxShadow: PAPER.SHADOW,
+            border: `1px solid ${PAPER.EDGE}`,
+            opacity: vis,
+            transform: `translateX(${(1 - inAmt) * -14}px)`,
+          }}
+        >
+          {/* 안쪽 이중 괘선 — 공문서 양식 느낌 */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 14,
+              border: `2px solid ${PAPER.RULE}`,
+              outline: `1px solid ${PAPER.RULE}`,
+              outlineOffset: -8,
+              pointerEvents: "none",
+            }}
+          />
+          <div style={{ display: "flex", alignItems: "baseline", gap: 26 }}>
+            <div
+              style={{
+                color: PAPER.INK_LABEL,
+                fontFamily: FONT_FAMILY,
+                fontSize: 72,
+                fontWeight: 800,
+                lineHeight: 1,
+              }}
+            >
+              {num}
+            </div>
+            <div
+              style={{
+                color: PAPER.INK_SUB,
+                fontFamily: FONT_FAMILY,
+                fontSize: 40,
+                fontWeight: 500,
+                letterSpacing: "8px",
+              }}
+            >
+              사건 기록
+            </div>
+          </div>
+          <div style={{ height: 3, width: lineW, background: PAPER.INK_LABEL, margin: "24px 0 22px" }} />
+          <div
+            style={{
+              color: PAPER.INK,
+              fontFamily: FONT_FAMILY,
+              fontSize: 88,
+              fontWeight: 800,
+              lineHeight: 1.18,
+              wordBreak: "keep-all",
+            }}
+          >
+            {heading}
+          </div>
+          {sourceLabel ? (
+            <div
+              style={{
+                marginTop: 30,
+                paddingTop: 18,
+                borderTop: `1px solid ${PAPER.RULE}`,
+                color: PAPER.INK_SUB,
+                fontFamily: FONT_FAMILY,
+                fontSize: 40,
+                fontWeight: 600,
+                letterSpacing: "2px",
+              }}
+            >
+              기록 출처 · {sourceLabel}
+            </div>
+          ) : null}
+        </div>
+      </>
+    );
+  }
+
+  // ── casefile: 수사 파일 표지 — 괘선, 자간 넓힌 파일 번호, '기록' 도장 ──
+  if (pack.id === "casefile") {
+    return (
+      <>
+        <AbsoluteFill style={{ background: "rgba(4,8,13,0.66)", opacity: vis }} />
+        <AbsoluteFill style={{ background: CASEFILE_RULES, opacity: vis }} />
+        <div
+          style={{
+            position: "absolute",
+            left: 120,
+            right: 120,
+            top: 330,
+            opacity: vis,
+            transform: `translateX(${(1 - inAmt) * -14}px)`,
+          }}
+        >
+          <div
+            style={{
+              color: accent,
+              fontFamily: FONT_FAMILY,
+              fontSize: 44,
+              fontWeight: 700,
+              letterSpacing: "12px",
+              lineHeight: 1,
+            }}
+          >
+            수사 기록 · {num}
+          </div>
+          <div
+            style={{
+              height: 2,
+              width: lineW * 4, // 도장(오른쪽) 앞에서 끊는다
+              background: FILE.RULE_STRONG,
+              margin: "26px 0 30px",
+            }}
+          />
+          <div
+            style={{
+              color: TEXT,
+              fontFamily: FONT_FAMILY,
+              fontSize: 88,
+              fontWeight: 800,
+              lineHeight: 1.18,
+              wordBreak: "keep-all",
+              maxWidth: 1180,
+              textShadow: "0 4px 20px rgba(0,0,0,0.92)",
+            }}
+          >
+            {heading}
+          </div>
+          {sourceLabel ? (
+            <div
+              style={{
+                marginTop: 34,
+                color: FILE.TAG,
+                fontFamily: FONT_FAMILY,
+                fontSize: 40,
+                fontWeight: 600,
+                letterSpacing: "3px",
+                textShadow: "0 2px 10px rgba(0,0,0,0.9)",
+              }}
+            >
+              기록 출처 · {sourceLabel}
+            </div>
+          ) : null}
+        </div>
+        {/* 도장 — 정적인 기울기만, 움직임은 페이드뿐 */}
+        <div
+          style={{
+            position: "absolute",
+            right: 200,
+            top: 300,
+            transform: "rotate(-7deg)",
+            opacity: 0.9 * vis,
+            border: `6px solid ${FILE.STAMP}`,
+            outline: `2px solid ${FILE.STAMP}`,
+            outlineOffset: 6,
+            padding: "8px 30px 12px 44px",
+            color: FILE.STAMP,
+            fontFamily: FONT_FAMILY,
+            fontSize: 80,
+            fontWeight: 800,
+            letterSpacing: "14px",
+            lineHeight: 1,
+          }}
+        >
+          기록
+        </div>
+      </>
+    );
+  }
+
+  // ── noir: 예전 오프너 그대로 (+ 출처가 있을 때만 배지 한 줄) ──
   return (
     <>
       <AbsoluteFill style={{ background: "rgba(5,7,10,0.52)", opacity: vis }} />
@@ -333,7 +546,7 @@ const ChapterOpener: React.FC<{ number: number; heading: string; accent: string 
             lineHeight: 1,
           }}
         >
-          {String(number).padStart(2, "0")}
+          {num}
         </div>
         <div
           style={{
@@ -349,14 +562,44 @@ const ChapterOpener: React.FC<{ number: number; heading: string; accent: string 
         >
           {heading}
         </div>
+        {sourceLabel ? (
+          <div
+            style={{
+              display: "inline-block",
+              marginTop: 30,
+              padding: "8px 20px 10px",
+              border: `2px solid ${accent}`,
+              borderRadius: 4,
+              background: "rgba(5,7,10,0.55)",
+              color: SUB_TEXT,
+              fontFamily: FONT_FAMILY,
+              fontSize: 40,
+              fontWeight: 600,
+              letterSpacing: "2px",
+            }}
+          >
+            기록 출처 · {sourceLabel}
+          </div>
+        ) : null}
       </div>
     </>
   );
 };
 
+/** casefile 팩 바탕 괘선 — 72px 간격 가로줄 + 왼쪽 여백의 붉은 세로줄(수사 노트) */
+const CASEFILE_RULES = [
+  "linear-gradient(90deg, transparent 0, transparent 82px, rgba(224,69,58,0.38) 82px, rgba(224,69,58,0.38) 85px, transparent 85px)",
+  "repeating-linear-gradient(180deg, transparent 0, transparent 71px, rgba(200,220,240,0.06) 71px, rgba(200,220,240,0.06) 72px)",
+].join(", ");
+
 /**
  * 자료 프레임 — 화면 전체를 쓰는 한 장짜리 기록판.
  * 여기서는 **하단 자막을 띄우지 않는다.** main 이 곧 지금 말하는 문장이다.
+ *
+ * 팩별 차이(배치·글자 크기·등장 타이밍은 셋 다 같다):
+ *  noir     — 예전 그대로. 사진 위 흰 글자 + 그림자
+ *  archive  — 글자 그룹 뒤에 미색 기록지 한 장. 종이 위라 그림자 대신 진한 잉크색
+ *  casefile — 바탕 괘선·붉은 여백선, 테두리 꼬리표 라벨, 라벨 아래 가는 괘선, 문서번호
  */
 const DataFrame: React.FC<{
   kind: LongformFrameKind;
@@ -368,7 +611,21 @@ const DataFrame: React.FC<{
   emphasis: "normal" | "tension" | "reveal";
   timelinePos?: number;
   timelineTotal: number;
-}> = ({ kind, label, main, support, visual, accent, emphasis, timelinePos, timelineTotal }) => {
+  pack: StylePack;
+  fileNo: string;
+}> = ({
+  kind,
+  label,
+  main,
+  support,
+  visual,
+  accent,
+  emphasis,
+  timelinePos,
+  timelineTotal,
+  pack,
+  fileNo,
+}) => {
   const frame = useCurrentFrame();
   const enter = interpolate(frame, [2, 12], [0, 1], {
     extrapolateLeft: "clamp",
@@ -392,8 +649,30 @@ const DataFrame: React.FC<{
   });
   const isTimeline = kind === "timeline";
   const isQuestion = kind === "question";
-  const lc = labelColor(kind, accent);
+  const isPaper = pack.id === "archive";
+  const isFile = pack.id === "casefile";
+  const lc = isPaper ? (kind === "problem" ? PAPER.INK_WARN : PAPER.INK_LABEL) : labelColor(kind, accent);
   const shown = isTimeline ? normalizeDateLabel(label) : label;
+
+  // casefile: 왼쪽 위 문서번호 — 읽을 정보가 아니라 '파일' 감각만 준다
+  const fileTag = isFile ? (
+    <div
+      style={{
+        position: "absolute",
+        left: 120,
+        top: 52,
+        opacity: 0.9 * enter,
+        color: FILE.TAG,
+        fontFamily: FONT_FAMILY,
+        fontSize: 30,
+        fontWeight: 600,
+        letterSpacing: "8px",
+        textShadow: "0 2px 10px rgba(0,0,0,0.9)",
+      }}
+    >
+      문서 {fileNo}
+    </div>
+  ) : null;
 
   // 그래픽이 붙은 문장은 그래픽이 화면의 주인공이다. 같은 문장을 100px 로
   // 또 띄우면 '자막의 확대판'이 되어 그래픽을 넣은 의미가 없어진다.
@@ -401,20 +680,171 @@ const DataFrame: React.FC<{
     return (
       <>
         <AbsoluteFill style={{ background: scrim() }} />
+        {isFile ? <AbsoluteFill style={{ background: CASEFILE_RULES, opacity: enter }} /> : null}
+        {isPaper ? (
+          // 수치 화면은 흰 글자 그대로 두고, 기록지 테두리만 둘러 같은 팩으로 묶는다
+          <div
+            style={{
+              position: "absolute",
+              left: 64,
+              right: 64,
+              top: 60,
+              bottom: 220,
+              border: "2px solid rgba(233,222,197,0.30)",
+              outline: "1px solid rgba(233,222,197,0.18)",
+              outlineOffset: -12,
+              opacity: enter,
+            }}
+          />
+        ) : null}
+        {fileTag}
         <VisualQuantity visual={visual} accent={accent} />
       </>
     );
   }
+
+  const labelEl = (
+    <div
+      style={{
+        color: lc,
+        fontFamily: FONT_FAMILY,
+        fontSize: isTimeline ? 92 : 60,
+        fontWeight: isTimeline ? 800 : 700,
+        lineHeight: 1.1,
+        letterSpacing: isTimeline ? (isFile ? "4px" : undefined) : isFile ? "6px" : "2px",
+        opacity: enter,
+        transform: `translateY(${(1 - enter) * 10}px)`,
+        textShadow: isPaper
+          ? "none"
+          : isTimeline
+            ? "0 3px 16px rgba(0,0,0,0.9)"
+            : "0 3px 14px rgba(0,0,0,0.9)",
+        marginBottom: isFile ? 16 : isTimeline ? 14 : 30,
+        ...(isFile && !isTimeline
+          ? { border: `3px solid ${lc}`, padding: "4px 22px 8px 26px", background: "rgba(4,8,13,0.45)" }
+          : {}),
+        ...(isFile && isTimeline ? { fontVariantNumeric: "tabular-nums" as const } : {}),
+      }}
+    >
+      {shown}
+    </div>
+  );
+
+  // casefile: 라벨과 본문 사이 가는 괘선 (오프너와 같은 선)
+  const ruleEl = isFile ? (
+    <div
+      style={{
+        width: "100%",
+        height: 2,
+        background: `linear-gradient(90deg, ${FILE.RULE_STRONG} 0%, ${FILE.RULE} 70%, transparent 100%)`,
+        marginBottom: 22,
+        transform: `scaleX(${railGrow})`,
+        transformOrigin: "left",
+      }}
+    />
+  ) : null;
+
+  const bodyEl = (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "stretch",
+        width: "100%",
+      }}
+    >
+      {isTimeline ? (
+        // 세로선 — 예전엔 최종 높이(300/420px)를 미리 추측해서 interpolate 했다.
+        // 그룹을 가운데 정렬로 바꾸면서 본문 줄 수에 따라 실제 높이가 매번
+        // 달라지므로, alignItems:"stretch" 로 옆 텍스트 칼럼과 같은 높이를
+        // 그대로 받고(레이아웃), scaleY 로 자라나는 것처럼만 보이게 한다(페인트).
+        <div style={{ position: "relative", width: 5, marginRight: 99, flexShrink: 0 }}>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              transform: `scaleY(${railGrow})`,
+              transformOrigin: "top",
+              background: isPaper
+                ? `linear-gradient(180deg, ${lc} 0%, rgba(90,62,30,0.18) 100%)`
+                : isFile
+                  ? lc
+                  : `linear-gradient(180deg, ${lc} 0%, rgba(255,255,255,0.12) 100%)`,
+              borderRadius: isFile ? 0 : 3,
+            }}
+          />
+        </div>
+      ) : null}
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            color: isPaper
+              ? emphasis === "reveal"
+                ? PAPER.INK_REVEAL
+                : PAPER.INK
+              : emphasis === "reveal"
+                ? "#FFD9D2"
+                : TEXT,
+            fontFamily: FONT_FAMILY,
+            fontSize: isQuestion ? 108 : 100,
+            fontWeight: 800,
+            lineHeight: 1.13,
+            wordBreak: "keep-all",
+            textWrap: "balance",
+            textShadow: isPaper ? "none" : "0 4px 20px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.9)",
+            opacity: enter,
+            transform: `translateY(${(1 - enter) * 12}px)`,
+            // 안전장치 — 프롬프트 상한(40자)을 크게 넘긴 문장이 와도 안전선을 못 넘게
+            display: "-webkit-box",
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: 3,
+            overflow: "hidden",
+          }}
+        >
+          {main}
+        </div>
+
+        {support ? (
+          <div
+            style={{
+              marginTop: 40,
+              marginRight: 40,
+              opacity: supportEnter,
+              transform: `translateY(${(1 - supportEnter) * 10}px)`,
+              color: isPaper ? PAPER.INK_SUB : SUB_TEXT,
+              fontFamily: FONT_FAMILY,
+              fontSize: 80,
+              fontWeight: 700,
+              lineHeight: 1.2,
+              wordBreak: "keep-all",
+              textWrap: "balance",
+              textShadow: isPaper ? "none" : "0 3px 16px rgba(0,0,0,0.92)",
+              display: "-webkit-box",
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: 2,
+              overflow: "hidden",
+            }}
+          >
+            {support}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
 
   return (
     <>
       {/* 글자가 놓인 자리만 눌러 배경 사진은 형태를 남긴다 */}
       <AbsoluteFill
         style={{
-          background:
-            "linear-gradient(180deg, rgba(5,7,10,0.52) 0%, rgba(5,7,10,0.74) 22%, rgba(5,7,10,0.74) 74%, rgba(5,7,10,0.58) 100%)",
+          background: isPaper
+            ? "linear-gradient(180deg, rgba(8,6,4,0.58) 0%, rgba(8,6,4,0.78) 22%, rgba(8,6,4,0.78) 74%, rgba(8,6,4,0.62) 100%)"
+            : "linear-gradient(180deg, rgba(5,7,10,0.52) 0%, rgba(5,7,10,0.74) 22%, rgba(5,7,10,0.74) 74%, rgba(5,7,10,0.58) 100%)",
         }}
       />
+      {isFile ? <AbsoluteFill style={{ background: CASEFILE_RULES, opacity: enter }} /> : null}
+      {fileTag}
 
       {/* 증거는 큰 번호를 배경 장식으로 (읽지 못해도 되는 요소).
           본문(top 262~)과 겹치면 96px 문장이 읽히지 않으므로 아래쪽 빈 영역에 둔다. */}
@@ -424,7 +854,7 @@ const DataFrame: React.FC<{
             position: "absolute",
             right: 110,
             bottom: 20,
-            color: "#ffffff",
+            color: isPaper ? "#E9DEC5" : "#ffffff",
             opacity: 0.11 * enter,
             fontFamily: FONT_FAMILY,
             fontSize: 300,
@@ -458,99 +888,52 @@ const DataFrame: React.FC<{
           alignItems: "flex-start",
         }}
       >
-        <div
-          style={{
-            color: lc,
-            fontFamily: FONT_FAMILY,
-            fontSize: isTimeline ? 92 : 60,
-            fontWeight: isTimeline ? 800 : 700,
-            lineHeight: 1.1,
-            letterSpacing: isTimeline ? undefined : "2px",
-            opacity: enter,
-            transform: `translateY(${(1 - enter) * 10}px)`,
-            textShadow: isTimeline ? "0 3px 16px rgba(0,0,0,0.9)" : "0 3px 14px rgba(0,0,0,0.9)",
-            marginBottom: isTimeline ? 14 : 30,
-          }}
-        >
-          {shown}
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "stretch",
-            width: "100%",
-          }}
-        >
-          {isTimeline ? (
-            // 세로선 — 예전엔 최종 높이(300/420px)를 미리 추측해서 interpolate 했다.
-            // 그룹을 가운데 정렬로 바꾸면서 본문 줄 수에 따라 실제 높이가 매번
-            // 달라지므로, alignItems:"stretch" 로 옆 텍스트 칼럼과 같은 높이를
-            // 그대로 받고(레이아웃), scaleY 로 자라나는 것처럼만 보이게 한다(페인트).
-            <div style={{ position: "relative", width: 5, marginRight: 99, flexShrink: 0 }}>
+        {isPaper ? (
+          // 종이는 레이아웃 밖(absolute)으로 번지게 깐다 — 글자 위치·줄바꿈은 noir 와
+          // 똑같이 두고 종이 여백만 바깥으로 늘어나므로 안전선 계산이 그대로다.
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: -64,
+                right: -64,
+                // 최악(본문 3줄+보조 2줄)에서도 종이 아랫변이 안전선(812) 위에 남도록
+                top: -40,
+                bottom: -34,
+                background: PAPER.BG,
+                boxShadow: PAPER.SHADOW,
+                border: `1px solid ${PAPER.EDGE}`,
+                opacity: enter,
+              }}
+            >
               <div
                 style={{
                   position: "absolute",
-                  inset: 0,
-                  transform: `scaleY(${railGrow})`,
-                  transformOrigin: "top",
-                  background: `linear-gradient(180deg, ${lc} 0%, rgba(255,255,255,0.12) 100%)`,
-                  borderRadius: 3,
+                  inset: 14,
+                  border: `2px solid ${PAPER.RULE}`,
                 }}
               />
             </div>
-          ) : null}
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                color: emphasis === "reveal" ? "#FFD9D2" : TEXT,
-                fontFamily: FONT_FAMILY,
-                fontSize: isQuestion ? 108 : 100,
-                fontWeight: 800,
-                lineHeight: 1.13,
-                wordBreak: "keep-all",
-                textWrap: "balance",
-                textShadow: "0 4px 20px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.9)",
-                opacity: enter,
-                transform: `translateY(${(1 - enter) * 12}px)`,
-                // 안전장치 — 프롬프트 상한(40자)을 크게 넘긴 문장이 와도 안전선을 못 넘게
-                display: "-webkit-box",
-                WebkitBoxOrient: "vertical",
-                WebkitLineClamp: 3,
-                overflow: "hidden",
-              }}
-            >
-              {main}
+            <div style={{ position: "relative", width: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+              {labelEl}
+              {bodyEl}
             </div>
-
-            {support ? (
-              <div
-                style={{
-                  marginTop: 40,
-                  marginRight: 40,
-                  opacity: supportEnter,
-                  transform: `translateY(${(1 - supportEnter) * 10}px)`,
-                  color: SUB_TEXT,
-                  fontFamily: FONT_FAMILY,
-                  fontSize: 80,
-                  fontWeight: 700,
-                  lineHeight: 1.2,
-                  wordBreak: "keep-all",
-                  textWrap: "balance",
-                  textShadow: "0 3px 16px rgba(0,0,0,0.92)",
-                  display: "-webkit-box",
-                  WebkitBoxOrient: "vertical",
-                  WebkitLineClamp: 2,
-                  overflow: "hidden",
-                }}
-              >
-                {support}
-              </div>
-            ) : null}
           </div>
-        </div>
+        ) : (
+          <>
+            {labelEl}
+            {ruleEl}
+            {bodyEl}
+          </>
+        )}
       </div>
 
       {/* 타임라인 진행 점 — 읽는 정보가 아니라 위치 감각만 준다 */}
@@ -562,7 +945,7 @@ const DataFrame: React.FC<{
               style={{
                 width: 14,
                 height: 14,
-                borderRadius: 7,
+                borderRadius: isFile ? 0 : 7,
                 background:
                   i === timelinePos
                     ? accent
@@ -581,12 +964,14 @@ const DataFrame: React.FC<{
 /**
  * 내레이션 화면 — 배경 위에 하단 자막만.
  * 화면에서 의미를 갖는 텍스트 블록은 이것 하나뿐이다.
+ * 팩마다 패널 모양만 다르고, 바탕 불투명도는 noir 이상으로 둔다(대비를 깎지 않는다).
  */
 const NarrationSubtitle: React.FC<{
   text: string;
   emphasis: "normal" | "tension" | "reveal";
   accent: string;
-}> = ({ text, emphasis, accent }) => {
+  pack: StylePack;
+}> = ({ text, emphasis, accent, pack }) => {
   const frame = useCurrentFrame();
   const enter = interpolate(frame, [1, 10], [0, 1], {
     extrapolateLeft: "clamp",
@@ -594,6 +979,25 @@ const NarrationSubtitle: React.FC<{
     easing: easeOut,
   });
   const bar = emphasis === "reveal" ? "#FF6B5A" : accent;
+  const panel =
+    pack.id === "archive"
+      ? {
+          borderRadius: 2,
+          background:
+            "linear-gradient(90deg, rgba(17,12,7,0.93) 0%, rgba(17,12,7,0.90) 62%, rgba(17,12,7,0.85) 100%)",
+          boxShadow: "inset 0 0 0 1px rgba(233,222,197,0.16)",
+        }
+      : pack.id === "casefile"
+        ? {
+            borderRadius: 0,
+            background: "rgba(6,10,15,0.92)",
+            borderTop: `2px solid ${FILE.RULE_STRONG}`,
+          }
+        : {
+            borderRadius: 6,
+            background:
+              "linear-gradient(90deg, rgba(7,10,15,0.92) 0%, rgba(7,10,15,0.88) 62%, rgba(7,10,15,0.82) 100%)",
+          };
 
   return (
     <div
@@ -606,9 +1010,7 @@ const NarrationSubtitle: React.FC<{
         transform: `translateY(${(1 - enter) * 8}px)`,
         padding: "26px 40px 30px 40px",
         borderLeft: `10px solid ${bar}`, // 폰 인라인(852px)에서도 강조바가 보이도록
-        borderRadius: 6,
-        background:
-          "linear-gradient(90deg, rgba(7,10,15,0.92) 0%, rgba(7,10,15,0.88) 62%, rgba(7,10,15,0.82) 100%)",
+        ...panel,
       }}
     >
       <div

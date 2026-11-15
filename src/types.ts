@@ -309,5 +309,12 @@ export interface LongformInputProps {
   thumbBgSrc?: string;
   bgmSrc?: string;
   grade?: ReelGrade;
+  /**
+   * 화면 스타일 팩 강제 지정(선택). 없으면 title 해시로 결정적으로 고른다
+   * (stylePacks.ts). 팩은 스타일만 바꾸고 타이밍은 건드리지 않는다.
+   */
+  stylePack?: "archive" | "casefile" | "noir";
+  /** 1챕터 오프너의 '기록 출처' 배지 문구 (예: "위키백과"). 없으면 배지를 안 띄운다 */
+  sourceLabel?: string;
   [key: string]: unknown;
 }
