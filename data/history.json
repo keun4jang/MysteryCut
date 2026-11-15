@@ -4063,6 +4063,27 @@
       "sourceUrl": "https://en.wikipedia.org/wiki/Kongamato",
       "mode": "compilation",
       "theme": "cryptids"
+    },
+    {
+      "caseKey": "anton-schmid-1941",
+      "title": "적의 총구 앞에서 수백 명을 숨겨준 나치 군인의 선택",
+      "premise": "제2차 세계 대전 빌뉴스에서 유대인 저항 조직을 돕고 생명을 구한 오스트리아인 안톤 슈미트의 실제 이야기",
+      "at": "2026-11-15",
+      "hashtags": [
+        "감동실화",
+        "역사속의인",
+        "제2차세계대전",
+        "실화기록",
+        "안톤슈미트",
+        "인도주의",
+        "역사미스터리",
+        "실화바탕"
+      ],
+      "angle": "'감동 실화(선과 악)'",
+      "format": "short",
+      "videoId": "uoj4nBoRp-w",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Anton_Schmid",
+      "visual": "animal"
     }
   ]
 }
