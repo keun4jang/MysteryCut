@@ -398,7 +398,7 @@ export function buildLongformDescription(p: {
   const sources = [
     "참고 자료",
     ...srcLines,
-    "위키백과(CC BY-SA 4.0, https://creativecommons.org/licenses/by-sa/4.0/deed.ko) 등 공개 자료를 바탕으로 내용을 재구성했습니다.",
+    "위키백과(CC BY-SA 4.0, https://creativecommons.org/licenses/by-sa/4.0/deed.ko) 등 공개 자료를 바탕으로 내용을 재구성했습니다. 이 영상의 내레이션 원고는 같은 조건(CC BY-SA 4.0)으로 이용할 수 있습니다.",
     "사진: Pexels",
   ].join("\n");
   let h = 0;

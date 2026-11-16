@@ -20,7 +20,7 @@ const STYLE =
   "(anthropomorphic animal character with an animal head and fur:1.4), dark noir graphic novel illustration, " +
   "muted desaturated colors with one warm accent light, deep shadows, cinematic vertical composition, serious adult tone, painterly texture";
 const NEGATIVE =
-  "human face, human head, cute, chibi, cartoon for kids, bright colors, smiling, thumbs up, gore, blood, weapon, corpse, nudity, text, letters, watermark, deformed, extra limbs, extra ears";
+  "photorealistic, photo, realistic photography, human face, human head, cute, chibi, cartoon for kids, bright colors, smiling, thumbs up, gore, blood, weapon, corpse, nudity, text, letters, watermark, deformed, extra limbs, extra ears";
 
 const PromptSchema = z.object({ prompt: z.string() });
 const JudgeSchema = z.object({

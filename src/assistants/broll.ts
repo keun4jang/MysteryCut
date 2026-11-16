@@ -54,6 +54,10 @@ export async function attachBroll(segments: NarratedSegment[]): Promise<Narrated
  * Pexels 에서 사진 1장을 받아 저장.
  * 성공하면 avg_color(있으면)를 함께 돌려준다 — 배경 밝기 자동 조절에 쓴다.
  */
+/** Pexels 사진 설명(alt)에 사람이 들어 있는지 — 인물 사진 제외용 */
+export const PERSON_RE =
+  /\b(man|men|woman|women|person|people|persons|boy|boys|girl|girls|child|children|kid|kids|guy|guys|lady|ladies|portrait|face|faces|couple|family|baby|toddler|teen\w*|soldier\w*|police\w*|officer\w*|firefighter\w*|doctor\w*|nurse\w*|worker\w*|businessman|businesswoman|student\w*|crowd|selfie|model)\b/i;
+
 async function downloadOne(
   query: string,
   absPath: string,
@@ -62,7 +66,7 @@ async function downloadOne(
   try {
     const url =
       `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}` +
-      `&orientation=${orientation}&per_page=1&size=large`;
+      `&orientation=${orientation}&per_page=8&size=large`;
     // 타임아웃 없으면 Pexels 가 매달릴 때 장면 수만큼(10회+) 5분씩 샌다.
     // 실패는 그라디언트 폴백이 받으므로 빨리 포기하는 쪽이 낫다.
     const res = await fetch(url, {
@@ -73,10 +77,14 @@ async function downloadOne(
     const json = (await res.json()) as {
       photos?: Array<{
         avg_color?: string;
+        alt?: string;
         src?: { large2x?: string; large?: string; portrait?: string };
       }>;
     };
-    const photo = json.photos?.[0];
+    // 11/16 법무 점검: Pexels 라이선스는 '식별 가능한 사람을 나쁘게 보이게 하는 사용'을 금지한다.
+    // 사건 영상에 낯선 사람 얼굴이 깔리면 범인·피해자로 읽힐 수 있으니, 설명(alt)에 사람이 나오는 사진은 건너뛴다.
+    const photo = json.photos?.find((p) => !PERSON_RE.test(p.alt ?? ""));
+    if (!photo && json.photos?.length) console.log(`  🖼️  "${query}" 결과가 모두 인물 사진 — 건너뜀`);
     const src = photo?.src;
     const imgUrl = src?.large2x ?? src?.large ?? src?.portrait;
     if (!imgUrl) return { ok: false };
