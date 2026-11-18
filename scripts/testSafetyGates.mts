@@ -170,7 +170,11 @@ check("유사도 검사: 거의 같은 제목은 탈락", !checkTitle("1929년 �
 {
   check("옛 영상 기준일이 scripts/legacyGuard.mts 와 같음", SRC_CUTOFF === LEGACY_CUTOFF);
   const mer = byKey("ss-meredith-victory-1950")!;
-  check("시드: 감동 실화 쇼츠는 단일 미스터리 2편 전엔 제외(메러디스 빅토리)", !seedEligible(mer, posts).ok, seedEligible(mer, posts).why);
+  // 이력에 단일 미스터리가 2편 쌓이면(11/18부터) 감동 실화도 후보가 된다 — 이력과 무관하게 규칙 자체를 본다
+  const noSingles = posts.filter((p) => p.mode !== "single");
+  check("시드: 감동 실화 쇼츠는 단일 미스터리 2편 전엔 제외(메러디스 빅토리)", !seedEligible(mer, noSingles).ok, seedEligible(mer, noSingles).why);
+  const twoSingles = [...noSingles, { caseKey: "a-1900", title: "a", at: "2026-11-11", mode: "single" as const }, { caseKey: "b-1900", title: "b", at: "2026-11-18", mode: "single" as const }];
+  check("시드: 단일 미스터리 2편 뒤엔 감동 실화도 후보", seedEligible(mer, twoSingles as HistoryPost[]).ok, seedEligible(mer, twoSingles as HistoryPost[]).why);
   check("시드: 보이니치 필사본은 후보", seedEligible(byKey("voynich-manuscript-1912")!, posts).ok, seedEligible(byKey("voynich-manuscript-1912")!, posts).why);
   check("시드: 롱폼 꼭지는 후보 아님", !seedEligible(byKey("db-cooper-1971")!, posts).ok);
   const ids = await mapCaseVideoIds(posts);
