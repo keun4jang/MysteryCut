@@ -58,6 +58,9 @@ export async function attachBroll(segments: NarratedSegment[]): Promise<Narrated
 export const PERSON_RE =
   /\b(man|men|woman|women|person|people|persons|boy|boys|girl|girls|child|children|kid|kids|guy|guys|lady|ladies|portrait|face|faces|couple|family|baby|toddler|teen\w*|soldier\w*|police\w*|officer\w*|firefighter\w*|doctor\w*|nurse\w*|worker\w*|businessman|businesswoman|student\w*|crowd|selfie|model)\b/i;
 
+/** 시대와 안 맞는 현대 물건(11/18 19세기 개턴 사건에 암호화폐 동전 사진이 걸림 — 'old coins' 검색) */
+export const MODERN_RE = /\b(bitcoin|crypto\w*|ethereum|blockchain|nft|litecoin|dogecoin)\b/i;
+
 async function downloadOne(
   query: string,
   absPath: string,
@@ -83,7 +86,7 @@ async function downloadOne(
     };
     // 11/16 법무 점검: Pexels 라이선스는 '식별 가능한 사람을 나쁘게 보이게 하는 사용'을 금지한다.
     // 사건 영상에 낯선 사람 얼굴이 깔리면 범인·피해자로 읽힐 수 있으니, 설명(alt)에 사람이 나오는 사진은 건너뛴다.
-    const photo = json.photos?.find((p) => !PERSON_RE.test(p.alt ?? ""));
+    const photo = json.photos?.find((p) => !PERSON_RE.test(p.alt ?? "") && !MODERN_RE.test(p.alt ?? ""));
     if (!photo && json.photos?.length) console.log(`  🖼️  "${query}" 결과가 모두 인물 사진 — 건너뜀`);
     const src = photo?.src;
     const imgUrl = src?.large2x ?? src?.large ?? src?.portrait;

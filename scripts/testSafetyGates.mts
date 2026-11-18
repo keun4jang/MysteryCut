@@ -18,7 +18,7 @@ import { seedEligible, mapCaseVideoIds, LEGACY_CUTOFF as SRC_CUTOFF } from "../s
 import { pickCompilationTheme, COMPILATION_THEMES } from "../src/lib/variety.js";
 import { sourceOverlap, MAX_SOURCE_OVERLAP } from "../src/lib/originality.js";
 import { findSensitiveTerms, softenText } from "../src/lib/safeText.js";
-import { PERSON_RE } from "../src/assistants/broll.js";
+import { PERSON_RE, MODERN_RE } from "../src/assistants/broll.js";
 import { LEGACY_CUTOFF } from "./legacyGuard.mjs";
 import { mergePosts } from "./historyMerge.mjs";
 
@@ -206,6 +206,7 @@ check("유사도 검사: 거의 같은 제목은 탈락", !checkTitle("1929년 �
 {
   // 11/16: Pexels 인물 사진 제외(라이선스 — 식별 가능한 인물을 나쁘게 보이게 하는 사용 금지)
   check("인물 사진 걸러냄", PERSON_RE.test("Man in black jacket standing near the wall") && PERSON_RE.test("Silhouette of a woman"));
+  check("암호화폐 사진 걸러냄", MODERN_RE.test("Ethereum Classic coin on dark background") && !MODERN_RE.test("Old silver coins on wooden table"));
   check("사물·풍경은 통과", !PERSON_RE.test("Old typewriter on wooden desk") && !PERSON_RE.test("Foggy forest at night") && !PERSON_RE.test("Manuscript pages"));
 }
 
