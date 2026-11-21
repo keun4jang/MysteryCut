@@ -4148,6 +4148,93 @@
       "videoId": "l-qupL8rXrg",
       "sourceUrl": "https://ko.wikipedia.org/wiki/%EB%8D%B4%EB%A7%88%ED%81%AC_%EC%9C%A0%EB%8C%80%EC%9D%B8_%EA%B5%AC%EC%B6%9C",
       "visual": "animal"
+    },
+    {
+      "caseKey": "juliane-koepcke-1971",
+      "title": "1971년 3천 미터 상공 추락, 열일곱 살 소녀는 어떻게 살아남았나｜미제사건 기록",
+      "premise": "1971년 비행기 공중 분해로 페루 아마존 정글 한가운데로 추락한 17세 소녀가 중상을 입은 채 홀로 11일 동안 정글을 헤쳐 나와 살아남은 기적적인 생존 기록이다. 당시 수많은 승객 중 유일한 생존자였다는 점과 아마존의 극한 환경을 이겨낸 과정이 큰 수수께끼와 감동을 준다.",
+      "at": "2026-11-21",
+      "hashtags": [
+        "Juliane Koepcke",
+        "LANSA Flight 508",
+        "아마존 생존",
+        "비행기 추락",
+        "유일한 생존자",
+        "1971년 사고",
+        "미제사건 기록",
+        "정글 생존"
+      ],
+      "format": "longform",
+      "videoId": "cse7FnyiLgQ",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Juliane_Koepcke",
+      "mode": "compilation",
+      "theme": "miracle-survival"
+    },
+    {
+      "caseKey": "poon-lim-1942",
+      "title": "1942년 태평양 한가운데서 격침된 선박, 홀로 남겨진 뗏목에서 133일을 버틴 생존의 기록｜역사 기록",
+      "premise": "영국 선박이 격침된 후 홀로 목재 뗏목에 의지해 133일 동안 태평양을 표류하면서도 상식 밖의 방법으로 생존해 세계 기록을 세운 기적의 기록이다.",
+      "at": "2026-11-21",
+      "hashtags": [
+        "Poon Lim",
+        "SS Benlomond",
+        "태평양 표류",
+        "생존",
+        "133일",
+        "제2차 세계대전",
+        "역사 기록",
+        "해상 사고"
+      ],
+      "format": "longform",
+      "videoId": "cse7FnyiLgQ",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Poon_Lim",
+      "mode": "compilation",
+      "theme": "miracle-survival"
+    },
+    {
+      "caseKey": "maurice-wilson-1934",
+      "title": "1934년 에베레스트 무단 등반에 나선 전직 장교는 왜 시신으로 발견되었나｜역사 기록",
+      "premise": "등산 경험이 거의 없던 전직 영국 공군 장교가 비행기를 개조해 에베레스트산에 단독으로 무단 등반을 시도했다가 1934년 얼어붙은 시신으로 발견된 기묘한 사건이다. 전문가들도 불가능하다고 여긴 무모한 도전에서 그가 남긴 일기장은 극한의 고립 속에서 벌어진 마지막 생존의 기록을 고스란히 담고 있어 큰 수수께끼를 남겼다.",
+      "at": "2026-11-21",
+      "hashtags": [
+        "Maurice Wilson",
+        "Mount Everest",
+        "모리스 윌슨",
+        "에베레스트",
+        "미제사건 기록",
+        "역사 기록",
+        "1934년",
+        "단독 등반",
+        "생존 일기",
+        "역사 미스터리"
+      ],
+      "format": "longform",
+      "videoId": "cse7FnyiLgQ",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Maurice_Wilson",
+      "mode": "compilation",
+      "theme": "miracle-survival"
+    },
+    {
+      "caseKey": "tham-luang-cave-rescue-2018",
+      "title": "2018년 태국 동굴 조난, 전 세계가 지켜본 2주간의 사투｜미제사건 기록",
+      "premise": "태국의 한 동굴에 탐험하러 들어갔던 유소년 축구팀과 코치가 갑작스러운 폭우로 고립되었다가, 전 세계 다이버들의 기적적인 협력으로 수주일 만에 살아 돌아온 사건이다. 극한의 생존 환경 속에서 모두가 생존할 수 있었던 비결과 구조 과정의 수수께끼가 전해진다.",
+      "at": "2026-11-21",
+      "hashtags": [
+        "탐루앙 동굴",
+        "태국 동굴 조난",
+        "야생 멧돼지 축구단",
+        "동굴 구조 작전",
+        "Tham Luang cave rescue",
+        "실종",
+        "생존",
+        "국제 구조",
+        "미제사건 기록"
+      ],
+      "format": "longform",
+      "videoId": "cse7FnyiLgQ",
+      "sourceUrl": "https://ko.wikipedia.org/wiki/%ED%83%90%EB%A3%A8%EC%95%99_%EB%8F%99%EA%B5%B4_%EC%A1%B0%EB%82%9C_%EC%82%AC%EA%B3%A0",
+      "mode": "compilation",
+      "theme": "miracle-survival"
     }
   ]
 }
