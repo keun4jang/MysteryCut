@@ -60,6 +60,12 @@ export const PERSON_RE =
 
 /** 시대와 안 맞는 현대 물건(11/18 19세기 개턴 사건에 암호화폐 동전 사진이 걸림 — 'old coins' 검색) */
 export const MODERN_RE = /\b(bitcoin|crypto\w*|ethereum|blockchain|nft|litecoin|dogecoin)\b/i;
+/**
+ * 글자·국기·로고가 박힌 사진(11/23 주간 점검: 나치 외교관 이야기에 중국 국기·한자 건물 🟥,
+ * 정글 추락 사건에 'UNITED' 항공 로고 🟧, 엔진 외국어 문구 🟧). 사건과 다른 나라·회사로 읽힌다.
+ */
+export const MARKED_RE =
+  /\b(flags?|logos?|signs?|signage|signboard|billboards?|banners?|neon|lettering|graffiti|brand\w*|united airlines|delta|lufthansa|emirates|ryanair|easyjet|american airlines|qantas|airbus|boeing|lantern\w*|chinese characters?|hanzi)\b/i;
 
 async function downloadOne(
   query: string,
@@ -86,7 +92,13 @@ async function downloadOne(
     };
     // 11/16 법무 점검: Pexels 라이선스는 '식별 가능한 사람을 나쁘게 보이게 하는 사용'을 금지한다.
     // 사건 영상에 낯선 사람 얼굴이 깔리면 범인·피해자로 읽힐 수 있으니, 설명(alt)에 사람이 나오는 사진은 건너뛴다.
-    const photo = json.photos?.find((p) => !PERSON_RE.test(p.alt ?? "") && !MODERN_RE.test(p.alt ?? ""));
+    const allowed = (json.photos ?? []).filter(
+      (p) => !PERSON_RE.test(p.alt ?? "") && !MODERN_RE.test(p.alt ?? "") && !MARKED_RE.test(p.alt ?? ""),
+    );
+    // 검색어 낱말이 설명(alt)에 많이 든 사진을 먼저(11/23: 정글 추락 사건에 항구 사진 🟧). 동점이면 Pexels 순서.
+    const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+    const score = (alt = "") => words.filter((w) => alt.toLowerCase().includes(w)).length;
+    const photo = allowed.reduce<(typeof allowed)[0] | undefined>((best, p) => (!best || score(p.alt) > score(best.alt) ? p : best), undefined);
     if (!photo && json.photos?.length) console.log(`  🖼️  "${query}" 결과가 모두 인물 사진 — 건너뜀`);
     const src = photo?.src;
     const imgUrl = src?.large2x ?? src?.large ?? src?.portrait;
