@@ -211,7 +211,11 @@ export async function proposeCase(
   const again = await ask(
     `★방금 '${probe.title}'은 목록 밖이라 버렸다. 반드시 목록의 문서 제목 하나를 골라 searchTerms 첫 항목에 그대로 써라.\n`,
   );
-  return again;
+  if (inList(again)) return again;
+  // 11/24: 두 번 다 목록 밖(MH370 등 이미 다룬 유명 사건)이면 10회 내내 중복으로 끝났다. 실제 문서 후보로 바꿔 원문·안전 검사에 넘긴다.
+  const pickDoc = freshCandidates[Math.floor(Math.random() * freshCandidates.length)];
+  console.log(`   ↩︎ 또 목록 밖(${again.title}) — 실제 문서 후보로 교체: ${pickDoc}`);
+  return { ...again, caseKey: slug(pickDoc), title: pickDoc, premise: pickDoc, searchTerms: [pickDoc] };
 }
 
 export async function writeReelPlan(
