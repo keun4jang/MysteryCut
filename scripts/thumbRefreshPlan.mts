@@ -48,7 +48,7 @@ export const THUMB_REFRESH_PLAN: ThumbRefreshItem[] = [
     caseKey: "phantom-of-heilbronn-2009",
     thumbTitle: "40곳에 남은\n같은 DNA",
     thumbBadge: "수사 기록",
-    thumbQuery: "cotton swab test tube",
+    thumbQuery: "test tubes rack laboratory dark", // 11/24 'cotton swab' 은 사람(검체 채취) 사진이 걸림
     originalThumb: "thumbnails/2026-11-11-lf-single-phantom-of-heilbronn-2009-uum3ZrVIpQc.jpg",
   },
 ];
