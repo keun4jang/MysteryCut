@@ -114,6 +114,29 @@ const TITLE_STYLES = [
   "제목 구조: '사건명형' — 사건의 통용 명칭을 그대로 쓰되 뒤에 한 마디를 붙인다. 예: '하일브론의 유령, 존재하지 않았던 살인자'. 이번 회차는 '미스터리'로 끝내도 된다.",
 ];
 
+/**
+ * 쇼츠 '한 줄 반전' 제목·첫 3초 시험(11/24~, 10편). 화·목·토·일 순서라 미스터리·감동 편이 번갈아 나오므로
+ * A-B-B-A 로 배정해 두 편 종류가 양쪽에 고르게 들어가게 한다. 결과는 주간 리포트 ⑥에서 비교.
+ */
+export const SHORTS_SERIES_START = "2026-11-24";
+export const TITLE_TEST_SIZE = 10;
+export const TWIST_TITLE_STYLE =
+  "제목 구조: '한 줄 반전형' — 18~32자. 사건에서 가장 믿기 어려운 사실 하나를 앞세운 평서문. 예: '범인을 쫓던 DNA의 주인은 공장 직원이었다'. ★원문에 있는 사실만, 영상에서 반드시 확인되는 내용만. 연도로 시작하지 말고 '진실', '무엇인가', '미스터리'라는 단어를 쓰지 마라.";
+export const TWIST_HOOK_STYLE =
+  "훅 방식: '한 줄 반전형' — 첫 문장(3초 안)에 이 사건의 가장 믿기 어려운 사실을 짧게 말한다. 인사·배경 설명 금지. 그 뒤에 '어떻게 그런 일이 벌어졌는지'를 따라간다. 결말 전체를 말하지 말고 원문에 있는 사실만 쓴다.";
+
+export function titleTestArm(posts: Array<{ at: string; format?: string }>): "twist" | "control" | undefined {
+  const n = posts.filter((p) => p.format === "short" && p.at >= SHORTS_SERIES_START).length;
+  if (n >= TITLE_TEST_SIZE) return undefined;
+  return n % 4 === 0 || n % 4 === 3 ? "twist" : "control";
+}
+
+/** 인스타 캡션 꼬리말 — 시리즈 번호와 팔로우 이유(다음 편이 언제 오는지) */
+export function instagramSeriesFooter(posts: Array<{ at: string; format?: string }>, warm: boolean): string {
+  const no = posts.filter((p) => p.format === "short" && p.at >= SHORTS_SERIES_START).length + 1;
+  return `📁 ${warm ? "실화" : "사건"} 기록 No.${no}\n화·목·토·일, 실제 기록으로 남은 이야기가 이어집니다.\n다음 이야기를 놓치지 않으려면 @mystery.cut 팔로우`;
+}
+
 /** 마무리 멘트 로테이션 — 매번 같은 문장으로 끝나지 않게 (평서문, 질문형 금지) */
 const SIGNOFF_STYLES = [
   "마무리 멘트 방향: 다음 편 예고형. 예: '다음엔 이거보다 더 이상한 사건 가져올게요. 좋아요 눌러두면 놓치지 않아요.'",
@@ -121,6 +144,7 @@ const SIGNOFF_STYLES = [
   "마무리 멘트 방향: 담백한 인사형. 예: '오늘 얘기는 여기까지예요. 재밌었으면 좋아요 하나 부탁드려요.'",
   "마무리 멘트 방향: 여운 유지형. 예: '저는 아직도 이 사건이 제일 찝찝해요. 생각나는 게 있으면 댓글로 알려주세요.'",
   "마무리 멘트 방향: 정보 보완 요청형. 예: '혹시 이 사건 더 아는 분 있으면 댓글 부탁드려요. 좋아요도 눌러주시고요.'",
+  "마무리 멘트 방향: 다큐 안내형. 예: '이런 사건을 더 깊게 파고든 다큐는 프로필에 있어요. 오늘 얘기가 재밌었다면 거기서 이어서 보세요.'",
 ];
 
 /**

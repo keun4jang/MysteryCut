@@ -202,6 +202,8 @@ check("유사도 검사: 거의 같은 제목은 탈락", !checkTitle("1929년 �
 
 {
   // 11/13: 성범죄 언급 차단(원문에 있어도 대본엔 안 씀)
+  check("아동 포함 소재: 일가족 실종·태국 동굴 걸러냄", isSexCrimeCase("마포 일가족 실종 사건", "", "mapo-family-disappearance-2003") && isSexCrimeCase("2018년 태국 동굴 조난", "", "tham-luang-cave-rescue-2018"));
+  check("오탐 없음: 일반 가족 언급·다른 동굴", !isSexCrimeCase("가족을 구한 등대지기", "폭풍 속 항해") && !isSexCrimeCase("태국 왕실 보물", "", "thai-royal-treasure"));
   check("성범죄 표현 탐지", findSensitiveTerms(["자매는 성폭행을 당한 흔적이 있었다", "The sisters had been raped"]).length === 2);
   check("성범죄 표현 중립화", !/성폭행/.test(softenText("자매는 성폭행을 당한 흔적이 있었다")));
   check("오탐 없음: '강간'이 없는 일반 문장", findSensitiveTerms(["강가에서 발견된 배", "grapes and drapes"]).length === 0);

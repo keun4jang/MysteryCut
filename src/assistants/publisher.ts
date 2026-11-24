@@ -73,8 +73,10 @@ async function graphFetch(
 export async function publishReel(
   videoPath: string,
   metadata: ReelMetadata,
+  /** 캡션 한국어 본문 뒤에 붙는 시리즈 번호·팔로우 안내 */
+  footer?: string,
 ): Promise<{ mediaId: string }> {
-  const caption = buildCaption(metadata);
+  const caption = buildCaption(metadata, footer);
 
   // 1) 영상을 공개 URL 로 임시 호스팅 (인스타가 이 URL 에서 영상을 내려받아 처리)
   const { videoUrl, cleanup } = await hostVideoPublicly(videoPath);
@@ -92,11 +94,12 @@ export async function publishReel(
   }
 }
 
-function buildCaption(m: ReelMetadata): string {
-  // 한글(위) + 영어 번역(아래) — 글로벌 시청자 대응. 해시태그 없음(키워드는 본문에).
-  return m.captionEn?.trim()
-    ? `${m.caption}\n\n———\n\n${m.captionEn}`
-    : m.caption;
+function buildCaption(m: ReelMetadata, footer?: string): string {
+  const ko = footer ? `${m.caption}\n\n${footer}` : m.caption;
+  // 인스타 캡션 한도 2,200자 — 넘으면 영어 번역을 뺀다
+  const both = m.captionEn?.trim() ? `${ko}\n\n———\n\n${m.captionEn}` : ko;
+  if (both.length <= 2200) return both;
+  return ko.length <= 2200 ? ko : m.caption.slice(0, 2200);
 }
 
 /**

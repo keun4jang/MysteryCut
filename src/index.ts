@@ -17,7 +17,7 @@ import {
   isDuplicate,
   appendPost,
 } from "./assistants/history.js";
-import { pickStylePack, isWarmStoryDay, isWarmAngle } from "./lib/variety.js";
+import { pickStylePack, isWarmStoryDay, isWarmAngle, titleTestArm, instagramSeriesFooter, TWIST_TITLE_STYLE, TWIST_HOOK_STYLE } from "./lib/variety.js";
 import { verifyFacts, type FactItem } from "./lib/factcheck.js";
 import { reviewDesign } from "./assistants/artDirector.js";
 import { deriveGrade, gradeColors } from "./lib/grade.js";
@@ -46,6 +46,13 @@ async function main() {
   // 버라이어티 팩: 영상마다 목소리·비주얼·훅 구성을 랜덤 조합 (동일 템플릿 반복 방지)
   // 목·일요일은 감동 실화 편(10/3 일요일 시험 시작, 10/11 목요일 추가 — variety.ts WARM_WEEKDAYS)
   const pack = pickStylePack({ warm: isWarmStoryDay() });
+  // 11/24~ 10편: 절반은 '한 줄 반전' 제목·첫 3초로 시험(주간 리포트 ⑥에서 조회수 비교)
+  const titleTest = titleTestArm(history.posts);
+  if (titleTest === "twist") {
+    pack.titleStyle = TWIST_TITLE_STYLE;
+    pack.hookStyle = TWIST_HOOK_STYLE;
+  }
+  if (titleTest) console.log(`   🧪 제목 시험: ${titleTest === "twist" ? "한 줄 반전형" : "기존 방식"}`);
   console.log(
     `🎲 버라이어티: 보이스=${pack.voice.label} | 자막=${pack.theme.boxStyle} | 줌=${pack.theme.kenburns} | 긴장색=${pack.theme.colors.tension}`,
   );
@@ -269,7 +276,7 @@ async function main() {
 
     console.log("⑥ 인스타그램 업로드...");
     try {
-      const { mediaId } = await publishReel(videoPath, metadata);
+      const { mediaId } = await publishReel(videoPath, metadata, instagramSeriesFooter(history.posts, grade.genre === "warm"));
       console.log(`   ✅ 인스타 게시 완료 (media id: ${mediaId})`);
       anyPublished = true;
     } catch (e) {
@@ -310,6 +317,7 @@ async function main() {
         videoId: ytVideoId,
         sourceUrl: sources[0]?.url,
         visual,
+        titleTest,
       });
 
     // 썸네일 카드를 저장소 thumbnails/ 폴더에 보관 — 유튜브가 쇼츠 썸네일

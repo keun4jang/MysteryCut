@@ -17,7 +17,7 @@ import { getYoutubeAccessToken } from "../src/assistants/youtubePublisher.js";
 import { BANNED_TITLE_RE } from "../src/lib/titleGuard.js";
 import { isLegacyVideo } from "./legacyGuard.mjs";
 
-type HistoryPost = { caseKey: string; title: string; at: string; format?: string; mode?: string; videoId?: string; visual?: string };
+type HistoryPost = { caseKey: string; title: string; at: string; format?: string; mode?: string; videoId?: string; visual?: string; titleTest?: string };
 
 const token = await getYoutubeAccessToken();
 const H = { Authorization: `Bearer ${token}` };
@@ -195,6 +195,24 @@ say(
   say("\n## ⑤ 쇼츠 동물 그림 시험 (11/13~ 동물 그림 vs 11/01~12 사진, 게시 3일 지난 쇼츠 조회수 중앙값)");
   say(`- 동물 그림 ${animalIds.length}편: ${med(animalIds).toLocaleString("ko-KR")}회 / 사진 ${photoIds.length}편: ${med(photoIds).toLocaleString("ko-KR")}회`);
   if (animalIds.length < 4) say("- 판정 보류: 동물 그림 쇼츠가 4편 이상 쌓이면 비교(12/4 최종 판단)");
+}
+
+// ── ⑥ 쇼츠 '한 줄 반전' 제목·첫 3초 시험(11/24~ 10편) ──
+{
+  const done = hist.filter((p) => p.format === "short" && p.videoId && p.titleTest && Date.now() - Date.parse(p.at) >= 3 * 86400000);
+  const ids = done.map((p) => p.videoId!);
+  const views = new Map<string, number>();
+  for (let i = 0; i < ids.length; i += 50) {
+    const j = await api<{ items?: Array<{ id: string; statistics: { viewCount?: string } }> }>(
+      `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${ids.slice(i, i + 50).join(",")}`,
+    );
+    for (const v of j?.items ?? []) views.set(v.id, Number(v.statistics.viewCount ?? 0));
+  }
+  const arm = (a: string) => done.filter((p) => p.titleTest === a).map((p) => views.get(p.videoId!) ?? 0);
+  const [t, c] = [arm("twist"), arm("control")];
+  say("\n## ⑥ 쇼츠 제목·첫 3초 시험 (한 줄 반전형 vs 기존, 게시 3일 지난 쇼츠 조회수 중앙값)");
+  say(`- 한 줄 반전 ${t.length}편: ${median(t).toLocaleString("ko-KR")}회 / 기존 ${c.length}편: ${median(c).toLocaleString("ko-KR")}회`);
+  if (t.length < 5 || c.length < 5) say("- 판정 보류: 양쪽 5편씩 쌓이면 비교");
 }
 
 // ── ④ 신청 가능 여부 ──

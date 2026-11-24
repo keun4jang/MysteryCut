@@ -662,7 +662,7 @@ const LongformCTA: React.FC = () => {
           textShadow: "0 2px 10px rgba(0,0,0,0.85)",
         }}
       >
-        🎬 전체 이야기는 프로필에서
+        🎬 더 깊은 사건 다큐는 프로필에서
       </div>
     </AbsoluteFill>
   );
