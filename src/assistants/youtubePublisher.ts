@@ -709,15 +709,16 @@ async function postPromoComment(videoId: string, accessToken: string, caseKey?: 
   // 같은 사건을 다룬 롱폼이 있으면 그 영상으로 바로 보낸다(재생목록보다 클릭 한 번이 적다, 11/12)
   const own = caseKey ? await findLongformFor(caseKey) : undefined;
   const playlistId = await loadLongformPlaylistId();
+  // 11/25 사장님 지적: 쇼츠 댓글의 링크는 유튜브가 눌리지 않게 막는다(2023~). 주소 대신 찾아가는 길을 적는다.
   let text: string;
   if (own) {
-    text = `🎬 이 사건, 다큐로 더 깊이 파고들었어요\n"${own.title}"\nhttps://youtu.be/${own.videoId}`;
+    text = `🎬 이 사건, 다큐로 더 깊이 파고들었어요\n"${own.title}"\n👉 화면의 @미스터리컷 이름 → 동영상 탭에서 볼 수 있어요`;
   } else if (playlistId) {
-    text = `🎬 이 사건, 더 깊이 파고든 다큐도 있어요\n전체보기: https://www.youtube.com/playlist?list=${playlistId}`;
+    text = `🎬 이런 사건들, 긴 다큐로도 정리해 두었어요\n👉 화면의 @미스터리컷 이름 → 동영상 탭에서 볼 수 있어요`;
   } else {
     const longform = await loadLatestLongform();
     if (!longform) return;
-    text = `🎬 더 깊이 파고든 사건 분석 다큐: "${longform.title}"\nhttps://youtu.be/${longform.videoId}`;
+    text = `🎬 더 깊이 파고든 사건 다큐: "${longform.title}"\n👉 화면의 @미스터리컷 이름 → 동영상 탭에서 볼 수 있어요`;
   }
   if (await insertComment(videoId, text, accessToken)) console.log("   💬 롱폼 유도 댓글 작성 완료 (Studio 에서 고정은 수동으로)");
 }
