@@ -11,6 +11,8 @@
 # 이 훅은 절대 turn 을 막지 않는다(항상 exit 0).
 
 ARCHIVE_DIR="${CHAT_ARCHIVE_DIR:-/home/user/claude-chat-archive}"
+# 사장님 PC(C:\Projects\mysterycut)에서는 형제 폴더 chat-archive 를 쓴다(11/24)
+if [[ ! -d "$ARCHIVE_DIR" && -d "$(pwd)/../chat-archive" ]]; then ARCHIVE_DIR="$(cd "$(pwd)/../chat-archive" && pwd)"; fi
 export CHAT_ARCHIVE_DIR="$ARCHIVE_DIR"
 export CHAT_ARCHIVE_PROJECT="MysteryCut"
 export CHAT_ARCHIVE_SOURCE_REPO="keun4jang/MysteryCut"

@@ -8,6 +8,9 @@ on:
     - cron: "41 0 * * 1"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   report:
     runs-on: ubuntu-latest
@@ -25,3 +28,12 @@ jobs:
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
         run: npx tsx scripts/yppReport.mts
+      - name: 리포트를 저장소에 저장(data/reports/ypp-latest.md)
+        run: |
+          git config user.name "mystery-cut-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/reports/ypp-latest.md
+          git diff --cached --quiet && exit 0
+          git commit -qm "chore: 주간 수익창출 리포트 [skip ci]"
+          for i in 1 2 3 4; do git pull -q --rebase origin "${{ github.ref_name }}" && git push -q origin HEAD:"${{ github.ref_name }}" && exit 0; sleep $((i*5)); done
+          echo "⚠️ 리포트 저장 푸시 실패(리포트 자체는 위 로그·요약에 있음)"

@@ -209,3 +209,6 @@ say(
 );
 
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${out.join("\n")}\n`);
+// '미스터리컷 시작'이 PC·클라우드 어디서든 최신 성과를 읽을 수 있게 저장소에도 남긴다(11/24) — 키 없이 git pull 만으로 보임
+fs.mkdirSync("data/reports", { recursive: true });
+fs.writeFileSync("data/reports/ypp-latest.md", `${out.join("\n")}\n`);

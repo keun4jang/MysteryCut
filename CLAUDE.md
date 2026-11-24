@@ -3,6 +3,10 @@
 실제 기록된 미스터리·사건을 위키백과 등 공개 자료로 정리해 유튜브(쇼츠·롱폼)와 인스타그램에 자동 게시하는 시스템.
 게시는 GitHub Actions 가 돌린다(사장님 컴퓨터가 꺼져 있어도 됨). 이 폴더는 코드·이력의 사본이다.
 
+## 사장님이 "미스터리컷 시작"이라고 하면
+`mysterycut-start` 스킬(`.claude/skills/mysterycut-start/SKILL.md`)을 따른다:
+PC·GitHub 저장소를 최신으로 맞추고(없으면 GitHub 에서 받아 저장) → 이어가기 메모로 지난 작업을 이어받고 → 최근 성과·개선사항을 보고한다.
+
 ## 꼭 지킬 것 (사장님 지시)
 - **항상 한국어로 답한다.** 사장님은 개발자가 아니다 — 쉬운 말로, 결과부터.
 - **법에 걸리지 않는 선에서만.** 5년 이내 사건·생존 인물이 특정되는 사건·성범죄 중심·아동 피해·정치 논란은 다루지 않는다.
@@ -21,7 +25,7 @@
 - 롱폼: `src/longform.ts` → `post-longform.yml` (수 = 단일 사건 심층, 토 = 테마 몰아보기)
 - 화면: `src/remotion/*` (롱폼 스타일 팩 `stylePacks.ts`), 배경 사진 `src/assistants/broll.ts`, 동물 그림 `src/assistants/animalArt.ts`
 - 안전 게이트 회귀 검사: `npx tsx scripts/testSafetyGates.mts` (네트워크 불필요)
-- 주간 리포트: `ypp-report.yml`(수익창출 조건), `stats-report.yml`(조회·구조 점검)
+- 주간 리포트: `ypp-report.yml`(수익창출 조건 — 결과가 `data/reports/ypp-latest.md` 로 저장됨), `stats-report.yml`(조회·구조 점검)
 
 ## 확인 명령
 ```
