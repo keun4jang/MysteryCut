@@ -4277,6 +4277,30 @@
       "videoId": "lxWxt8HyV2E",
       "sourceUrl": "https://en.wikipedia.org/wiki/Khaled_Abdul-Wahab",
       "visual": "animal"
+    },
+    {
+      "caseKey": "yotsuya-kaidan-1825",
+      "title": "배신한 남편의 눈앞에 나타난 일그러진 얼굴",
+      "premise": "일본 에도 시대부터 전해지는 요쓰야 괴담은 배신당한 여인의 한과 그로 인해 대물림되는 기이한 사고들에 관한 미스터리입니다.",
+      "at": "2026-11-24",
+      "hashtags": [
+        "요쓰야괴담",
+        "일본괴담",
+        "역사미스터리",
+        "공포실화",
+        "도시전설",
+        "에도시대",
+        "오이와",
+        "저주",
+        "기이한현상",
+        "가부키"
+      ],
+      "angle": "'설명되지 않는 현상'",
+      "format": "short",
+      "videoId": "azgTHOaIZuA",
+      "sourceUrl": "https://ko.wikipedia.org/wiki/%EC%9A%94%EC%93%B0%EC%95%BC_%EA%B4%B4%EB%8B%B4",
+      "visual": "animal",
+      "titleTest": "twist"
     }
   ]
 }
