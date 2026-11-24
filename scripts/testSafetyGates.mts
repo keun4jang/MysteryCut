@@ -159,7 +159,7 @@ check("유사도 검사: 거의 같은 제목은 탈락", !checkTitle("1929년 �
 }
 {
   const wf = (f: string) => fs.readFileSync(`.github/workflows/${f}`, "utf8");
-  const grp = (s: string) => s.match(/concurrency:\s*\n\s*group:\s*(.+)\n/)?.[1].trim();
+  const grp = (s: string) => s.match(/concurrency:\s*\r?\n\s*group:\s*(.+)\r?\n/)?.[1].trim(); // 윈도우 PC 는 줄바꿈이 CRLF
   const a = grp(wf("post-reel.yml"));
   const b = grp(wf("post-longform.yml"));
   check("워크플로: 실제 게시 동시성 그룹이 두 파일에서 글자 그대로 같음", !!a && a === b && /'mystery-cut-publish'/.test(a!), a);
