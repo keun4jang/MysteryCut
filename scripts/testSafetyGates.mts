@@ -15,7 +15,9 @@ import { checkTitle, bigramJaccard, KNOWN_COMPILATION_TITLES, BANNED_TITLE_RE } 
 import { longformChapterTimestamps, longformDurationInFrames } from "../src/remotion/timing.js";
 import { buildLongformDescription, normalizeTags } from "../src/assistants/youtubePublisher.js";
 import { seedEligible, mapCaseVideoIds, LEGACY_CUTOFF as SRC_CUTOFF } from "../src/lib/shortPerformance.js";
-import { pickCompilationTheme, COMPILATION_THEMES } from "../src/lib/variety.js";
+import { pickCompilationTheme, COMPILATION_THEMES, REGION_ANGLES } from "../src/lib/variety.js";
+import { thumbTitleIssues } from "../src/assistants/longformProducer.js";
+import { planIssues, THUMB_REFRESH_PLAN } from "./thumbRefreshPlan.mjs";
 import { sourceOverlap, MAX_SOURCE_OVERLAP } from "../src/lib/originality.js";
 import { findSensitiveTerms, softenText } from "../src/lib/safeText.js";
 import { PERSON_RE, MODERN_RE, MARKED_RE } from "../src/assistants/broll.js";
@@ -216,6 +218,34 @@ check("유사도 검사: 거의 같은 제목은 탈락", !checkTitle("1929년 �
   check("국기·로고·간판 사진 걸러냄", MARKED_RE.test("Chinese flags on a red temple") && MARKED_RE.test("United Airlines plane on runway") && MARKED_RE.test("Neon sign at night"));
   check("일반 비행기·숲은 통과", !MARKED_RE.test("Propeller airplane over the clouds") && !MARKED_RE.test("Dense jungle canopy aerial"));
   check("사물·풍경은 통과", !PERSON_RE.test("Old typewriter on wooden desk") && !PERSON_RE.test("Foggy forest at night") && !PERSON_RE.test("Manuscript pages"));
+}
+
+{
+  // 2026-11: 롱폼 썸네일 8~14자·2줄, 지역 가중치 한국 5 : 아시아 3 : 나머지 각 1
+  for (const t of ["존재하지 않은\n예방약", "40곳에 남은\n같은 DNA", "돌아오지 못한\n전설의 섬"]) {
+    const i = thumbTitleIssues(t);
+    check(`썸네일 통과: ${t.replace("\n", " / ")}`, i.length === 0, i.join(" / "));
+  }
+  const bad: Array<[string, string, string?]> = [
+    ["한 줄 문구", "사라진 목격자"],
+    ["합계 7자", "못 본\n손 하나"],
+    ["합계 15자", "아무도 보지 못한\n세 번째 그림자"],
+    ["한 줄 10자", "끝내 돌아오지 못한\n배"],
+    ["금지어", "소름 돋는 없는\n예방약"],
+    ["물음표", "누가 지웠나 없는\n기록?"],
+    ["숫자·모순 없음", "황무지의 전설\n거대한 개"],
+    ["원문에 없는 숫자", "12명이 못 마신\n예방약", "예방약을 마신 사람들"],
+  ];
+  for (const [name, t, src] of bad) check(`썸네일 탈락: ${name}`, thumbTitleIssues(t, src).length > 0);
+  check("썸네일 교체: 대상 4편 고정", THUMB_REFRESH_PLAN.map((p) => p.videoId).sort().join() === ["sJtCZB24COQ", "Kn5tlh9Zo54", "6CkeHpMCG6k", "uum3ZrVIpQc"].sort().join());
+  for (const p of THUMB_REFRESH_PLAN) {
+    const i = planIssues(p);
+    check(`썸네일 교체 문구·기록 대조: ${p.videoId}`, i.length === 0 && fs.existsSync(p.originalThumb), i.join(" / "));
+  }
+  const weights = REGION_ANGLES.map((r) => r.weight).join();
+  check("지역 가중치 5·3·1·1·1", weights === "5,3,1,1,1", weights);
+  check("지역 순서: 한국이 첫째이고 조선·근현대·정치 제외 명시", /한국/.test(REGION_ANGLES[0].pick) && /조선/.test(REGION_ANGLES[0].pick) && /근현대/.test(REGION_ANGLES[0].pick) && /정치 논란/.test(REGION_ANGLES[0].pick));
+  check("아시아는 일본 우선", /일본\(우선\)/.test(REGION_ANGLES[1].pick));
 }
 
 console.log(failed ? `\n❌ 실패 ${failed}건` : "\n✅ 전부 통과");

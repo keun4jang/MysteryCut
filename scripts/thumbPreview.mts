@@ -15,20 +15,21 @@ import { selectComposition, renderStill } from "@remotion/renderer";
 import { config } from "../src/config.js";
 import { deriveGrade } from "../src/lib/grade.js";
 import { thumbTitleIssues } from "../src/assistants/longformProducer.js";
+import { THUMB_REFRESH_PLAN } from "./thumbRefreshPlan.mjs";
 import type { LongformInputProps, NarratedChapter } from "../src/types.js";
 
 const outDir = process.argv[2] ?? "scratchpad/thumbs";
 
 // [파일명, thumbTitle, thumbBadge, 배경사진, 규칙 유형]
 const CASES: Array<[string, string, string, string, string]> = [
-  ["p-num.png", "열두 명이 마신 것\n예방약", "실화 미제사건", "broll/lf-ch-1.jpg", "① 숫자"],
-  ["p-contra.png", "범인이 없는 살인\n사건 기록", "판결 기록", "broll/lf-ch-2.jpg", "② 모순"],
-  ["p-neg.png", "끝내 열리지 않은\n금고 안", "실화 미제사건", "broll/lf-ch-0.jpg", "③ 부정"],
-  ["p-obj.png", "그가 남긴 것은\n명함 한 장", "미제 실화", "broll/lf-ch-3.jpg", "④ 사물 (짧던 문구 보완)"],
-  ["p-year.png", "37년 만에 나온\n한 사람", "판결 기록", "broll/lf-ch-2.jpg", "① 숫자(햇수)"],
-  ["p-hist.png", "5백 년 동안\n멈춘 춤", "역사 미스터리", "broll/lf-ch-0.jpg", "① 숫자"],
+  ...THUMB_REFRESH_PLAN.map((p, i): [string, string, string, string, string] => [
+    `refresh-${p.videoId}.png`, p.thumbTitle, p.thumbBadge, `broll/lf-ch-${i}.jpg`, "교체 4편",
+  ]),
+  ["p-min.png", "12명이\n마신 것", "실화 미제사건", "broll/lf-ch-1.jpg", "최소 길이(8자)"],
+  ["p-obj.png", "그가 남긴 것은\n명함 한 장", "미제 실화", "broll/lf-ch-3.jpg", "사물"],
+  ["p-max.png", "끝내 못 찾은\n세 번째 열쇠", "전설 기록", "broll/lf-ch-2.jpg", "최대 길이(14자)"],
   ["p-short.png", "명함\n한 장", "미제 실화", "broll/lf-ch-3.jpg", "⚠ 너무 짧음 → 반려"],
-  ["p-long.png", "아무도 보지 못한\n세 번째 그림자", "전설 기록", "broll/lf-ch-1.jpg", "⚠ 마지막 줄 8자 → 박스 해제"],
+  ["p-long.png", "아무도 보지 못한\n세 번째 그림자", "전설 기록", "broll/lf-ch-1.jpg", "⚠ 너무 김 → 반려"],
 ];
 
 

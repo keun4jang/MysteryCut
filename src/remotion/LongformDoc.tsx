@@ -22,7 +22,7 @@ import {
   longformChapterFrames,
   longformSegmentFrames,
 } from "./timing.js";
-import { textEm } from "../lib/text.js";
+import { textEm, THUMB_LINE_MAX } from "../lib/text.js";
 import { VisualQuantity } from "./VisualQuantity.js";
 import { FRAME_V_BOTTOM, FRAME_V_TOP, scrim } from "./visualTokens.js";
 import { ensureFonts, FONT_FAMILY } from "./fonts.js";
@@ -1072,7 +1072,9 @@ const Watermark: React.FC = () => {
  * - 노랑(#FFE14D) 본문 + 두꺼운 검정 외곽선 — 어두운 배경에서 대비가 가장 크고,
  *   사진 밝기가 어떻든 글자가 항상 이긴다(스톡 사진은 밝기를 고를 수 없다).
  * - 마지막 줄은 빨간 박스에 흰 글자 — 시선이 꽂히는 지점을 하나만 만든다.
- * - 사진은 오른쪽에 흐리게 남겨 분위기만 담당한다. 주인공은 글자다.
+ * - 2026-11: 55세 이상 77%·휴대폰 86% 실측에 맞춰 문구를 8~14자로 줄이고 글자를 키웠다.
+ *   글자가 놓인 쪽만 어둡게 눌러 사진 속 사물 하나가 오른쪽에 또렷이 남게 한다.
+ * - 배지는 왼쪽 위 구석에 작게 고정해 문구를 밀거나 가리지 않는다.
  *
  * 자극적이되 낚시는 아니다 — 문구는 대본이 실제로 다루는 내용이어야 한다.
  * 유튜브는 '오해를 부르는 메타데이터'를 수익창출 감점 사유로 든다.
@@ -1080,7 +1082,14 @@ const Watermark: React.FC = () => {
 const THUMB_YELLOW = "#FFE14D";
 const THUMB_RED = "#E01020";
 /** 빨간 박스로 강조할 수 있는 마지막 줄 길이 상한 — 넘으면 박스가 화면을 덮는다 */
-const THUMB_BOX_MAX = 6;
+const THUMB_BOX_MAX = THUMB_LINE_MAX;
+/** 글자 영역 폭. 나머지 오른쪽은 사진 속 사물이 보이는 자리다 */
+const THUMB_TEXT_WIDTH = 1120;
+/** 두 줄 글자 크기 합 상한(720 높이에서 배지·여백을 뺀 값)과 줄 사이 크기 차이 상한 */
+const THUMB_FONT_SUM_MAX = 520;
+const THUMB_LINE_RATIO_MAX = 1.3;
+/** textEm 은 넉넉한 어림값이라 실제 Pretendard 폭은 이 정도다(스틸 실측) */
+const THUMB_REAL_WIDTH = 0.85;
 
 export const LongformThumb: React.FC<LongformInputProps> = ({
   thumbTitle,
@@ -1101,17 +1110,24 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
   // 공백은 더 좁다. '37년 만에'와 '존재하지만'은 둘 다 5자지만 폭이 다르다.
   // 실제 폭을 em 으로 어림해 상자에 맞춰야 넘치지도 비지도 않는다.
   const widest = Math.max(...lines.map(textEm), 0.1);
-  // 좌우 여백 64 + 빨간 박스 안쪽 여백까지 빼고 남는 폭
-  const boxWidth = 1280 - 64 * 2 - 56;
-  const fontSize = Math.round(Math.min(196, Math.max(104, boxWidth / widest)));
+  // 줄마다 폭에 맞춰 키운다 — 짧은 줄까지 긴 줄 크기에 묶으면 휴대폰에서 손해다
+  const baseSize = Math.min(216, Math.max(104, THUMB_TEXT_WIDTH / widest));
+  const rawSizes = lines.map((l) =>
+    Math.min(216, baseSize * THUMB_LINE_RATIO_MAX, Math.max(104, THUMB_TEXT_WIDTH / Math.max(textEm(l), 0.1))),
+  );
+  const sum = rawSizes.reduce((a, b) => a + b, 0);
+  const fit = sum > THUMB_FONT_SUM_MAX ? THUMB_FONT_SUM_MAX / sum : 1;
+  const sizes = rawSizes.map((s) => Math.round(s * fit));
+  // 실제 글자 끝 위치까지만 어둡게 눌러, 짧은 문구일수록 사진이 더 드러나게 한다
+  const textPx = Math.max(...lines.map((l, i) => textEm(l) * sizes[i] * THUMB_REAL_WIDTH), 0);
+  const textEndPct = Math.min(88, Math.round(((64 + 56 + textPx) / 1280) * 100));
   // 외곽선이 두꺼우면 글자가 뭉개져 '사건 요약 쇼츠'처럼 보인다. 5%면 사진 위에서
   // 읽히면서도 글자 형태가 살아 있다(160px 글자 → 8px).
-  const stroke = Math.round(fontSize * 0.05);
+  const strokeCss = (fontSize: number) =>
+    ({ WebkitTextStroke: `${Math.round(fontSize * 0.05)}px #000`, paintOrder: "stroke fill" }) as const;
   const last = lines.length - 1;
   // 마지막 줄이 짧을 때만 빨간 박스 — 길면 박스가 화면을 덮어 오히려 안 읽힌다
   const boxed = lines.length > 1 && lines[last].length <= THUMB_BOX_MAX;
-
-  const strokeCss = { WebkitTextStroke: `${stroke}px #000`, paintOrder: "stroke fill" } as const;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#07080b" }}>
@@ -1123,7 +1139,7 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
             height: "100%",
             objectFit: "cover",
             transform: "scale(1.06)",
-            filter: `${grade?.bgFilter ?? ""} brightness(0.6) saturate(0.82)`.trim(),
+            filter: `${grade?.bgFilter ?? ""} brightness(0.92) saturate(0.95)`.trim(),
           }}
         />
       ) : (
@@ -1133,11 +1149,11 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
           }}
         />
       )}
-      {/* 글자가 놓이는 왼쪽을 눌러 노란 글자가 항상 이기게 한다 */}
+      {/* 글자가 놓이는 쪽만 눌러 노란 글자가 이기게 하고, 오른쪽 사물은 살린다 */}
       <AbsoluteFill
         style={{
           background:
-            "linear-gradient(90deg, rgba(4,5,8,0.88) 0%, rgba(4,5,8,0.72) 60%, rgba(4,5,8,0.30) 100%)",
+            `linear-gradient(90deg, rgba(4,5,8,0.92) 0%, rgba(4,5,8,0.82) ${Math.max(20, textEndPct - 16)}%, rgba(4,5,8,0.08) ${Math.min(100, textEndPct + 12)}%)`,
         }}
       />
       <div
@@ -1151,32 +1167,18 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "flex-start",
-          gap: 22,
+          gap: 18,
         }}
       >
-        <div
-          style={{
-            background: THUMB_RED,
-            color: "#fff",
-            fontFamily: FONT_FAMILY,
-            fontSize: 44,
-            fontWeight: 800,
-            letterSpacing: "3px",
-            padding: "11px 28px",
-          }}
-        >
-          {thumbBadge?.trim() || "실화 사건 기록"}
-        </div>
-
         {lines.map((l, i) =>
           boxed && i === last ? (
-            <div key={i} style={{ background: THUMB_RED, padding: `6px 28px ${Math.round(fontSize * 0.09)}px` }}>
+            <div key={i} style={{ background: THUMB_RED, padding: `6px 28px ${Math.round(sizes[i] * 0.09)}px` }}>
               <span
                 style={{
-                  ...strokeCss,
+                  ...strokeCss(sizes[i]),
                   color: "#fff",
                   fontFamily: FONT_FAMILY,
-                  fontSize,
+                  fontSize: sizes[i],
                   fontWeight: 800,
                   lineHeight: 1,
                   letterSpacing: "-5px",
@@ -1189,10 +1191,10 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
             <div
               key={i}
               style={{
-                ...strokeCss,
+                ...strokeCss(sizes[i]),
                 color: i === last && lines.length > 1 ? "#fff" : THUMB_YELLOW,
                 fontFamily: FONT_FAMILY,
-                fontSize,
+                fontSize: sizes[i],
                 fontWeight: 800,
                 lineHeight: 1.0,
                 letterSpacing: "-5px",
@@ -1203,6 +1205,22 @@ export const LongformThumb: React.FC<LongformInputProps> = ({
             </div>
           ),
         )}
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          left: 64,
+          top: 26,
+          background: THUMB_RED,
+          color: "#fff",
+          fontFamily: FONT_FAMILY,
+          fontSize: 30,
+          fontWeight: 800,
+          letterSpacing: "1px",
+          padding: "6px 16px",
+        }}
+      >
+        {thumbBadge?.trim() || "실화 사건 기록"}
       </div>
     </AbsoluteFill>
   );

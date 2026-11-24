@@ -3,6 +3,7 @@ import { config } from "../config.js";
 import { generateStructured } from "../lib/llm.js";
 import { findSensitiveTerms, softenText } from "../lib/safeText.js";
 import { numbersInText, numberInSource } from "../lib/visual/gates.js";
+import { THUMB_LINE_MAX, THUMB_LINE_MIN, THUMB_TOTAL_MAX, THUMB_TOTAL_MIN } from "../lib/text.js";
 import { normalizeVisuals } from "../lib/visual/normalize.js";
 import { sourcesPromptBlock, type SourceDoc } from "../lib/sources.js";
 import { LongformScriptSchema, type LongformScript } from "../types.js";
@@ -109,6 +110,21 @@ const SINGLE_STRUCTURE = [
   "",
 ];
 
+/**
+ * 2분 이탈 줄이기(2026-11 실측: 영상 13~22분에 평균 시청 2:30). 단일·몰아보기·덧붙인 챕터 공통.
+ * ★완성 문장 예시를 두지 않는다 — 예시를 주면 모델이 매 챕터 그대로 베낀다(10/3 감동 편 사례).
+ */
+const RETENTION_RULES = [
+  "[★끝까지 보게 만드는 흐름 — 글자수 목표는 그대로 두고 문장 배치로 해결하라]",
+  "- 각 챕터의 마지막 문장(영상의 마지막 챕터 제외)은 **다음 챕터를 봐야 할 이유**가 되는 한 문장이다.",
+  "  다음 챕터에서 실제로 다룰 구체적 사실(사물·사람·시점·기록)을 가리키되, 답은 다음 챕터에서 밝혀라.",
+  "- 약 800자(약 2분)마다 **새로운 의문이나 앞의 이해를 뒤집는 사실을 하나씩** 드러내라. 한 번에 몰아 쓰지 말고 영상 전체에 나눠 배치하라.",
+  "- ★둘 다 원문에 있는 사실로만 쓴다. 원문에 없는 반전·의문을 만들거나 사실을 부풀리지 마라. 다음 챕터가 실제로 답하지 않는 것을 예고하지 마라(낚시 금지).",
+  "- ★연결 문장의 표현을 매번 새로 써라. 같은 문구나 같은 문장 틀을 두 번 쓰지 마라('그런데 여기서 이상한 점이 나옵니다' 같은 상투 연결 문장 금지).",
+  "- 연결 문장도 일반 문장과 같은 길이 규칙을 따르고, 글자수를 늘리려고 따로 덧붙이지 마라.",
+  "",
+];
+
 const LONGFORM_TITLE_FALLBACK =
   "제목 구조: [연도·장소] + [구체적 사물·현상] + [핵심 질문]. 끝에 '｜분류' 꼬리표를 붙이지 마라.";
 
@@ -179,10 +195,12 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "  문장 B (frame problem,  label '남은 문제') '하지만 지문은 하나도 나오지 않았습니다.'",
     "",
     ...(single ? SINGLE_STRUCTURE : STRUCTURE_CHOICES),
+    ...RETENTION_RULES,
     ...(opts.format === "compilation"
       ? [
           "[★몰아보기 한 꼭지 — 이 사건만으로 완결된 덩어리]",
           "이 대본은 여러 사건을 이어 붙인 영상의 한 꼭지다. 다른 사건을 언급하거나 '다음 사건'을 예고하지 마라.",
+          "챕터 끝 연결 문장은 이 사건 안의 다음 챕터만 가리킨다. 이 꼭지의 마지막 챕터에는 넣지 마라.",
           "인사·채널 소개·'오늘은' 같은 진행 멘트 없이 사건으로 바로 들어가라.",
           opts.lead
             ? "★이 사건이 영상 맨 앞이다. 첫 20~30초(약 150~200자)는 콜드 오픈 — 이 사건에서 가장 구체적이고 강한 순간으로 시작하라."
@@ -307,10 +325,11 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "  예: 제목 '1986년 호수에서 나온 기체는…' / 썸네일 '외상은 없었다'",
     "",
     "[★thumbTitle — 썸네일에 대문짝만하게 박히는 문구. 조회수를 여기서 번다]",
-    "- 형식: 2줄. 실제 개행(\\n)으로 나눠라. **1줄은 6~10자, 2줄(마지막 줄)은 3~6자** (공백 포함).",
-    "  마지막 줄은 빨간 박스로 강조된다. 6자를 넘으면 강조가 풀리므로 반드시 짧게 끊어라.",
-    "  ★너무 짧아도 안 된다. '명함\\n한 장'처럼 두 줄 합쳐 5자면 화면이 텅 비고 사건이 안 읽힌다.",
-    "  같은 소재라도 '그가 남긴 것은\\n명함 한 장'처럼 앞줄에 맥락을 실어라. 합쳐서 10자 이상.",
+    "- 시청자는 55세 이상이 77%, 휴대폰이 86%다. 작은 화면에서 한눈에 읽혀야 한다.",
+    `- 형식: 2줄. 실제 개행(\\n)으로 나눠라. **두 줄 합계 ${THUMB_TOTAL_MIN}~${THUMB_TOTAL_MAX}자, 각 줄 ${THUMB_LINE_MIN}~${THUMB_LINE_MAX}자** (공백 포함, 개행 제외).`,
+    "  글자가 적을수록 크게 찍힌다. 두 줄 길이를 비슷하게 맞추면 가장 크게 보인다.",
+    "  마지막 줄은 빨간 박스로 강조된다.",
+    "  ★너무 짧아도 안 된다. '명함\\n한 장'처럼 합쳐 5자면 사건이 안 읽힌다. '그가 남긴 것은\\n명함 한 장'처럼 앞줄에 맥락을 실어라.",
     "- 마지막 줄에 **핵심 명사**를 놓아라. 꾸밈말로 끝내지 마라.",
     "  좋다: '존재하지 않은\\n예방약' / '아무도 못 본\\n세 번째 손' — 마지막이 사물·인물이다.",
     "  나쁘다: '예방약을\\n나눠 주었다' — 마지막이 서술어라 남는 인상이 없다.",
@@ -318,12 +337,12 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "  ① 숫자 — '○명이\\n마신 것' / '○년 만에\\n나온 이름' (○ 자리에 원문의 숫자)",
     "     ★숫자는 위 원문에 **그 숫자 그대로** 있는 것만 써라(사람 수·햇수·증거 번호).",
     "     원문에 없는 숫자는 자동으로 걸러져 다시 쓰게 된다. 쓸 숫자가 없으면 ②~④를 써라.",
-    "  ② 모순 — '범인 없는\\n살인' / '죽은 사람의\\n지문' / '존재하지 않은\\n예방약'",
-    "  ③ 부정 — '끝내 안 열린\\n금고' / '돌아오지 못한\\n아이들'",
-    "  ④ 사물 하나 — '그가 남긴 것은\\n명함 한 장' / '찻잔에 남아 있던\\n가루'",
+    "  ② 모순 — '범인 없는\\n살인 사건' / '죽은 사람의\\n새 지문' / '존재하지 않은\\n예방약'",
+    "  ③ 부정 — '끝내 안 열린\\n금고 문' / '돌아오지 못한\\n선원들'",
+    "  ④ 사물 하나 — '그가 남긴 것은\\n명함 한 장' / '찻잔에 남은\\n흰 가루'",
     "  ★위 예시 문구를 그대로 베끼지 마라. 이 사건의 사실로 새로 지어라.",
     "- ★금지어: 충격, 경악, 소름, 역대급, 실화냐, 미친, 대반전, 무서운, 레전드.",
-    "  이 채널 시청자는 45세 이상이 87%다. 이런 낱말은 유치해 보여 오히려 안 눌린다.",
+    "  이 채널 시청자는 55세 이상이 77%다. 이런 낱말은 유치해 보여 오히려 안 눌린다.",
     "  게다가 유튜브는 '오해를 부르는 메타데이터'를 수익창출 감점 사유로 든다.",
     "- ★영상이 실제로 답하지 않는 것을 쓰지 마라. 낚시는 시청 지속시간을 무너뜨린다.",
     "  thumbTitle 의 내용은 반드시 chapters 안에서 다뤄져야 한다.",
@@ -331,7 +350,7 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "- 사건명·인명·지명을 쓰지 마라. 몰라도 궁금해지는 문구여야 한다.",
     "",
     "- thumbBadge: 4~8자 소재 분류. 사건 성격과 일치해야 한다(미제/법정/역사/괴담 등).",
-    "  빨간 배지로 뜬다. '실화 미제사건' / '역사 미스터리' / '판결 기록' 처럼 담백하게.",
+    "  문구를 가리지 않게 구석에 작은 빨간 배지로 뜬다. '실화 미제사건' / '역사 미스터리' / '판결 기록' 처럼 담백하게.",
     "- centralQuestion: 이 영상이 답할 질문 한 문장(25자 안팎). 도입부 화면에 뜬다.",
     "- thumbQuery: 썸네일 배경 사진 검색어(영어 2~4단어). ★챕터 배경과 기준이 다르다.",
     "  챕터 배경은 '분위기'면 되지만 썸네일은 **thumbTitle 과 직결된 상징물**이어야 한다.",
@@ -341,6 +360,7 @@ export async function writeLongform(opts: LongformOptions): Promise<LongformScri
     "  나쁜 예: 'sad family beach' / 'moody landscape' / 'dark forest'",
     "  (실측: 독살 사건 썸네일에 해변 가족사진이 걸렸다. 분위기 사진은 썸네일에서 클릭을 못 만든다.)",
     "  사람 얼굴·연도·실제 지명은 넣지 마라. 사물 하나를 클로즈업하는 검색어가 가장 잘 걸린다.",
+    "  글자가 왼쪽을 덮으므로 사물 하나가 또렷한 사진일수록 좋다.",
     "",
     "[★안전]",
     "- 자살·자해·극단적 선택·투신·음독 같은 표현 금지(연령제한 유발). '타살 혐의점을 찾지 못했다'처럼 중립적으로.",
@@ -469,6 +489,8 @@ async function extendSingle(script: LongformScript, system: string, idealChars: 
           "- 원문에 있지만 아래 대본에 아직 없는 사실만 쓴다: 추가 증거, 추가 인물의 진술, 다른 시간대, 반박, 다른 가설.\n" +
           "- 이미 쓴 문장·사실을 다시 말하지 마라. 원문에 더 쓸 사실이 없으면 짧게 끝내라(지어내지 마라).\n" +
           "- frame question 은 쓰지 마라. 콜드 오픈·인사·결론·시청자 질문도 쓰지 마라(앞뒤에 이미 있다).\n" +
+          "- ★[끝까지 보게 만드는 흐름] 규칙을 새 챕터에도 똑같이 적용하라. 새 챕터 뒤에는 항상 다음 챕터가 이어지므로 새 챕터는 전부 연결 문장으로 끝낸다.\n" +
+          "- ★연결 문장은 아래 대본에 이미 쓴 연결 표현과도 겹치면 안 된다.\n" +
           '- 출력은 {"chapters":[...]} 하나.\n\n[이미 쓴 대본]\n' + written,
         temperature: 0.8,
         maxRetries: 1,
@@ -500,8 +522,7 @@ const THUMB_BANNED = /충격|경악|소름|역대급|실화냐|미친|대반전|
  * 어겼다). 썸네일 문구는 조회수를 좌우하는데 사람이 매 회차 눈으로 볼 수 없으니
  * 여기서 재서 문제가 있으면 재생성 피드백에 실어 보낸다.
  *
- * 렌더 쪽 규칙(LongformDoc 의 THUMB_BOX_MAX=6)과 숫자를 맞춰야 한다 —
- * 마지막 줄이 6자를 넘으면 빨간 박스 강조가 풀린다.
+ * 길이 기준은 렌더와 같은 상수(lib/text.ts 의 THUMB_*)를 쓴다.
  *
  * sourceText 를 주면 문구 속 숫자가 원문에 그 숫자로 있는지도 본다. 2026-09-28 실측:
  * 개구리 소년(5명) 썸네일이 프롬프트 예시 '돌아오지 못한\n열두 명'을 그대로 베꼈다.
@@ -517,20 +538,14 @@ export function thumbTitleIssues(thumbTitle: string, sourceText?: string): strin
   if (lines.length !== 2) {
     issues.push(`2줄이어야 하는데 ${lines.length}줄이다`);
   }
-  const first = lines[0] ?? "";
-  const last = lines[lines.length - 1] ?? "";
-  if (last.length > 6) {
-    issues.push(`마지막 줄 "${last}"이 ${last.length}자다(6자 이내여야 빨간 박스 강조가 걸린다)`);
+  const total = lines.reduce((n, l) => n + l.length, 0);
+  if (total < THUMB_TOTAL_MIN || total > THUMB_TOTAL_MAX) {
+    issues.push(`두 줄 합계가 ${total}자다(${THUMB_TOTAL_MIN}~${THUMB_TOTAL_MAX}자여야 휴대폰에서 크게 읽힌다)`);
   }
-  // 너무 짧으면 화면이 비고 사건이 안 읽힌다 ('명함 / 한 장' = 5자)
-  if (lines.length === 2 && first.length < 6) {
-    issues.push(`1줄 "${first}"이 ${first.length}자로 짧다(6~10자여야 한다)`);
-  }
-  if (first.length > 10) {
-    issues.push(`1줄 "${first}"이 ${first.length}자로 길다(6~10자여야 한다)`);
-  }
-  if (last.length < 3) {
-    issues.push(`마지막 줄 "${last}"이 ${last.length}자로 짧다(3~6자여야 한다)`);
+  for (const l of lines) {
+    if (l.length < THUMB_LINE_MIN || l.length > THUMB_LINE_MAX) {
+      issues.push(`줄 "${l}"이 ${l.length}자다(각 줄 ${THUMB_LINE_MIN}~${THUMB_LINE_MAX}자여야 한다)`);
+    }
   }
   if (/[?？]/.test(thumbTitle)) issues.push("물음표가 들어 있다");
   const banned = THUMB_BANNED.exec(thumbTitle);
@@ -541,7 +556,8 @@ export function thumbTitleIssues(thumbTitle: string, sourceText?: string): strin
   const COUNTER = "명|개|장|번|년|달|시간|구|통|건|줄|점|병|잔|자루|차례|번째|가지|사람|밤|살";
   const hasNumber =
     /[0-9]/.test(thumbTitle) ||
-    new RegExp(`(한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|열한|열두|스물|백|천|만)\\s*(${COUNTER})`).test(
+    // 앞 글자가 한글이면 낱말 중간이다('거대한 개'의 '한 개'는 숫자가 아니다)
+    new RegExp(`(?<![가-힣])(한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|열한|열두|스물|백|천|만)\\s*(${COUNTER})`).test(
       thumbTitle,
     );
   const hasContrast = /없|않|못|아닌|사라진|지워진|빈|끝내|안 /.test(thumbTitle);
