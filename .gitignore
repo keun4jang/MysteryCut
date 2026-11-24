@@ -6,3 +6,8 @@ public/broll/
 *.log
 .DS_Store
 scratchpad/
+
+# 비밀 키 파일(구글 OAuth 클라이언트 JSON 등)은 절대 커밋하지 않는다
+client_secret*.json
+*클라이언트*.json
+*credentials*.json
