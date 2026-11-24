@@ -5,7 +5,7 @@
  *
  * ① 조건 진행: 구독자 1,000 / 최근 365일 '지금 공개 중인 롱폼' 시청시간 4,000시간
  *    (쇼츠·비공개 영상은 합산 안 됨 — 옛 '새미했다' 영상은 비공개라 빠진다)
- *    + 최근 28일 속도로 3,000·4,000·8,000시간 도달 예상일(8,000은 2027-02 변경 보도, 공식 확인 전)
+ *    + 최근 28일 속도로 3,000·4,000·8,000시간 도달 예상일(8,000은 2027-02-01 광고 단계 신규 기준 — 공식 확인 11/16)
  * ② 롱폼별 시청시간(단일 사건 vs 몰아보기) — 수요일 형식 결정 규칙(0.7×/0.4×) 권고
  * ③ 심사 대비 점검: 최근 롱폼 20편의 제목(상투 표현)·설명란(출처·AI 음성 고지·챕터)
  * ④ 두 조건과 ③이 모두 통과할 때만 'READY TO APPLY' — 신청 버튼은 사장님이 누른다(재거절 시 90일 대기)
@@ -127,19 +127,21 @@ say("\n## ① 조건 진행");
 say(`- 구독자: ${subs.toLocaleString("ko-KR")} / 1,000 ${subs >= 1000 ? "✅" : "❌"}`);
 say(`- 최근 365일 공개 롱폼 시청시간: ${h365.toFixed(1)}시간 / 4,000 (${((h365 / 4000) * 100).toFixed(1)}%) ${h365 >= 4000 ? "✅" : "❌"}`);
 say(`- 최근 28일 속도: ${h28.toFixed(1)}시간 (하루 ${perDay.toFixed(2)}시간)`);
-say(`- 3,000시간(2027-02 팬 후원 등급 보도): ${eta(3000)}`);
+say(`- 3,000시간(팬 후원 단계, 지금 기준·2027년에도 유지): ${eta(3000)}`);
 say(`- 4,000시간(현재 기준): ${eta(4000)}`);
-say(`- 8,000시간(2027-02 광고 등급 보도, 공식 확인 전): ${eta(8000)}`);
+say(`- 8,000시간(2027-02-01부터 광고 단계 신규 기준, 공식 확인): ${eta(8000)}`);
 
 // ── ② 형식별 성과 ──
 const hist = (JSON.parse(fs.readFileSync("data/history.json", "utf8")) as { posts: HistoryPost[] }).posts;
-const lfPosts = hist.filter((p) => p.format === "longform" && p.videoId);
+// 몰아보기는 사건마다 이력이 따로 있어 같은 영상이 여러 줄 나왔다 — 영상당 한 줄로(11/24)
+const lfPosts = hist.filter((p, i, a) => p.format === "longform" && p.videoId && a.findIndex((q) => q.videoId === p.videoId) === i);
 say("\n## ② 롱폼 형식별 (게시 후 14일 이상 지난 영상, 최근 365일 시청 분)");
 const byMode: Record<string, number[]> = { single: [], compilation: [] };
 for (const p of lfPosts) {
   const age = (Date.now() - Date.parse(p.at)) / 86400000;
   const m = min365.get(p.videoId!) ?? 0;
-  say(`- ${p.at.slice(0, 10)} [${p.mode ?? "?"}] ${p.title.slice(0, 40)} — ${m.toFixed(0)}분 (게시 ${age.toFixed(0)}일)`);
+  const shown = info.get(p.videoId!)?.title ?? p.title;
+  say(`- ${p.at.slice(0, 10)} [${p.mode ?? "?"}] ${shown.slice(0, 40)} — ${m.toFixed(0)}분 (게시 ${age.toFixed(0)}일)`);
   if (age >= 14 && p.mode && byMode[p.mode]) byMode[p.mode].push(m);
 }
 const median = (a: number[]) => (a.length ? [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] : 0);
@@ -178,7 +180,9 @@ say(
 {
   const shorts = hist.filter((p) => p.format === "short" && p.videoId && p.at >= "2026-11-13" && Date.now() - Date.parse(p.at) >= 3 * 86400000);
   const animalIds = shorts.filter((p) => p.visual === "animal").map((p) => p.videoId!);
-  const photoIds = shorts.filter((p) => p.visual !== "animal").map((p) => p.videoId!);
+  // 11/13 이후 정기 쇼츠는 모두 동물 그림이라, 사진 비교군은 시험 직전(11/01~11/12) 쇼츠로 잡는다
+  const before = hist.filter((p) => p.format === "short" && p.videoId && p.at >= "2026-11-01" && p.at < "2026-11-13");
+  const photoIds = [...shorts.filter((p) => p.visual !== "animal"), ...before].map((p) => p.videoId!);
   const views = new Map<string, number>();
   const ids = [...animalIds, ...photoIds];
   for (let i = 0; i < ids.length; i += 50) {
@@ -188,7 +192,7 @@ say(
     for (const v of j?.items ?? []) views.set(v.id, Number(v.statistics.viewCount ?? 0));
   }
   const med = (a: string[]) => median(a.map((id) => views.get(id) ?? 0));
-  say("\n## ⑤ 쇼츠 동물 그림 시험 (11/13~, 게시 3일 지난 쇼츠 조회수 중앙값)");
+  say("\n## ⑤ 쇼츠 동물 그림 시험 (11/13~ 동물 그림 vs 11/01~12 사진, 게시 3일 지난 쇼츠 조회수 중앙값)");
   say(`- 동물 그림 ${animalIds.length}편: ${med(animalIds).toLocaleString("ko-KR")}회 / 사진 ${photoIds.length}편: ${med(photoIds).toLocaleString("ko-KR")}회`);
   if (animalIds.length < 4) say("- 판정 보류: 동물 그림 쇼츠가 4편 이상 쌓이면 비교(12/4 최종 판단)");
 }
