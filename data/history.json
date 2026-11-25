@@ -4301,6 +4301,29 @@
       "sourceUrl": "https://ko.wikipedia.org/wiki/%EC%9A%94%EC%93%B0%EC%95%BC_%EA%B4%B4%EB%8B%B4",
       "visual": "animal",
       "titleTest": "twist"
+    },
+    {
+      "caseKey": "japan-300-million-yen-heist-1968",
+      "title": "사상 최대의 거액을 훔쳐 달아난 가짜 경찰의 미제 사건",
+      "premise": "비 내리는 아침 현금 수송차를 막아선 가짜 경찰관이 3억 엔의 거액을 훔쳐 달아난 사상 최대의 기이한 미제사건.",
+      "at": "2026-11-25",
+      "hashtags": [
+        "300 million yen robbery",
+        "삼억엔사건",
+        "일본미제사건",
+        "현금수송차강도",
+        "도쿄사건",
+        "미해결사건",
+        "경찰사칭",
+        "세상에서가장큰절도",
+        "역사기록",
+        "범죄다큐"
+      ],
+      "format": "longform",
+      "videoId": "jydpO73KxuI",
+      "sourceUrl": "https://en.wikipedia.org/wiki/300_million_yen_robbery",
+      "mode": "single",
+      "sourceShort": "-LfeKkXxPzg"
     }
   ]
 }
