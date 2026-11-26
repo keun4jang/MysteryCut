@@ -4324,6 +4324,29 @@
       "sourceUrl": "https://en.wikipedia.org/wiki/300_million_yen_robbery",
       "mode": "single",
       "sourceShort": "-LfeKkXxPzg"
+    },
+    {
+      "caseKey": "oseola-mccarty-1995",
+      "title": "세탁부 할머니가 대학에 남긴 15만 달러의 기적",
+      "premise": "평생 빨래를 하며 푼돈을 모아온 노부인의 위대한 선택",
+      "at": "2026-11-26",
+      "hashtags": [
+        "감동실화",
+        "실화미담",
+        "역사속의인",
+        "미스터리",
+        "사건기록",
+        "실화바탕",
+        "나눔",
+        "세계사",
+        "휴먼다큐"
+      ],
+      "angle": "'감동 실화(선과 악)'",
+      "format": "short",
+      "videoId": "Hs-ot5IxS6A",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Oseola_McCarty",
+      "visual": "animal",
+      "titleTest": "control"
     }
   ]
 }
