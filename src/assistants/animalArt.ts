@@ -108,7 +108,14 @@ export async function attachAnimalArt(segments: NarratedSegment[], idea: StoryId
       const ext = best.img.subarray(8, 12).toString() === "WEBP" ? "webp" : best.img[0] === 0x89 ? "png" : "jpg";
       const file = `animal-scene-${t.scene}.${ext}`;
       await fs.writeFile(path.join(dir, file), best.img);
-      for (const [i, s] of segments.entries()) if (sceneOf(s, i) === t.scene) s.bgSrc = `broll/${file}`;
+      for (const [i, s] of segments.entries())
+        if (sceneOf(s, i) === t.scene) {
+          s.bgSrc = `broll/${file}`;
+          // 영상 배경이 그림을 덮지 않게(렌더는 bgVideoSrc 를 먼저 쓴다)
+          delete s.bgVideoSrc;
+          delete s.bgVideoDuration;
+          delete s.bgBlur;
+        }
       applied++;
       console.log(`   🦊 장면 ${t.scene + 1}: 동물 그림 적용(${best.score}/10) → broll/${file}`);
     }),

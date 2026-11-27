@@ -4,6 +4,8 @@ import {
   Audio,
   Easing,
   Img,
+  Loop,
+  OffthreadVideo,
   Sequence,
   interpolate,
   staticFile,
@@ -118,6 +120,11 @@ export const MysteryReel: React.FC<ReelInputProps> = ({
         // 다음 컷이 디졸브로 들어오면 이 컷의 배경을 6f 더 남겨 겹침 구간을 만든다
         // (뒤 시퀀스가 위에 쌓이므로 from 계산·오디오 타이밍은 그대로다)
         const tail = i < segments.length - 1 && dissolvesIn(i + 1) ? DISSOLVE_FRAMES : 0;
+        // 같은 장면의 컷들은 배경 영상을 끊지 않고 이어서 튼다 — 장면 첫 컷부터 지난 프레임 수
+        const sceneOf = (k: number) => segments[k].sceneIndex ?? k;
+        let first = i;
+        while (first > 0 && sceneOf(first - 1) === sceneOf(i)) first--;
+        const sceneOffset = startFrames[i] - startFrames[first];
         return (
           <Sequence key={i} from={startFrames[i]} durationInFrames={slots[i] + tail}>
             {/* 나레이션: 오디오는 파일 길이만큼 재생, 남는 시간은 자연 무음(호흡) */}
@@ -126,6 +133,7 @@ export const MysteryReel: React.FC<ReelInputProps> = ({
               seg={seg}
               index={i}
               slotFrames={slots[i]}
+              sceneOffset={sceneOffset}
               theme={t}
               dissolveIn={dissolvesIn(i)}
               dissolveOut={tail > 0}
@@ -169,6 +177,8 @@ const SegmentView: React.FC<{
   seg: NarratedSegment;
   index: number;
   slotFrames: number;
+  /** 이 컷이 속한 장면이 시작된 뒤 지난 프레임 수 — 배경 영상을 컷 사이에 이어 틀기 위한 값 */
+  sceneOffset: number;
   theme: ReelTheme;
   /** 이 컷이 앞 컷에서 디졸브로 이어져 들어오는가 (같은 장면) */
   dissolveIn: boolean;
@@ -178,7 +188,7 @@ const SegmentView: React.FC<{
   impact: boolean;
   /** 다음 컷이 반전 — 마지막 0.6초 화면을 조여 '숨을 죽인다' */
   preImpact: boolean;
-}> = ({ seg, index, slotFrames, theme, dissolveIn, dissolveOut, impact, preImpact }) => {
+}> = ({ seg, index, slotFrames, sceneOffset, theme, dissolveIn, dissolveOut, impact, preImpact }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const grade = theme.grade;
@@ -243,10 +253,37 @@ const SegmentView: React.FC<{
       : `translateY(${((1 - enter) * 12).toFixed(2)}px) scale(${(0.992 + 0.008 * enter).toFixed(4)})`,
   };
 
+  // 배경 영상(쇼츠 11/26~): 파일 끝을 넘겨 읽지 않게 2프레임 여유를 두고 반복
+  const videoFrames = seg.bgVideoSrc ? Math.floor((seg.bgVideoDuration ?? 0) * fps) - 2 : 0;
+  const useVideo = !!seg.bgVideoSrc && videoFrames >= fps;
+  // 사람이 나올 수 있는 영상은 누구인지 알아볼 수 없게 전체를 강하게 흐리고 어둡게
+  const videoFilter = [seg.bgBlur ? "blur(30px) brightness(0.62)" : "brightness(0.9)", bgFilter]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <AbsoluteFill style={{ opacity: viewOpacity }}>
-      {/* 배경: 스톡 사진(켄번즈 + 장르 그레이드) 또는 그라디언트 폴백 */}
-      {seg.bgSrc ? (
+      {/* 배경: 스톡 영상(쇼츠) · 스톡 사진(켄번즈 + 장르 그레이드) · 그라디언트 폴백 */}
+      {useVideo ? (
+        <AbsoluteFill style={{ overflow: "hidden", backgroundColor: "#000" }}>
+          <Sequence from={-(sceneOffset % videoFrames)} layout="none">
+            <Loop durationInFrames={videoFrames} layout="none">
+              <OffthreadVideo
+                src={staticFile(seg.bgVideoSrc!)}
+                muted
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  // 흐린 영상은 가장자리가 비치지 않게 더 키운다. 영상은 스스로 움직이므로 켄번즈는 약하게
+                  transform: `scale(${(seg.bgBlur ? 1.18 : 1.02) * (impact ? scale / s0 : 1)})`,
+                  filter: videoFilter,
+                }}
+              />
+            </Loop>
+          </Sequence>
+        </AbsoluteFill>
+      ) : seg.bgSrc ? (
         <AbsoluteFill>
           <Img
             src={staticFile(seg.bgSrc)}

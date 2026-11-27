@@ -83,6 +83,15 @@ export interface NarratedSegment {
   visualQuery: string;
   /** 배경 이미지 public/ 상대경로 (예: broll/scene-0.jpg). 없으면 그라디언트 폴백 */
   bgSrc?: string;
+  /**
+   * 배경 영상 public/ 상대경로 (예: broll/scene-0.mp4, 쇼츠 전용 11/26~). 있으면 bgSrc 보다 먼저 쓴다.
+   * 첫 장면은 썸네일 카드용 사진(bgSrc)도 함께 갖는다. 동물 그림이 장면을 바꾸면 비운다.
+   */
+  bgVideoSrc?: string;
+  /** 배경 영상 실제 길이(초) — 장면이 더 길면 반복 재생 */
+  bgVideoDuration?: number;
+  /** 사람이 나올 수 있는 영상 — 화면 전체를 강하게 흐려 누구인지 알아볼 수 없게 */
+  bgBlur?: boolean;
   /** 비주얼 챕터 번호 (0부터 연속, scenes.ts 가 정규화). 미지정 시 세그먼트 = 장면 */
   sceneIndex?: number;
   /** 장면 안에서 몇 번째 컷인지 (0부터) — 같은 사진의 크롭·줌 변주에 사용 */
