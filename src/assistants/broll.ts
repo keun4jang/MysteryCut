@@ -116,6 +116,14 @@ export function videoSlugText(url = ""): string {
 }
 
 /**
+ * 영상 전용 추가 인물 신호(11/27 드라이런: "businesspeople looking at documents", "busy tokyo street" 가
+ * 흐림 없이 나가 행인·손이 보임). 사진용 PERSON_RE 에 없는 인물 낱말 + 사람이 지나다니기 쉬운 장소.
+ * 걸리면 버리지 않고 전체 흐림으로만 쓴다.
+ */
+export const VIDEO_PEOPLE_RE =
+  /(\w*people|\w*persons?|pedestrians?|tourists?|commuters?|passengers?|shoppers?|customers?|someone|somebody|humans?|hands?|fingers?|silhouettes?|busy|crowded|street|streets|downtown|crosswalk|sidewalk|market|mall|store|shop|shops|office|classroom|restaurant|cafe|subway|festival|parade|protest\w*|walking|running|dancing|talking|holding|looking|sitting|standing|working|writing|reading)/i;
+
+/**
  * 영상 설명 → 사용 여부.
  *  - "exclude": 아동, 시대와 안 맞는 물건, 글자·국기·로고
  *  - "blur":    사람이 나오거나(설명에 인물 낱말) 설명이 없어 알 수 없음 → 전체 흐림으로만 사용
@@ -123,7 +131,7 @@ export function videoSlugText(url = ""): string {
  */
 export function classifyVideoText(text: string): "exclude" | "blur" | "ok" {
   if (CHILD_RE.test(text) || MODERN_RE.test(text) || MARKED_RE.test(text)) return "exclude";
-  if (!text.trim() || PERSON_RE.test(text)) return "blur";
+  if (!text.trim() || PERSON_RE.test(text) || VIDEO_PEOPLE_RE.test(text)) return "blur";
   return "ok";
 }
 
