@@ -121,7 +121,7 @@ export function videoSlugText(url = ""): string {
  * 걸리면 버리지 않고 전체 흐림으로만 쓴다.
  */
 export const VIDEO_PEOPLE_RE =
-  /(\w*people|\w*persons?|pedestrians?|tourists?|commuters?|passengers?|shoppers?|customers?|someone|somebody|humans?|hands?|fingers?|silhouettes?|busy|crowded|street|streets|downtown|crosswalk|sidewalk|market|mall|store|shop|shops|office|classroom|restaurant|cafe|subway|festival|parade|protest\w*|walking|running|dancing|talking|holding|looking|sitting|standing|working|writing|reading)/i;
+  /\b(\w*people|\w*persons?|pedestrians?|tourists?|commuters?|passengers?|shoppers?|customers?|someone|somebody|humans?|hands?|fingers?|silhouettes?|busy|crowded|street|streets|downtown|crosswalk|sidewalk|market|mall|store|shop|shops|office|classroom|restaurant|cafe|subway|festival|parade|protest\w*|walking|running|dancing|talking|holding|looking|sitting|standing|working|writing|reading)\b/i;
 
 /**
  * 영상 설명 → 사용 여부.
