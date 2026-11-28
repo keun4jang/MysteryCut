@@ -4347,6 +4347,95 @@
       "sourceUrl": "https://en.wikipedia.org/wiki/Oseola_McCarty",
       "visual": "animal",
       "titleTest": "control"
+    },
+    {
+      "caseKey": "bryce-laspisa-2013",
+      "title": "2013년 캘리포니아 고속도로변, 차 안에 20시간 멈춰있던 청년은 어디로 사라졌나｜미제사건 기록",
+      "premise": "대학생 브라이스 라스피사는 집으로 돌아가던 중 캘리포니아 고속도로변에서 차 안에 20시간 동안 멈춰있다가 견인차 기사에게 발견되었으나, 이후 경찰과 부모가 지켜보는 사이 홀연히 흔적도 없이 사라졌다. 평소와 전혀 다른 기이한 행동을 보인 뒤 차량 잔해 속에서 지갑과 휴대전화가 고스란히 남겨진 채 증발해버린 풀리지 않는 성인 실종 사건이다.",
+      "at": "2026-11-28",
+      "hashtags": [
+        "Bryce Laspisa",
+        "브라이스라스피사",
+        "미제사건",
+        "미국실종",
+        "캘리포니아",
+        "Castaic",
+        "Buttonwillow",
+        "고속도로실종",
+        "미스터리",
+        "사건기록"
+      ],
+      "format": "longform",
+      "videoId": "21oKZ51Mm7c",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Disappearance_of_Bryce_Laspisa",
+      "mode": "compilation",
+      "theme": "vanished-people"
+    },
+    {
+      "caseKey": "ben-mcdaniels-disappearance-2010",
+      "title": "2010년 플로리다 해변 동굴에서 사라진 남성, 장비만 남은 이유는｜미제사건 기록",
+      "premise": "2010년 플로리다주의 한 해변가 동굴에서 다이빙을 하던 남성이 장비만 남겨둔 채 흔적도 없이 사라졌다. 복잡한 수중 동굴 구조 속에서 대규모 수색에도 불구하고 시신이나 흔적을 전혀 찾지 못해 자발적 잠적설과 사고사 설이 대립하고 있다.",
+      "at": "2026-11-28",
+      "hashtags": [
+        "Ben McDaniel",
+        "Vortex Spring",
+        "벤 맥다니엘",
+        "볼텍스 스프링",
+        "수중동굴실종",
+        "미제사건",
+        "플로리다실종",
+        "동굴다이빙사고"
+      ],
+      "format": "longform",
+      "videoId": "21oKZ51Mm7c",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Disappearance_of_Ben_McDaniel",
+      "mode": "compilation",
+      "theme": "vanished-people"
+    },
+    {
+      "caseKey": "disappearance-of-claudia-lawrence-2009",
+      "title": "2009년 출근길에 사라진 요리사, 영국 경찰 역사상 가장 미스터리한 실종｜미제사건 기록",
+      "premise": "영국의 한 대학교 요리사가 출근길에 흔적도 없이 사라진 후, 10년이 넘도록 단 하나의 결정적 증거도 발견되지 않아 영국 경찰 역사상 가장 미스터리한 실종 사건 중 하나로 남아 있습니다.",
+      "at": "2026-11-28",
+      "hashtags": [
+        "Claudia Lawrence",
+        "클라우디아 로렌스",
+        "실종 사건",
+        "영국 미제사건",
+        "Goodricke College",
+        "North Yorkshire Police",
+        "미스터리",
+        "실종자 수색",
+        "사건 분석"
+      ],
+      "format": "longform",
+      "videoId": "21oKZ51Mm7c",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Disappearance_of_Claudia_Lawrence",
+      "mode": "compilation",
+      "theme": "vanished-people"
+    },
+    {
+      "caseKey": "disappearance-of-jennifer-kesse-2006",
+      "title": "2006년 출근길 사라진 여성의 차 내부에서 발견된 소지품｜미제사건 기록",
+      "premise": "2006년 미국 플로리다주에서 출근길에 차와 함께 감쪽같이 사라진 24세 여성의 사건입니다. 그녀가 사라진 지 이틀 뒤 아파트 인근에 버려진 차량 내부에서 가방과 소지품이 그대로 발견되었고, 인근 CCTV에는 신원이 확인되지 않은 인물이 차를 주차한 뒤 걸어가는 모습이 포착되어 미스터리를 더했습니다.",
+      "at": "2026-11-28",
+      "hashtags": [
+        "Jennifer Kesse",
+        "제니퍼 케세",
+        "미제사건",
+        "실종",
+        "CCTV",
+        "플로리다",
+        "미스터리",
+        "수사기록",
+        "FDLE",
+        "FBI"
+      ],
+      "format": "longform",
+      "videoId": "21oKZ51Mm7c",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Disappearance_of_Jennifer_Kesse",
+      "mode": "compilation",
+      "theme": "vanished-people"
     }
   ]
 }
