@@ -4436,6 +4436,28 @@
       "sourceUrl": "https://en.wikipedia.org/wiki/Disappearance_of_Jennifer_Kesse",
       "mode": "compilation",
       "theme": "vanished-people"
+    },
+    {
+      "caseKey": "nanjeon-diary-17th-century",
+      "title": "7년의 기록에서 감춰진 난중일기의 비밀",
+      "premise": "임진왜란 당시 이순신이 직접 남긴 국보 난중일기는 전쟁의 참혹함과 전략을 상세히 담고 있지만, 수백 년이 지난 지금도 완벽하게 해독되지 않은 미스터리를 품고 있어요.",
+      "at": "2026-11-28",
+      "hashtags": [
+        "역사속미스터리",
+        "난중일기",
+        "이순신",
+        "임진왜란",
+        "한국사",
+        "미해결기록",
+        "역사기록",
+        "조선왕조"
+      ],
+      "angle": "'풀리지 않은 물건·기록'",
+      "format": "short",
+      "videoId": "Ouxrbrx1Ta8",
+      "sourceUrl": "https://ko.wikipedia.org/wiki/%EB%82%9C%EC%A4%91%EC%9D%BC%EA%B8%B0",
+      "visual": "animal",
+      "titleTest": "control"
     }
   ]
 }
